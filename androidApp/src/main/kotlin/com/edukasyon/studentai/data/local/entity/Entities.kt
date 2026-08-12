@@ -178,6 +178,8 @@ data class FlashcardEntity(
     val incorrectCount: Int,
     val lastReviewedAt: Long?,
     val nextReviewAt: Long?,
+    val easeFactor: Double = 2.5,
+    val intervalDays: Int = 1,
     val createdAt: Long,
     val updatedAt: Long,
     val deletedAt: Long?,
@@ -348,4 +350,14 @@ data class MessageEntity(
     val sentAt: Long,
     val isRead: Boolean,
     val syncState: String
+)
+
+@Entity(tableName = "ph_holidays_cache")
+data class CachedHolidayEntity(
+    @PrimaryKey val date: String,
+    val name: String,
+    val localName: String,
+    val type: String,
+    val year: Int,
+    val fetchedAt: Long
 )

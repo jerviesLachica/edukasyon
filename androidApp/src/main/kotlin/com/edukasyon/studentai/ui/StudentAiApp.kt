@@ -17,6 +17,7 @@ import androidx.navigation.compose.*
 import com.edukasyon.studentai.BuildConfig
 import com.edukasyon.studentai.di.FirebaseEntryPoint
 import com.edukasyon.studentai.ui.adaptive.AdaptiveScaffold
+import com.edukasyon.studentai.ui.components.LoadingScreen
 import com.edukasyon.studentai.ui.navigation.MainTab
 import com.edukasyon.studentai.ui.navigation.Routes
 import com.edukasyon.studentai.ui.screens.*
@@ -28,27 +29,34 @@ import kotlinx.coroutines.launch
 private const val TAG = "StudentAiApp"
 
 @Composable
-fun StudentAiAppContent() {
+fun StudentAiAppContent(initialTabRoute: String? = null) {
     val viewModel: MainViewModel = hiltViewModel()
+    val preferencesReady by viewModel.preferencesReady.collectAsStateWithLifecycle()
     val onboardingComplete by viewModel.onboardingComplete.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val primaryColorHex by viewModel.primaryColorHex.collectAsStateWithLifecycle()
+    val secondaryColorHex by viewModel.secondaryColorHex.collectAsStateWithLifecycle()
 
-    LaunchedEffect(onboardingComplete, themeMode) {
+    LaunchedEffect(onboardingComplete, themeMode, primaryColorHex, secondaryColorHex) {
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "Root state: onboardingComplete=$onboardingComplete themeMode=$themeMode")
+            Log.d(TAG, "Root state: onboardingComplete=$onboardingComplete themeMode=$themeMode primary=$primaryColorHex")
         }
     }
 
-    StudentAiTheme(themeMode = themeMode) {
+    StudentAiTheme(
+        themeMode = themeMode,
+        primaryColorHex = primaryColorHex,
+        secondaryColorHex = secondaryColorHex
+    ) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground
         ) {
-            if (onboardingComplete) {
-                MainNavigation()
-            } else {
-                LightweightOnboarding(onFinished = viewModel::markOnboardingFinished)
+            when {
+                !preferencesReady -> LoadingScreen(title = "StudentAI")
+                onboardingComplete -> MainNavigation(initialTabRoute = initialTabRoute)
+                else -> LightweightOnboarding(onFinished = viewModel::markOnboardingFinished)
             }
         }
     }
@@ -143,11 +151,22 @@ private fun LightweightOnboarding(onFinished: () -> Unit) {
 }
 
 @Composable
-fun MainNavigation() {
+fun MainNavigation(initialTabRoute: String? = null) {
     val navController = rememberNavController()
     val tabs = MainTab.entries
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    LaunchedEffect(initialTabRoute) {
+        val route = initialTabRoute ?: return@LaunchedEffect
+        if (MainTab.entries.any { it.route == route }) {
+            navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
 
     AdaptiveScaffold(
         currentRoute = currentRoute,
@@ -169,22 +188,66 @@ fun MainNavigation() {
                 HomeScreen(
                     onAddTask = { navController.navigate(MainTab.PLANNER.route) },
                     onAddClass = { navController.navigate(MainTab.SCHEDULE.route) },
-                    onAddNote = { navController.navigate("notes") },
+                    onAddNote = { navController.navigate(Routes.NOTES) },
                     onAskAi = { navController.navigate(MainTab.AI.route) }
                 )
             }
-            composable(MainTab.SCHEDULE.route) { ScheduleScreen() }
+            composable(MainTab.SCHEDULE.route) {
+                ScheduleScreen(onOpenScanner = { navController.navigate(Routes.SCHEDULE_SCANNER) })
+            }
             composable(MainTab.PLANNER.route) {
                 PlannerScreen(
                     onNavigateGrades = { navController.navigate(Routes.GRADES) },
                     onNavigateCalendar = { navController.navigate(Routes.CALENDAR) }
                 )
             }
-            composable(MainTab.AI.route) { AiScreen() }
-            composable(MainTab.PROFILE.route) { ProfileScreen() }
-            composable("notes") { NotesScreen() }
+            composable(MainTab.AI.route) {
+                AiScreen(
+                    onOpenScanner = { navController.navigate(Routes.SCHEDULE_SCANNER) },
+                    onOpenFlashcardStudy = { navController.navigate(Routes.FLASHCARD_STUDY) }
+                )
+            }
+            composable(MainTab.PROFILE.route) {
+                ProfileScreen(
+                    onNavigateChat = { navController.navigate(Routes.CHAT_LIST) },
+                    onNavigateFeaturesGuide = { navController.navigate(Routes.FEATURES_GUIDE) },
+                    onRequestNotificationPermission = { /* handled in ProfileScreen */ }
+                )
+            }
+            composable(Routes.NOTES) { NotesScreen() }
+            composable(Routes.FEATURES_GUIDE) {
+                FeaturesGuideScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToTab = { tab ->
+                        navController.navigate(tab.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onNavigateToRoute = { route -> navController.navigate(route) }
+                )
+            }
             composable(Routes.GRADES) { GradesScreen() }
             composable(Routes.CALENDAR) { CalendarScreen() }
+            composable(Routes.SCHEDULE_SCANNER) {
+                ScheduleScannerScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.CHAT_LIST) {
+                ChatListScreen(
+                    onOpenChat = { id -> navController.navigate(Routes.chatThread(id)) },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(Routes.CHAT_THREAD) { entry ->
+                val id = entry.arguments?.getString("conversationId") ?: return@composable
+                ChatThreadScreen(conversationId = id, onBack = { navController.popBackStack() })
+            }
+            composable(Routes.FLASHCARD_STUDY) {
+                FlashcardStudyScreen(onBack = { navController.popBackStack() })
+            }
         }
     }
 }

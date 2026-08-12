@@ -1,5 +1,6 @@
 package com.edukasyon.studentai.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -56,7 +57,7 @@ fun PlannerScreen(
         }
         Box(Modifier.weight(1f)) {
             when (state.selectedTab) {
-                0 -> TaskList(state.tasks, onComplete = viewModel::completeTask, onDelete = viewModel::deleteTask)
+                0 -> TaskList(state.tasks, onComplete = viewModel::completeTask, onDelete = viewModel::deleteTask, viewModel = viewModel)
                 1 -> AssignmentList(state.assignments)
                 2 -> ExamList(state.exams)
             }
@@ -76,22 +77,59 @@ fun PlannerScreen(
 }
 
 @Composable
-private fun TaskList(tasks: List<Task>, onComplete: (String) -> Unit, onDelete: (String) -> Unit) {
+private fun TaskList(
+    tasks: List<Task>,
+    onComplete: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    viewModel: PlannerViewModel
+) {
     if (tasks.isEmpty()) EmptyState("No tasks", "You're all caught up.")
     else LazyColumn(contentPadding = PaddingValues(8.dp)) {
         items(tasks) { task ->
-            StudentAiCard {
+            var expanded by remember(task.id) { mutableStateOf(false) }
+            var newSubtask by remember(task.id) { mutableStateOf("") }
+            StudentAiCard(modifier = Modifier.clickable { expanded = !expanded }) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(Modifier.weight(1f)) {
                         Text(task.title, style = MaterialTheme.typography.titleSmall)
                         Text(task.status.label, style = MaterialTheme.typography.labelSmall)
                         task.dueDate?.let { Text(DateUtils.formatCountdown(it)) }
+                        if (task.subtasks.isNotEmpty()) {
+                            Text("${task.subtasks.count { it.isCompleted }}/${task.subtasks.size} subtasks",
+                                style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                     Row {
                         if (task.status != TaskStatus.COMPLETED) {
                             IconButton(onClick = { onComplete(task.id) }) { Icon(Icons.Default.Check, "Complete") }
                         }
                         IconButton(onClick = { onDelete(task.id) }) { Icon(Icons.Default.Delete, "Delete") }
+                    }
+                }
+                if (expanded) {
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                    task.subtasks.forEach { sub ->
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Checkbox(checked = sub.isCompleted, onCheckedChange = { viewModel.toggleSubtask(task.id, sub.id) })
+                            Text(sub.title, Modifier.weight(1f))
+                            IconButton(onClick = { viewModel.deleteSubtask(task.id, sub.id) }) {
+                                Icon(Icons.Default.Delete, "Remove subtask", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            newSubtask, { newSubtask = it },
+                            Modifier.weight(1f),
+                            placeholder = { Text("New subtask") },
+                            singleLine = true
+                        )
+                        IconButton(onClick = {
+                            if (newSubtask.isNotBlank()) {
+                                viewModel.addSubtask(task.id, newSubtask)
+                                newSubtask = ""
+                            }
+                        }) { Icon(Icons.Default.Add, "Add subtask") }
                     }
                 }
             }

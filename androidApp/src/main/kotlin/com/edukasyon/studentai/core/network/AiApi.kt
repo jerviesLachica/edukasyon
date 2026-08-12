@@ -64,7 +64,7 @@ fun QuizResponseDto.toDomain(): Quiz {
         questions = questions.map {
             QuizQuestion(
                 java.util.UUID.randomUUID().toString(), quizId,
-                QuestionType.valueOf(it.type), it.question, it.options, it.correctAnswer
+                AiJsonParser.normalizeQuestionType(it.type), it.question, it.options, it.correctAnswer
             )
         },
         createdAt = System.currentTimeMillis()
@@ -88,12 +88,44 @@ fun StudyPlanResponseDto.toDomain(): StudyPlan {
 
 object AiJsonParser {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val fenceRegex = Regex("```(?:json)?\\s*([\\s\\S]*?)```", RegexOption.IGNORE_CASE)
+
+    fun stripMarkdownFences(raw: String): String {
+        val trimmed = raw.trim()
+        val match = fenceRegex.find(trimmed)
+        return (match?.groupValues?.getOrNull(1) ?: trimmed).trim()
+    }
+
+    fun normalizeQuestionType(type: String): QuestionType {
+        val normalized = type.trim()
+            .uppercase()
+            .replace('-', '_')
+            .replace(' ', '_')
+        return when {
+            normalized.contains("TRUE") || normalized.contains("FALSE") -> QuestionType.TRUE_FALSE
+            normalized.contains("SHORT") -> QuestionType.SHORT_ANSWER
+            normalized.contains("MULTIPLE") || normalized.contains("CHOICE") -> QuestionType.MULTIPLE_CHOICE
+            else -> runCatching { QuestionType.valueOf(normalized) }
+                .getOrDefault(QuestionType.MULTIPLE_CHOICE)
+        }
+    }
 
     fun parseScheduleAnalysis(raw: String): ScheduleAnalysisResponseDto? = try {
-        json.decodeFromString<ScheduleAnalysisResponseDto>(raw)
+        json.decodeFromString<ScheduleAnalysisResponseDto>(stripMarkdownFences(raw))
     } catch (_: Exception) { null }
 
     fun parseFlashcards(raw: String): List<FlashcardDto>? = try {
-        json.decodeFromString<FlashcardsResponseDto>(raw).cards
-    } catch (_: Exception) { null }
+        val cleaned = stripMarkdownFences(raw)
+        json.decodeFromString<FlashcardsResponseDto>(cleaned).cards.takeIf { it.isNotEmpty() }
+            ?: json.decodeFromString<List<FlashcardDto>>(cleaned)
+    } catch (_: Exception) {
+        null
+    }
+
+    fun parseQuiz(raw: String): QuizResponseDto? = try {
+        val cleaned = stripMarkdownFences(raw)
+        json.decodeFromString<QuizResponseDto>(cleaned)
+    } catch (_: Exception) {
+        null
+    }
 }

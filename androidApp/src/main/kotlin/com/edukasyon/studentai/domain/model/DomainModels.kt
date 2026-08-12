@@ -113,7 +113,9 @@ data class Flashcard(
     val correctCount: Int,
     val incorrectCount: Int,
     val lastReviewedAt: Long?,
-    val nextReviewAt: Long?
+    val nextReviewAt: Long?,
+    val easeFactor: Double = 2.5,
+    val intervalDays: Int = 1
 )
 
 data class Quiz(

@@ -96,4 +96,20 @@ object DateUtils {
             else -> "in $days days"
         }
     }
+
+    fun formatTime12h(time: String): String {
+        val parts = time.split(":")
+        val hour = parts.getOrNull(0)?.toIntOrNull() ?: return time
+        val minute = parts.getOrElse(1) { "00" }.padStart(2, '0')
+        val amPm = if (hour < 12) "AM" else "PM"
+        val displayHour = when {
+            hour == 0 -> 12
+            hour > 12 -> hour - 12
+            else -> hour
+        }
+        return "$displayHour:$minute $amPm"
+    }
+
+    fun formatTimeRange(startTime: String, endTime: String): String =
+        "${formatTime12h(startTime)} - ${formatTime12h(endTime)}"
 }

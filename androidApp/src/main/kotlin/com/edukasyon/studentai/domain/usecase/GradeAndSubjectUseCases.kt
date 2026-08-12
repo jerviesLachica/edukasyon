@@ -12,6 +12,7 @@ import com.edukasyon.studentai.core.ai.StudyPlanContext
 import com.edukasyon.studentai.domain.model.Subject
 import com.edukasyon.studentai.domain.repository.CalendarRepository
 import com.edukasyon.studentai.domain.repository.FlashcardRepository
+import com.edukasyon.studentai.domain.repository.QuizRepository
 import com.edukasyon.studentai.domain.repository.GradeRepository
 import com.edukasyon.studentai.domain.repository.SubjectRepository
 import com.edukasyon.studentai.domain.repository.SearchRepository
@@ -75,6 +76,18 @@ class SaveFlashcardsUseCase @Inject constructor(
     private val flashcardRepository: FlashcardRepository
 ) : UseCase<List<Flashcard>, Unit> {
     override suspend fun execute(params: List<Flashcard>): Unit = flashcardRepository.saveFlashcards(params)
+}
+
+class SaveQuizUseCase @Inject constructor(
+    private val quizRepository: QuizRepository
+) : UseCase<Quiz, Unit> {
+    override suspend fun execute(params: Quiz): Unit = quizRepository.saveQuiz(params)
+}
+
+class UpdateFlashcardUseCase @Inject constructor(
+    private val flashcardRepository: FlashcardRepository
+) : UseCase<Flashcard, Unit> {
+    override suspend fun execute(params: Flashcard): Unit = flashcardRepository.updateFlashcard(params)
 }
 
 class AiChatUseCase @Inject constructor(

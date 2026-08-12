@@ -2,6 +2,7 @@ package com.edukasyon.studentai.data.mapper
 
 import com.edukasyon.studentai.data.local.entity.*
 import com.edukasyon.studentai.domain.model.*
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 private val json = Json { ignoreUnknownKeys = true }
@@ -99,7 +100,8 @@ fun FlashcardEntity.toDomain() = Flashcard(
     id = id, question = question, answer = answer, subjectId = subjectId,
     topic = topic, difficulty = difficulty, reviewCount = reviewCount,
     correctCount = correctCount, incorrectCount = incorrectCount,
-    lastReviewedAt = lastReviewedAt, nextReviewAt = nextReviewAt
+    lastReviewedAt = lastReviewedAt, nextReviewAt = nextReviewAt,
+    easeFactor = easeFactor, intervalDays = intervalDays
 )
 
 fun GradeEntryEntity.toDomain() = GradeEntry(
@@ -128,4 +130,14 @@ fun QuizQuestionEntity.toDomain() = QuizQuestion(
     id = id, quizId = quizId, type = QuestionType.valueOf(type),
     question = question, options = json.decodeFromString<List<String>>(optionsJson),
     correctAnswer = correctAnswer
+)
+
+fun Quiz.toEntity(now: Long = System.currentTimeMillis()) = QuizEntity(
+    id = id, title = title, subjectId = subjectId, sourceNoteId = sourceNoteId,
+    createdAt = createdAt, updatedAt = now, deletedAt = null, syncState = SyncState.LOCAL_ONLY.name
+)
+
+fun QuizQuestion.toEntity() = QuizQuestionEntity(
+    id = id, quizId = quizId, type = type.name, question = question,
+    optionsJson = json.encodeToString(options), correctAnswer = correctAnswer
 )

@@ -38,4 +38,9 @@ class ConnectivityMonitor @Inject constructor(
         val caps = cm.getNetworkCapabilities(network) ?: return false
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
+
+    fun isCurrentlyOnline(): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        return isCurrentlyOnline(cm)
+    }
 }

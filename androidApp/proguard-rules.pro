@@ -20,9 +20,26 @@
 -dontwarn okhttp3.**
 -dontwarn okio.**
 
-# Gson / Kotlinx Serialization
--keepattributes *Annotation*, InnerClasses
--dontnote kotlinx.serialization.SerializationKt
+# Kotlinx Serialization (Retrofit DTOs)
+-keepattributes *Annotation*, InnerClasses, EnclosingMethod
+-keepclassmembers class com.edukasyon.studentai.core.network.** {
+    <fields>;
+}
+-keepclassmembers class com.edukasyon.studentai.core.backup.** {
+    <fields>;
+}
+-keep @kotlinx.serialization.Serializable class * { *; }
+-keepclassmembers class * {
+    @kotlinx.serialization.SerialName <fields>;
+}
+-if class *
+-keepclassmembers class <1> {
+    static ** Companion;
+}
+-if class **$Companion
+-keepclassmembers class <2> {
+    kotlinx.serialization.KSerializer serializer(...);
+}
 
 # Room
 -keep class * extends androidx.room.RoomDatabase

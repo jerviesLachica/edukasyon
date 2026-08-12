@@ -19,3 +19,5 @@ captures
 node_modules/
 .env
 backend/.env
+androidApp/keystore.properties
+androidApp/keystore/*.jks

@@ -36,10 +36,75 @@ import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(viewModel: ProfileViewModel = hiltViewModel()) {
+fun ProfileScreen(
+    onNavigateChat: () -> Unit = {},
+    onNavigateFeaturesGuide: () -> Unit = {},
+    onRequestNotificationPermission: () -> Unit = {},
+    viewModel: ProfileViewModel = hiltViewModel()
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val adaptiveWidth = rememberAdaptiveWidth()
     val horizontalPadding = if (adaptiveWidth == AdaptiveWidth.Compact) 16.dp else 32.dp
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var showImportConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
+
+    val exportJsonLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> uri?.let { viewModel.exportJson(it) } }
+
+    val exportScheduleLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri -> uri?.let { viewModel.exportScheduleCsv(it) } }
+
+    val exportGradesLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri -> uri?.let { viewModel.exportGradesCsv(it) } }
+
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { showImportConfirm = it } }
+
+    val notificationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) viewModel.setNotifications(true)
+    }
+
+    LaunchedEffect(state.notificationsEnabled) {
+        if (state.notificationsEnabled && android.os.Build.VERSION.SDK_INT >= 33) {
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    state.backupMessage?.let { msg ->
+        LaunchedEffect(msg) {
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.clearBackupMessage()
+        }
+    }
+
+    if (showImportConfirm != null) {
+        AlertDialog(
+            onDismissRequest = { showImportConfirm = null },
+            title = { Text("Import backup") },
+            text = { Text("Merge imported data with existing records?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showImportConfirm?.let { viewModel.importJson(it, replace = false) }
+                    showImportConfirm = null
+                }) { Text("Merge") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        showImportConfirm?.let { viewModel.importJson(it, replace = true) }
+                        showImportConfirm = null
+                    }) { Text("Replace") }
+                    TextButton(onClick = { showImportConfirm = null }) { Text("Cancel") }
+                }
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -65,6 +130,20 @@ fun ProfileScreen(viewModel: ProfileViewModel = hiltViewModel()) {
         }
 
         item {
+            SettingsGroup(title = "Help") {
+                SettingsRow(
+                    title = "Features Guide",
+                    subtitle = "Explore all app features and where to find them",
+                    trailing = {
+                        TextButton(onClick = onNavigateFeaturesGuide) {
+                            Text("Open")
+                        }
+                    }
+                )
+            }
+        }
+
+        item {
             SettingsGroup(title = "Appearance") {
                 Text("Theme", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
@@ -80,6 +159,15 @@ fun ProfileScreen(viewModel: ProfileViewModel = hiltViewModel()) {
                         )
                     }
                 }
+                Spacer(Modifier.height(16.dp))
+                ThemeColorPicker(
+                    primaryColorHex = state.primaryColorHex,
+                    secondaryColorHex = state.secondaryColorHex,
+                    themeMode = state.themeMode,
+                    onPrimaryColorSelected = viewModel::setPrimaryColor,
+                    onSecondaryColorSelected = viewModel::setSecondaryColor,
+                    onResetColors = viewModel::resetThemeColors
+                )
             }
         }
 
@@ -87,14 +175,63 @@ fun ProfileScreen(viewModel: ProfileViewModel = hiltViewModel()) {
             SettingsGroup(title = "Notifications") {
                 SettingsRow(
                     title = "Enable notifications",
-                    subtitle = "Reminders for tasks and exams",
+                    subtitle = "Master toggle for all reminders",
                     trailing = {
                         Switch(
                             checked = state.notificationsEnabled,
-                            onCheckedChange = viewModel::setNotifications
+                            onCheckedChange = {
+                                viewModel.setNotifications(it)
+                                if (it && android.os.Build.VERSION.SDK_INT >= 33) {
+                                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            }
                         )
                     }
                 )
+                SettingsRow(
+                    title = "Class reminders",
+                    trailing = { Switch(checked = state.classReminders, onCheckedChange = viewModel::setClassReminders) }
+                )
+                SettingsRow(
+                    title = "Task reminders",
+                    trailing = { Switch(checked = state.taskReminders, onCheckedChange = viewModel::setTaskReminders) }
+                )
+                SettingsRow(
+                    title = "Exam reminders",
+                    trailing = { Switch(checked = state.examReminders, onCheckedChange = viewModel::setExamReminders) }
+                )
+            }
+        }
+
+        item {
+            SettingsGroup(title = "Home Screen Widget") {
+                WidgetSetupCard(modifier = Modifier.padding(0.dp))
+            }
+        }
+
+        item {
+            SettingsGroup(title = "Study Groups") {
+                SettingsRow(
+                    title = "Open chats",
+                    subtitle = "Collaborate with classmates",
+                    trailing = {
+                        TextButton(onClick = onNavigateChat) { Text("Open") }
+                    }
+                )
+            }
+        }
+
+        item {
+            SettingsGroup(title = "Data") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { exportJsonLauncher.launch("studentai_backup.json") }) { Text("Export JSON") }
+                    OutlinedButton(onClick = { exportScheduleLauncher.launch("schedule.csv") }) { Text("Schedule CSV") }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { exportGradesLauncher.launch("grades.csv") }) { Text("Grades CSV") }
+                    Button(onClick = { importLauncher.launch(arrayOf("application/json")) }) { Text("Import JSON") }
+                }
             }
         }
 
@@ -198,10 +335,48 @@ fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
 @Composable
 fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {
     val events by viewModel.events.collectAsStateWithLifecycle()
+    val holidays by viewModel.holidays.collectAsStateWithLifecycle()
+    val holidaysLoading by viewModel.holidaysLoading.collectAsStateWithLifecycle()
     val dateFormat = remember { java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()) }
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshHolidays()
+    }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item { Text("Calendar", style = MaterialTheme.typography.headlineSmall) }
+        if (holidaysLoading) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Text("Loading holidays…", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        } else if (holidays.isNotEmpty()) {
+            item { Text("Philippine Holidays", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary) }
+            items(holidays) { holiday ->
+                StudentAiCard {
+                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Column {
+                            Text(holiday.name, style = MaterialTheme.typography.titleSmall)
+                            Text(dateFormat.format(java.util.Date(holiday.dateMillis)))
+                        }
+                        Surface(
+                            color = if (holiday.type.name == "REGULAR") MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                holiday.type.label,
+                                Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        item { Text("Your Events", style = MaterialTheme.typography.titleSmall) }
         if (events.isEmpty()) {
             item { EmptyState("No events", "Add tasks, exams, or assignments to see them on your calendar.") }
         } else {

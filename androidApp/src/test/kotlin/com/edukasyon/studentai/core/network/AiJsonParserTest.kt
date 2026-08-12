@@ -1,5 +1,6 @@
 package com.edukasyon.studentai.core.network
 
+import com.edukasyon.studentai.domain.model.QuestionType
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -29,5 +30,36 @@ class AiJsonParserTest {
         val result = AiJsonParser.parseFlashcards(json)
         assertNotNull(result)
         assertEquals(2, result!!.size)
+    }
+
+    @Test
+    fun parseFlashcards_withMarkdownFences() {
+        val json = """
+            ```json
+            {"cards":[{"question":"Q1","answer":"A1"}]}
+            ```
+        """.trimIndent()
+        val result = AiJsonParser.parseFlashcards(json)
+        assertNotNull(result)
+        assertEquals(1, result!!.size)
+    }
+
+    @Test
+    fun parseQuiz_withMarkdownFences() {
+        val json = """
+            ```json
+            {"title":"Test Quiz","questions":[{"type":"MULTIPLE_CHOICE","question":"Q?","options":["A","B"],"correctAnswer":"A"}]}
+            ```
+        """.trimIndent()
+        val result = AiJsonParser.parseQuiz(json)
+        assertNotNull(result)
+        assertEquals("Test Quiz", result!!.title)
+        assertEquals(1, result.questions.size)
+    }
+
+    @Test
+    fun normalizeQuestionType_handlesVariations() {
+        assertEquals(QuestionType.TRUE_FALSE, AiJsonParser.normalizeQuestionType("true_false"))
+        assertEquals(QuestionType.MULTIPLE_CHOICE, AiJsonParser.normalizeQuestionType("multiple-choice"))
     }
 }

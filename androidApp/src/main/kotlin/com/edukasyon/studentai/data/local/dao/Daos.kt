@@ -47,6 +47,9 @@ interface ScheduleDao {
     @Query("SELECT * FROM schedule_items WHERE deletedAt IS NULL AND dayOfWeek = :day ORDER BY startTime")
     fun observeByDay(day: String): Flow<List<ScheduleItemEntity>>
 
+    @Query("SELECT * FROM schedule_items WHERE deletedAt IS NULL AND dayOfWeek = :day ORDER BY startTime")
+    suspend fun getByDay(day: String): List<ScheduleItemEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(item: ScheduleItemEntity)
 
@@ -65,6 +68,12 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE deletedAt IS NULL AND status != 'COMPLETED' AND status != 'ARCHIVED' ORDER BY dueDate ASC LIMIT :limit")
     fun observeUpcoming(limit: Int): Flow<List<TaskEntity>>
 
+    @Query("SELECT * FROM tasks WHERE deletedAt IS NULL AND status != 'COMPLETED' AND status != 'ARCHIVED' ORDER BY dueDate ASC LIMIT :limit")
+    suspend fun getUpcoming(limit: Int): List<TaskEntity>
+
+    @Query("SELECT * FROM tasks WHERE deletedAt IS NULL AND status != 'COMPLETED' AND status != 'ARCHIVED' AND dueDate >= :from AND dueDate <= :to")
+    suspend fun getDueInRange(from: Long, to: Long): List<TaskEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(task: TaskEntity)
 
@@ -82,6 +91,9 @@ interface SubtaskDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(subtask: SubtaskEntity)
+
+    @Query("DELETE FROM subtasks WHERE id = :id")
+    suspend fun deleteById(id: String)
 
     @Query("DELETE FROM subtasks WHERE taskId = :taskId")
     suspend fun deleteByTask(taskId: String)
@@ -152,6 +164,9 @@ interface FlashcardDao {
     @Query("SELECT * FROM flashcards WHERE deletedAt IS NULL ORDER BY nextReviewAt ASC")
     fun observeAll(): Flow<List<FlashcardEntity>>
 
+    @Query("SELECT * FROM flashcards WHERE deletedAt IS NULL AND (nextReviewAt IS NULL OR nextReviewAt <= :now) ORDER BY nextReviewAt ASC")
+    fun observeDue(now: Long): Flow<List<FlashcardEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(flashcard: FlashcardEntity)
 
@@ -212,6 +227,9 @@ interface CalendarEventDao {
     @Query("SELECT * FROM calendar_events WHERE deletedAt IS NULL AND startAt >= :from AND startAt <= :to ORDER BY startAt")
     fun observeInRange(from: Long, to: Long): Flow<List<CalendarEventEntity>>
 
+    @Query("SELECT * FROM calendar_events WHERE deletedAt IS NULL AND startAt >= :from AND startAt <= :to ORDER BY startAt")
+    suspend fun getInRange(from: Long, to: Long): List<CalendarEventEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(event: CalendarEventEntity)
 }
@@ -248,9 +266,30 @@ interface AiConversationDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(conversation: ConversationEntity)
 
+    @Query("UPDATE conversations SET updatedAt = :updatedAt WHERE id = :id")
+    suspend fun touchUpdatedAt(id: String, updatedAt: Long)
+
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY sentAt ASC")
     fun observeMessages(conversationId: String): Flow<List<MessageEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: MessageEntity)
+}
+
+@Dao
+interface CachedHolidayDao {
+    @Query("SELECT * FROM ph_holidays_cache WHERE date >= :fromDate AND date < :toDate ORDER BY date")
+    suspend fun getByDateRange(fromDate: String, toDate: String): List<CachedHolidayEntity>
+
+    @Query("SELECT * FROM ph_holidays_cache WHERE year = :year ORDER BY date")
+    suspend fun getByYear(year: Int): List<CachedHolidayEntity>
+
+    @Query("SELECT MAX(fetchedAt) FROM ph_holidays_cache WHERE year = :year")
+    suspend fun getLatestFetchedAtForYear(year: Int): Long?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(holidays: List<CachedHolidayEntity>)
+
+    @Query("DELETE FROM ph_holidays_cache WHERE year = :year")
+    suspend fun deleteByYear(year: Int)
 }

@@ -8,6 +8,7 @@ import com.edukasyon.studentai.domain.model.StudyPlan
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
+import retrofit2.HttpException
 
 @Singleton
 class RemoteAiService @Inject constructor(
@@ -71,6 +72,15 @@ class RemoteAiService @Inject constructor(
             block()
         } catch (e: IOException) {
             throw AiException("Internet connection required for this AI feature.", e)
+        } catch (e: HttpException) {
+            val detail = e.response()?.errorBody()?.string()?.take(120)
+            val message = when (e.code()) {
+                502 -> "AI provider is temporarily unavailable. Please try again."
+                503 -> "AI service is busy. Please try again in a moment."
+                else -> detail?.let { "AI request failed: $it" }
+                    ?: "AI service returned an error (${e.code()}). Please try again."
+            }
+            throw AiException(message, e)
         } catch (e: Exception) {
             throw AiException("AI service error. Your offline data is still available.", e)
         }

@@ -187,6 +187,10 @@ fun HomeScreen(
         }
 
         item {
+            WidgetSetupCard()
+        }
+
+        item {
             SectionHeader("QUICK ACTIONS")
             LazyVerticalGrid(
                 columns = GridCells.Fixed(gridColumns),

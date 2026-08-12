@@ -66,7 +66,13 @@ interface CalendarRepository {
 
 interface FlashcardRepository {
     fun observeFlashcards(): Flow<List<Flashcard>>
+    fun observeDueFlashcards(): Flow<List<Flashcard>>
     suspend fun saveFlashcards(cards: List<Flashcard>)
+    suspend fun updateFlashcard(card: Flashcard)
+}
+
+interface QuizRepository {
+    suspend fun saveQuiz(quiz: Quiz)
 }
 
 interface SearchRepository {

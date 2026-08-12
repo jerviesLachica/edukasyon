@@ -27,9 +27,10 @@ import com.edukasyon.studentai.data.local.entity.*
         NotificationEntity::class,
         SyncMetadataEntity::class,
         ConversationEntity::class,
-        MessageEntity::class
+        MessageEntity::class,
+        CachedHolidayEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class StudentAiDatabase : RoomDatabase() {
@@ -52,4 +53,5 @@ abstract class StudentAiDatabase : RoomDatabase() {
     abstract fun gradeEntryDao(): GradeEntryDao
     abstract fun syncMetadataDao(): SyncMetadataDao
     abstract fun aiConversationDao(): AiConversationDao
+    abstract fun cachedHolidayDao(): CachedHolidayDao
 }

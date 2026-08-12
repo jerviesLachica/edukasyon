@@ -1,6 +1,8 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -26,8 +28,22 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
-        // Cloud backend — update if your Render service URL differs after deploy
-        buildConfigField("String", "AI_BACKEND_URL", "\"https://studentai-backend.onrender.com/\"")
+        buildConfigField("String", "AI_BACKEND_URL", "\"https://studentai-backend-ha0z.onrender.com/\"")
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystorePropertiesFile = rootProject.file("androidApp/keystore.properties")
+            if (keystorePropertiesFile.exists()) {
+                val keystoreProperties = Properties().apply {
+                    load(keystorePropertiesFile.inputStream())
+                }
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String? ?: System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String? ?: System.getenv("KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -38,6 +54,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.findByName("release")?.takeIf {
+                rootProject.file("androidApp/keystore.properties").exists()
+            }
         }
         debug {
             isMinifyEnabled = false
@@ -101,6 +120,8 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.datastore)
     implementation(libs.androidx.work.runtime)
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
@@ -126,6 +147,8 @@ dependencies {
     testImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.espresso)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

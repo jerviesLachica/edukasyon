@@ -6,24 +6,31 @@ import com.edukasyon.studentai.BuildConfig
 import com.edukasyon.studentai.core.ai.AiService
 import com.edukasyon.studentai.core.ai.AiServiceProvider
 import com.edukasyon.studentai.core.network.AiApiService
+import com.edukasyon.studentai.core.network.HolidayApi
 import com.edukasyon.studentai.data.local.StudentAiDatabase
+import com.edukasyon.studentai.data.local.MIGRATION_1_2
+import com.edukasyon.studentai.data.local.MIGRATION_2_3
 import com.edukasyon.studentai.data.repository.AssignmentRepositoryImpl
+import com.edukasyon.studentai.data.repository.ChatRepositoryImpl
 import com.edukasyon.studentai.data.repository.CalendarRepositoryImpl
 import com.edukasyon.studentai.data.repository.ExamRepositoryImpl
 import com.edukasyon.studentai.data.repository.FlashcardRepositoryImpl
 import com.edukasyon.studentai.data.repository.GradeRepositoryImpl
 import com.edukasyon.studentai.data.repository.NoteRepositoryImpl
+import com.edukasyon.studentai.data.repository.QuizRepositoryImpl
 import com.edukasyon.studentai.data.repository.ScheduleRepositoryImpl
 import com.edukasyon.studentai.data.repository.SearchRepositoryImpl
 import com.edukasyon.studentai.data.repository.SubjectRepositoryImpl
 import com.edukasyon.studentai.data.repository.TaskRepositoryImpl
 import com.edukasyon.studentai.data.repository.UserRepositoryImpl
 import com.edukasyon.studentai.domain.repository.AssignmentRepository
+import com.edukasyon.studentai.domain.repository.ChatRepository
 import com.edukasyon.studentai.domain.repository.CalendarRepository
 import com.edukasyon.studentai.domain.repository.ExamRepository
 import com.edukasyon.studentai.domain.repository.FlashcardRepository
 import com.edukasyon.studentai.domain.repository.GradeRepository
 import com.edukasyon.studentai.domain.repository.NoteRepository
+import com.edukasyon.studentai.domain.repository.QuizRepository
 import com.edukasyon.studentai.domain.repository.ScheduleRepository
 import com.edukasyon.studentai.domain.repository.SearchRepository
 import com.edukasyon.studentai.domain.repository.SubjectRepository
@@ -50,7 +57,9 @@ import javax.inject.Singleton
 object DatabaseModule {
     @Provides @Singleton
     fun provideDatabase(@ApplicationContext context: Context): StudentAiDatabase =
-        Room.databaseBuilder(context, StudentAiDatabase::class.java, "studentai.db").build()
+        Room.databaseBuilder(context, StudentAiDatabase::class.java, "studentai.db")
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .build()
 
     @Provides fun provideUserDao(db: StudentAiDatabase) = db.userDao()
     @Provides fun provideSubjectDao(db: StudentAiDatabase) = db.subjectDao()
@@ -71,6 +80,7 @@ object DatabaseModule {
     @Provides fun provideGradeEntryDao(db: StudentAiDatabase) = db.gradeEntryDao()
     @Provides fun provideSyncMetadataDao(db: StudentAiDatabase) = db.syncMetadataDao()
     @Provides fun provideAiConversationDao(db: StudentAiDatabase) = db.aiConversationDao()
+    @Provides fun provideCachedHolidayDao(db: StudentAiDatabase) = db.cachedHolidayDao()
 }
 
 @Module
@@ -101,6 +111,17 @@ object NetworkModule {
 
     @Provides @Singleton
     fun provideAiApi(retrofit: Retrofit): AiApiService = retrofit.create(AiApiService::class.java)
+
+    @Provides @Singleton
+    fun provideHolidayApi(client: OkHttpClient, json: Json): HolidayApi {
+        val contentType = "application/json".toMediaType()
+        return Retrofit.Builder()
+            .baseUrl("https://date.nager.at/")
+            .client(client)
+            .addConverterFactory(json.asConverterFactory(contentType))
+            .build()
+            .create(HolidayApi::class.java)
+    }
 }
 
 @Module
@@ -116,6 +137,8 @@ abstract class RepositoryModule {
     @Binds @Singleton abstract fun bindSubjectRepo(impl: SubjectRepositoryImpl): SubjectRepository
     @Binds @Singleton abstract fun bindCalendarRepo(impl: CalendarRepositoryImpl): CalendarRepository
     @Binds @Singleton abstract fun bindFlashcardRepo(impl: FlashcardRepositoryImpl): FlashcardRepository
+    @Binds @Singleton abstract fun bindQuizRepo(impl: QuizRepositoryImpl): QuizRepository
+    @Binds @Singleton abstract fun bindChatRepo(impl: ChatRepositoryImpl): ChatRepository
     @Binds @Singleton abstract fun bindSearchRepo(impl: SearchRepositoryImpl): SearchRepository
 }
 
@@ -267,6 +290,14 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideSaveFlashcardsUseCase(repo: FlashcardRepository) =
         SaveFlashcardsUseCase(repo)
+
+    @Provides @Singleton
+    fun provideUpdateFlashcardUseCase(repo: FlashcardRepository) =
+        UpdateFlashcardUseCase(repo)
+
+    @Provides @Singleton
+    fun provideSaveQuizUseCase(repo: QuizRepository) =
+        SaveQuizUseCase(repo)
 
     @Provides @Singleton
     fun provideAiChatUseCase(ai: AiService) =

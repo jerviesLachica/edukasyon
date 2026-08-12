@@ -7,8 +7,11 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.edukasyon.studentai.core.network.AiApiService
 import com.edukasyon.studentai.core.sync.SyncScheduler
+import com.edukasyon.studentai.core.sync.HolidaySyncScheduler
 import com.edukasyon.studentai.data.local.StudentAiDatabase
 import com.edukasyon.studentai.data.preferences.UserPreferences
+import com.edukasyon.studentai.data.repository.HolidayRepository
+import com.edukasyon.studentai.widget.WidgetUpdater
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,8 +25,12 @@ class StudentAiApplication : Application(), Configuration.Provider {
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var database: StudentAiDatabase
     @Inject lateinit var syncScheduler: SyncScheduler
+    @Inject lateinit var holidaySyncScheduler: HolidaySyncScheduler
+    @Inject lateinit var holidayRepository: HolidayRepository
     @Inject lateinit var preferences: UserPreferences
     @Inject lateinit var aiApi: AiApiService
+    @Inject lateinit var reminderSyncService: com.edukasyon.studentai.core.notifications.ReminderSyncService
+    @Inject lateinit var notificationHelper: com.edukasyon.studentai.core.notifications.NotificationHelper
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -40,6 +47,12 @@ class StudentAiApplication : Application(), Configuration.Provider {
                 preferences.ensureRemoteAiEnabled()
                 database.openHelper.writableDatabase
                 syncScheduler.schedulePeriodicSync()
+                holidaySyncScheduler.schedulePeriodicSync()
+                holidayRepository.refreshOnAppStart()
+                notificationHelper.createChannels()
+                reminderSyncService.rescheduleAll()
+                WidgetUpdater.schedulePeriodicRefresh(this@StudentAiApplication)
+                WidgetUpdater.refreshAll(this@StudentAiApplication)
             }.onFailure { Log.e("StudentAiApp", "Background init failed", it) }
             runCatching {
                 val health = aiApi.health()

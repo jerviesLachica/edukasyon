@@ -1,11 +1,14 @@
 package com.edukasyon.studentai.data.repository
 
+import android.content.Context
 import com.edukasyon.studentai.core.util.GradeCalculator
 import com.edukasyon.studentai.core.util.TaskSorter
 import com.edukasyon.studentai.data.local.dao.*
 import com.edukasyon.studentai.data.mapper.*
 import com.edukasyon.studentai.domain.model.*
 import com.edukasyon.studentai.domain.repository.*
+import com.edukasyon.studentai.widget.WidgetUpdater
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -21,18 +24,30 @@ class UserRepositoryImpl @Inject constructor(private val userDao: UserDao) : Use
 }
 
 @Singleton
-class ScheduleRepositoryImpl @Inject constructor(private val scheduleDao: ScheduleDao) : ScheduleRepository {
+class ScheduleRepositoryImpl @Inject constructor(
+    private val scheduleDao: ScheduleDao,
+    @ApplicationContext private val context: Context
+) : ScheduleRepository {
     override fun observeSchedule(): Flow<List<ScheduleItem>> =
         scheduleDao.observeAll().map { it.map { e -> e.toDomain() } }
 
     override fun observeByDay(day: DayOfWeek): Flow<List<ScheduleItem>> =
         scheduleDao.observeByDay(day.name).map { it.map { e -> e.toDomain() } }
 
-    override suspend fun addScheduleItem(item: ScheduleItem) = scheduleDao.insert(item.toEntity())
-    override suspend fun updateScheduleItem(item: ScheduleItem) = scheduleDao.insert(item.toEntity())
+    override suspend fun addScheduleItem(item: ScheduleItem) {
+        scheduleDao.insert(item.toEntity())
+        WidgetUpdater.notifyDataChanged(context)
+    }
+
+    override suspend fun updateScheduleItem(item: ScheduleItem) {
+        scheduleDao.insert(item.toEntity())
+        WidgetUpdater.notifyDataChanged(context)
+    }
+
     override suspend fun deleteScheduleItem(id: String) {
         val now = System.currentTimeMillis()
         scheduleDao.softDelete(id, now, now)
+        WidgetUpdater.notifyDataChanged(context)
     }
 
     override fun search(query: String): Flow<List<ScheduleItem>> =
@@ -42,10 +57,16 @@ class ScheduleRepositoryImpl @Inject constructor(private val scheduleDao: Schedu
 @Singleton
 class TaskRepositoryImpl @Inject constructor(
     private val taskDao: TaskDao,
-    private val subtaskDao: SubtaskDao
+    private val subtaskDao: SubtaskDao,
+    @ApplicationContext private val context: Context
 ) : TaskRepository {
     override fun observeTasks(): Flow<List<Task>> =
-        taskDao.observeAll().map { tasks -> tasks.map { it.toDomain() } }
+        taskDao.observeAll().mapLatest { tasks ->
+            tasks.map { entity ->
+                val subtasks = subtaskDao.observeByTask(entity.id).first().map { it.toDomain() }
+                entity.toDomain(subtasks)
+            }
+        }
 
     override fun observeUpcoming(limit: Int): Flow<List<Task>> =
         taskDao.observeUpcoming(limit).map { TaskSorter.sortByPriorityAndDueDate(it.map { t -> t.toDomain() }) }
@@ -54,6 +75,7 @@ class TaskRepositoryImpl @Inject constructor(
         taskDao.insert(task.toEntity())
         subtaskDao.deleteByTask(task.id)
         task.subtasks.forEach { subtaskDao.insert(it.toEntity()) }
+        WidgetUpdater.notifyDataChanged(context)
     }
 
     override suspend fun updateTask(task: Task) = createTask(task)
@@ -63,11 +85,13 @@ class TaskRepositoryImpl @Inject constructor(
         tasks.find { it.id == id }?.let { entity ->
             taskDao.insert(entity.copy(status = TaskStatus.COMPLETED.name, completedAt = System.currentTimeMillis(), updatedAt = System.currentTimeMillis()))
         }
+        WidgetUpdater.notifyDataChanged(context)
     }
 
     override suspend fun deleteTask(id: String) {
         val now = System.currentTimeMillis()
         taskDao.softDelete(id, now, now)
+        WidgetUpdater.notifyDataChanged(context)
     }
 
     override fun search(query: String): Flow<List<Task>> =
@@ -185,20 +209,42 @@ class FlashcardRepositoryImpl @Inject constructor(private val flashcardDao: Flas
     override fun observeFlashcards(): Flow<List<Flashcard>> =
         flashcardDao.observeAll().map { it.map { e -> e.toDomain() } }
 
+    override fun observeDueFlashcards(): Flow<List<Flashcard>> =
+        flashcardDao.observeDue(System.currentTimeMillis()).map { it.map { e -> e.toDomain() } }
+
     override suspend fun saveFlashcards(cards: List<Flashcard>) {
+        cards.forEach { insertCard(it) }
+    }
+
+    override suspend fun updateFlashcard(card: Flashcard) {
+        insertCard(card)
+    }
+
+    private suspend fun insertCard(card: Flashcard) {
         val now = System.currentTimeMillis()
-        cards.forEach { card ->
-            flashcardDao.insert(
-                com.edukasyon.studentai.data.local.entity.FlashcardEntity(
-                    id = card.id, question = card.question, answer = card.answer,
-                    subjectId = card.subjectId, topic = card.topic, difficulty = card.difficulty,
-                    reviewCount = card.reviewCount, correctCount = card.correctCount,
-                    incorrectCount = card.incorrectCount, lastReviewedAt = card.lastReviewedAt,
-                    nextReviewAt = card.nextReviewAt, createdAt = now, updatedAt = now,
-                    deletedAt = null, syncState = SyncState.LOCAL_ONLY.name
-                )
+        flashcardDao.insert(
+            com.edukasyon.studentai.data.local.entity.FlashcardEntity(
+                id = card.id, question = card.question, answer = card.answer,
+                subjectId = card.subjectId, topic = card.topic, difficulty = card.difficulty,
+                reviewCount = card.reviewCount, correctCount = card.correctCount,
+                incorrectCount = card.incorrectCount, lastReviewedAt = card.lastReviewedAt,
+                nextReviewAt = card.nextReviewAt, easeFactor = card.easeFactor,
+                intervalDays = card.intervalDays,
+                createdAt = now, updatedAt = now,
+                deletedAt = null, syncState = SyncState.LOCAL_ONLY.name
             )
-        }
+        )
+    }
+}
+
+@Singleton
+class QuizRepositoryImpl @Inject constructor(
+    private val quizDao: QuizDao,
+    private val quizQuestionDao: QuizQuestionDao
+) : QuizRepository {
+    override suspend fun saveQuiz(quiz: Quiz) {
+        quizDao.insert(quiz.toEntity())
+        quiz.questions.forEach { quizQuestionDao.insert(it.toEntity()) }
     }
 }
 
