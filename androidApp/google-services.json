@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "246011040847",
+    "project_id": "edukasyon-studentai",
+    "storage_bucket": "edukasyon-studentai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:246011040847:android:2befc961f7bd743c98863a",
+        "android_client_info": {
+          "package_name": "com.edukasyon.studentai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzeRpWdaHrIeKk5VrNcNyh_qr7DopG3NE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:246011040847:android:5f085fa0a0b5475f98863a",
+        "android_client_info": {
+          "package_name": "com.edukasyon.studentai.debug"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzeRpWdaHrIeKk5VrNcNyh_qr7DopG3NE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
