@@ -1,4 +1,4 @@
-# Render Blueprint — StudentAI backend
+# Render Blueprint — SchedMate backend + download site
 # Deploy: push this repo to GitHub, then open
 # https://dashboard.render.com/blueprint/new?repo=<YOUR_REPO_URL>
 services:
@@ -22,3 +22,14 @@ services:
         value: auto
       - key: VISION_MODEL
         value: step-3.7-flash
+
+  - type: static_site
+    name: studentai-download
+    plan: free
+    rootDir: download-site
+    buildCommand: echo "Static download site — no build step"
+    staticPublishPath: ./
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Download SchedMate — your offline-first AI student companion for Android." />
+    <meta name="theme-color" content="#3949AB" />
+    <title>Download SchedMate</title>
+    <link rel="icon" href="assets/app-icon.png" type="image/png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <div class="bg-glow" aria-hidden="true"></div>
+    <div class="bg-grid" aria-hidden="true"></div>
+
+    <header class="header">
+      <a class="logo" href="#">
+        <img class="logo__icon" src="assets/app-icon.png" alt="" width="36" height="36" />
+        <span class="logo__name" data-app-name>SchedMate</span>
+      </a>
+      <nav class="header__nav">
+        <a href="#features">Features</a>
+        <a href="#download" class="header__cta">Download</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" id="download">
+        <div class="hero__content">
+          <div class="hero__badge">
+            <span class="hero__badge-dot"></span>
+            Version <span data-app-version>1.0.0</span> — Free to download
+          </div>
+          <h1 class="hero__title">
+            Get <em data-app-name>SchedMate</em><br />
+            on your device
+          </h1>
+          <p class="hero__desc" data-app-description>
+            Your offline-first AI student companion — schedule, planner, notes, grades, and an AI tutor in one app.
+          </p>
+
+          <div class="download-panel">
+            <p class="download-panel__label" id="platform-hint">Choose your platform</p>
+            <div class="download-buttons" id="download-buttons"></div>
+            <p class="download-panel__note" id="download-note"></p>
+          </div>
+
+          <div class="qr-block" id="qr-block" hidden>
+            <div class="qr-block__code" id="qr-code" aria-label="QR code for download"></div>
+            <p class="qr-block__text">Scan to open this page on your phone</p>
+          </div>
+        </div>
+
+        <div class="hero__visual">
+          <div class="phone-mockup">
+            <div class="phone-mockup__frame">
+              <img
+                class="phone-mockup__screen"
+                src="assets/screenshot-1.svg"
+                alt="SchedMate app preview"
+                width="390"
+                height="844"
+              />
+            </div>
+            <div class="phone-mockup__glow" aria-hidden="true"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="features" id="features">
+        <div class="section-head">
+          <h2>Built for students</h2>
+          <p>Everything you need to stay on top of school.</p>
+        </div>
+        <div class="features__grid" id="features-grid"></div>
+      </section>
+
+      <section class="screenshots" id="screenshots">
+        <div class="section-head">
+          <h2>See it in action</h2>
+          <p>Plan, learn, and track progress in one place.</p>
+        </div>
+        <div class="screenshots__track" id="screenshots-track"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer__brand">
+        <img src="assets/app-icon.png" alt="" width="28" height="28" />
+        <span data-app-name>SchedMate</span>
+      </div>
+      <nav class="footer__links" id="footer-links"></nav>
+      <p class="footer__copy" data-footer-copy>© 2026 SchedMate</p>
+    </footer>
+
+    <script src="js/config.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>
