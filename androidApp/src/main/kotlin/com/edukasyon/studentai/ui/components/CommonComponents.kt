@@ -39,7 +39,7 @@ fun ErrorState(
     message: String,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    title: String = "Please try again",
+    title: String? = null,
 ) {
     ErrorBanner(
         message = message,

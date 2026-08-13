@@ -27,13 +27,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import com.edukasyon.studentai.ui.components.StarfieldScaffold
+import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -90,7 +96,11 @@ open class WidgetConfigureActivity(
 
         setContent {
             val scope = rememberCoroutineScope()
-            StudentAiTheme(themeMode = ThemeMode.SYSTEM) {
+            StudentAiTheme(
+                themeMode = ThemeMode.LIGHT,
+                primaryColorHex = "#F97316",
+                secondaryColorHex = "#F8B195",
+            ) {
                 WidgetConfigureScreen(
                     widgetSize = widgetSize,
                     initialType = WidgetPreferences.getDisplayType(this, appWidgetId, defaultType),
@@ -112,7 +122,9 @@ open class WidgetConfigureActivity(
                             designColor3 = result.designColor3
                         )
                         WidgetBackgroundGenerator.invalidateCache()
+                        WidgetSnapshotCache.invalidate(this, appWidgetId)
                         scope.launch {
+                            WidgetDataProvider.loadSnapshotFresh(this@WidgetConfigureActivity, appWidgetId, widgetSize)
                             WidgetUpdater.updateAppWidget(this@WidgetConfigureActivity, appWidgetId)
                             val saveResult = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                             setResult(RESULT_OK, saveResult)
@@ -159,142 +171,194 @@ private fun WidgetConfigureScreen(
         selectedDesign.defaultColors().resolved(designColor1, designColor2, designColor3)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Configure Widget") })
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = when (widgetSize) {
-                    WidgetSize.SMALL_2X2 -> "2×2 widget — pick content, design, and accent"
-                    WidgetSize.TALL_2X3 -> "2×3 widget — combined view, design, and accent"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Text("Design", style = MaterialTheme.typography.titleSmall)
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+    StarfieldScaffold {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = { Text("Configure Widget") },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    ),
+                )
+            }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                WidgetDesignPreset.entries.forEach { design ->
-                    DesignPresetCard(
-                        design = design,
-                        colors = if (selectedDesign == design) {
-                            resolvedDesignColors
-                        } else {
-                            design.defaultColors()
+                ConfigureSectionCard {
+                    Text(
+                        text = when (widgetSize) {
+                            WidgetSize.SMALL_2X2 -> "2×2 widget — pick content, design, and accent"
+                            WidgetSize.TALL_2X3 -> "2×3 widget — combined view, design, and accent"
                         },
-                        selected = selectedDesign == design,
-                        onClick = {
-                            selectedDesign = design
-                            if (design == WidgetDesignPreset.MINIMAL) {
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                ConfigureSectionCard(title = "Design") {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        WidgetDesignPreset.entries.forEach { design ->
+                            DesignPresetCard(
+                                design = design,
+                                colors = if (selectedDesign == design) {
+                                    resolvedDesignColors
+                                } else {
+                                    design.defaultColors()
+                                },
+                                selected = selectedDesign == design,
+                                onClick = {
+                                    selectedDesign = design
+                                    if (design == WidgetDesignPreset.MINIMAL) {
+                                        designColor1 = null
+                                        designColor2 = null
+                                        designColor3 = null
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (selectedDesign != WidgetDesignPreset.MINIMAL) {
+                    ConfigureSectionCard(title = "Design colors") {
+                        DesignColorOverrides(
+                            design = selectedDesign,
+                            color1 = designColor1,
+                            color2 = designColor2,
+                            color3 = designColor3,
+                            onColor1Selected = { designColor1 = it },
+                            onColor2Selected = { designColor2 = it },
+                            onColor3Selected = { designColor3 = it },
+                            onReset = {
                                 designColor1 = null
                                 designColor2 = null
                                 designColor3 = null
                             }
-                        }
-                    )
-                }
-            }
-
-            if (selectedDesign != WidgetDesignPreset.MINIMAL) {
-                DesignColorOverrides(
-                    design = selectedDesign,
-                    color1 = designColor1,
-                    color2 = designColor2,
-                    color3 = designColor3,
-                    onColor1Selected = { designColor1 = it },
-                    onColor2Selected = { designColor2 = it },
-                    onColor3Selected = { designColor3 = it },
-                    onReset = {
-                        designColor1 = null
-                        designColor2 = null
-                        designColor3 = null
+                        )
                     }
-                )
-            }
+                }
 
-            Text("Content", style = MaterialTheme.typography.titleSmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                typeOptions.forEach { type ->
-                    FilterChip(
-                        selected = selectedType == type,
-                        onClick = { selectedType = type },
-                        label = {
-                            Text(
-                                when (type) {
-                                    WidgetDisplayType.TASKS -> "Tasks"
-                                    WidgetDisplayType.SCHEDULE -> "Schedule"
-                                    WidgetDisplayType.COMBINED -> "Combined"
-                                }
+                ConfigureSectionCard(title = "Content") {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        typeOptions.forEach { type ->
+                            FilterChip(
+                                selected = selectedType == type,
+                                onClick = { selectedType = type },
+                                label = {
+                                    Text(
+                                        when (type) {
+                                            WidgetDisplayType.TASKS -> "Tasks"
+                                            WidgetDisplayType.SCHEDULE -> "Schedule"
+                                            WidgetDisplayType.COMBINED -> "Combined"
+                                        }
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                ),
                             )
                         }
-                    )
-                }
-            }
-
-            Text("Accent color", style = MaterialTheme.typography.titleSmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                WidgetAccentPresets.presets.forEach { (hex, label) ->
-                    val color = parseHexColor(hex) ?: Color.Gray
-                    val selected = selectedAccent == hex
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .border(
-                                    width = if (selected) 3.dp else 1.dp,
-                                    color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                    shape = CircleShape
-                                )
-                                .clickable { selectedAccent = hex },
-                            contentAlignment = Alignment.Center
-                        ) {}
-                        Text(label, style = MaterialTheme.typography.labelSmall)
                     }
                 }
-            }
 
-            Text(
-                "Minimal uses a light card layout. Pattern designs use light text on dark backgrounds for readability.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            Button(
-                onClick = {
-                    onSave(
-                        WidgetConfigureResult(
-                            displayType = selectedType,
-                            accentHex = selectedAccent,
-                            designPreset = selectedDesign,
-                            designColor1 = designColor1,
-                            designColor2 = designColor2,
-                            designColor3 = designColor3
-                        )
+                ConfigureSectionCard(title = "Accent color") {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        WidgetAccentPresets.presets.forEach { (hex, label) ->
+                            val color = parseHexColor(hex) ?: Color.Gray
+                            val selected = selectedAccent == hex
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(color)
+                                        .border(
+                                            width = if (selected) 3.dp else 1.dp,
+                                            color = if (selected) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.outlineVariant
+                                            },
+                                            shape = CircleShape
+                                        )
+                                        .clickable { selectedAccent = hex },
+                                    contentAlignment = Alignment.Center
+                                ) {}
+                                Text(label, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Minimal uses a light card layout. Pattern designs use light text on dark backgrounds for readability.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Save widget")
+                }
+
+                Button(
+                    onClick = {
+                        onSave(
+                            WidgetConfigureResult(
+                                displayType = selectedType,
+                                accentHex = selectedAccent,
+                                designPreset = selectedDesign,
+                                designColor1 = designColor1,
+                                designColor2 = designColor2,
+                                designColor3 = designColor3
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = StudentAiShapes.button,
+                ) {
+                    Text("Save widget")
+                }
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = StudentAiShapes.button,
+                ) {
+                    Text("Cancel")
+                }
             }
-            Button(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
-                Text("Cancel")
+        }
+    }
+}
+
+@Composable
+private fun ConfigureSectionCard(
+    title: String? = null,
+    content: @Composable () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = StudentAiShapes.dashboard,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (title != null) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
             }
+            content()
         }
     }
 }
@@ -323,7 +387,11 @@ private fun DesignPresetCard(
             .clip(RoundedCornerShape(12.dp))
             .border(
                 width = if (selected) 2.dp else 1.dp,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                },
                 shape = RoundedCornerShape(12.dp)
             )
             .clickable(onClick = onClick)
@@ -369,7 +437,6 @@ private fun DesignColorOverrides(
     val resolved = defaults.resolved(color1, color2, color3)
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Design colors", style = MaterialTheme.typography.titleSmall)
         Text(
             "Tap a swatch to customize. Defaults are restored when you pick Minimal.",
             style = MaterialTheme.typography.bodySmall,

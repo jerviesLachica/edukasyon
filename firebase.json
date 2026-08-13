@@ -8,7 +8,11 @@
   "auth": {
     "providers": {
       "anonymous": true,
-      "emailPassword": true
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "StudentAI",
+        "supportEmail": "lachicajervies@gmail.com"
+      }
     }
   }
 }

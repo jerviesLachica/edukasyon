@@ -4,12 +4,15 @@ import android.content.Context
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.updateAll
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
 
 object WidgetUpdater {
     private const val PERIODIC_WORK_NAME = "studentai_widget_refresh"
+    private const val ON_DEMAND_WORK_NAME = "studentai_widget_refresh_once"
 
     fun schedulePeriodicRefresh(context: Context) {
         val request = PeriodicWorkRequestBuilder<WidgetRefreshWorker>(30, TimeUnit.MINUTES)
@@ -63,9 +66,12 @@ object WidgetUpdater {
     }
 
     fun notifyDataChanged(context: Context) {
+        WidgetSnapshotCache.invalidate(context)
         WorkManager.getInstance(context.applicationContext)
-            .enqueue(
-                androidx.work.OneTimeWorkRequestBuilder<WidgetRefreshWorker>().build()
+            .enqueueUniqueWork(
+                ON_DEMAND_WORK_NAME,
+                ExistingWorkPolicy.KEEP,
+                OneTimeWorkRequestBuilder<WidgetRefreshWorker>().build()
             )
     }
 

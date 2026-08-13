@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -30,6 +31,9 @@ import com.edukasyon.studentai.domain.model.DayOfWeek
 import com.edukasyon.studentai.domain.model.Holiday
 import com.edukasyon.studentai.domain.model.HolidayType
 import com.edukasyon.studentai.domain.model.ScheduleItem
+import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
+import com.edukasyon.studentai.ui.adaptive.isMediumOrExpandedWidth
+import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.components.*
 import com.edukasyon.studentai.ui.theme.parseHexColor
 import com.edukasyon.studentai.ui.viewmodel.ScheduleViewModel
@@ -37,6 +41,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,89 +50,104 @@ fun ScheduleScreen(
     viewModel: ScheduleViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     var showAddDialog by remember { mutableStateOf(false) }
     var addForDay by remember { mutableStateOf(state.selectedDay) }
     var editingItem by remember { mutableStateOf<ScheduleItem?>(null) }
     var showTemplateSheet by remember { mutableStateOf(false) }
     var createEventDateMillis by remember { mutableStateOf<Long?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val horizontalPadding = rememberAdaptiveHorizontalPadding()
+    val twoPaneDaily = isMediumOrExpandedWidth()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
         floatingActionButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FloatingActionButton(
+                StudentAiFab(
                     onClick = onOpenScanner,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Icon(Icons.Default.CameraAlt, "Scan schedule")
-                }
-                FloatingActionButton(
+                    icon = Icons.Default.CameraAlt,
+                    contentDescription = "Scan schedule",
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                StudentAiAddFab(
                     onClick = {
                         addForDay = state.selectedDay
                         showAddDialog = true
                     },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Icon(Icons.Default.Add, "Add class")
-                }
+                    contentDescription = "Add class",
+                )
             }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            GradientHeader(
-                title = "Schedule",
-                subtitle = when (state.viewMode) {
-                    "weekly" -> "My week at a glance"
-                    "monthly" -> "Monthly overview"
-                    else -> state.selectedDay.displayName
-                }
-            )
-            Row(
-                Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf("daily" to "Daily", "weekly" to "Weekly", "monthly" to "Monthly").forEach { (mode, label) ->
-                    FilterChip(
-                        selected = state.viewMode == mode,
-                        onClick = { viewModel.setViewMode(mode) },
-                        label = { Text(label) }
-                    )
-                }
-            }
-            when (state.viewMode) {
-                "weekly" -> {
-                    if (state.isLoading) {
-                        LoadingState()
-                    } else {
-                        WeeklyScheduleGrid(
-                            itemsByDay = viewModel.itemsGroupedByDay(),
-                            dayTemplates = state.dayTemplates,
-                            selectedDay = state.selectedDay,
-                            onItemClick = { editingItem = it },
-                            onDayEmptyClick = { day ->
-                                viewModel.selectDay(day)
-                                addForDay = day
-                                showAddDialog = true
-                            },
-                            onCustomizeTemplates = { showTemplateSheet = true }
+        AdaptiveContentContainer(Modifier.padding(padding)) { contentModifier ->
+            Column(contentModifier.fillMaxSize()) {
+                GradientHeader(
+                    title = "Schedule",
+                    subtitle = when (state.viewMode) {
+                        "weekly" -> "My week at a glance"
+                        "monthly" -> "Monthly overview"
+                        else -> state.selectedDay.displayName
+                    },
+                    inlineSubtitle = true,
+                )
+                Row(
+                    Modifier.padding(horizontal = horizontalPadding, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf("daily" to "Daily", "weekly" to "Weekly", "monthly" to "Monthly").forEach { (mode, label) ->
+                        FilterChip(
+                            selected = state.viewMode == mode,
+                            onClick = { viewModel.setViewMode(mode) },
+                            label = { Text(label) },
                         )
                     }
                 }
-                "monthly" -> MonthlyScheduleView(
-                    year = state.calendarYear,
-                    allItems = state.allItems,
-                    holidays = state.holidays,
-                    onDateClick = { createEventDateMillis = it },
-                )
-                else -> DailyScheduleView(
-                    state = state,
-                    viewModel = viewModel,
-                    onAdd = {
-                        addForDay = state.selectedDay
-                        showAddDialog = true
-                    },
-                    onItemClick = { editingItem = it },
-                )
+                when (state.viewMode) {
+                    "weekly" -> {
+                        if (state.isLoading) {
+                            LoadingState()
+                        } else {
+                            WeeklyScheduleGrid(
+                                itemsByDay = viewModel.itemsGroupedByDay(),
+                                dayTemplates = state.dayTemplates,
+                                selectedDay = state.selectedDay,
+                                onItemClick = { editingItem = it },
+                                onItemMove = { item, targetDay ->
+                                    viewModel.moveClassToDay(item, targetDay)?.let { message ->
+                                        scope.launch { snackbarHostState.showSnackbar(message) }
+                                    }
+                                },
+                                onDayEmptyClick = { day ->
+                                    viewModel.selectDay(day)
+                                    addForDay = day
+                                    showAddDialog = true
+                                },
+                                onCustomizeTemplates = { showTemplateSheet = true },
+                            )
+                        }
+                    }
+                    "monthly" -> MonthlyScheduleView(
+                        year = state.calendarYear,
+                        allItems = state.allItems,
+                        holidays = state.holidays,
+                        horizontalPadding = horizontalPadding,
+                        onDateClick = { createEventDateMillis = it },
+                    )
+                    else -> DailyScheduleView(
+                        state = state,
+                        viewModel = viewModel,
+                        horizontalPadding = horizontalPadding,
+                        twoPane = twoPaneDaily,
+                        onAdd = {
+                            addForDay = state.selectedDay
+                            showAddDialog = true
+                        },
+                        onItemClick = { editingItem = it },
+                    )
+                }
             }
         }
     }
@@ -150,6 +170,11 @@ fun ScheduleScreen(
             onDismiss = { editingItem = null },
             onEdit = { updated ->
                 viewModel.updateClass(updated)
+                editingItem = null
+            },
+            onDuplicate = { targetDay ->
+                val message = viewModel.duplicateClass(item, targetDay)
+                scope.launch { snackbarHostState.showSnackbar(message) }
                 editingItem = null
             },
             onDelete = {
@@ -184,20 +209,73 @@ fun ScheduleScreen(
 private fun DailyScheduleView(
     state: com.edukasyon.studentai.ui.viewmodel.ScheduleUiState,
     viewModel: ScheduleViewModel,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
+    twoPane: Boolean,
     onAdd: () -> Unit,
     onItemClick: (ScheduleItem) -> Unit,
 ) {
-    LazyRow(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(DayOfWeek.entries) { day ->
-            FilterChip(
-                selected = state.selectedDay == day,
-                onClick = { viewModel.selectDay(day) },
-                label = { Text(day.displayName.take(3)) }
+    if (twoPane) {
+        Row(Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .widthIn(min = 140.dp, max = 180.dp)
+                    .fillMaxHeight()
+                    .padding(start = horizontalPadding, top = 8.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                DayOfWeek.entries.forEach { day ->
+                    FilterChip(
+                        selected = state.selectedDay == day,
+                        onClick = { viewModel.selectDay(day) },
+                        label = { Text(day.displayName) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+            DailyScheduleList(
+                state = state,
+                viewModel = viewModel,
+                horizontalPadding = horizontalPadding,
+                onAdd = onAdd,
+                onItemClick = onItemClick,
+                modifier = Modifier.weight(1f),
             )
         }
+    } else {
+        LazyRow(
+            Modifier.padding(horizontal = horizontalPadding, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(DayOfWeek.entries) { day ->
+                FilterChip(
+                    selected = state.selectedDay == day,
+                    onClick = { viewModel.selectDay(day) },
+                    label = { Text(day.displayName.take(3)) },
+                )
+            }
+        }
+        DailyScheduleList(
+            state = state,
+            viewModel = viewModel,
+            horizontalPadding = horizontalPadding,
+            onAdd = onAdd,
+            onItemClick = onItemClick,
+            modifier = Modifier.fillMaxSize(),
+        )
     }
+}
+
+@Composable
+private fun DailyScheduleList(
+    state: com.edukasyon.studentai.ui.viewmodel.ScheduleUiState,
+    viewModel: ScheduleViewModel,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
+    onAdd: () -> Unit,
+    onItemClick: (ScheduleItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     if (state.isLoading) {
-        LoadingState()
+        LoadingState(modifier = modifier)
     } else {
         val items = viewModel.itemsForSelectedDay()
         if (items.isEmpty()) {
@@ -205,12 +283,13 @@ private fun DailyScheduleView(
                 "No classes on ${state.selectedDay.displayName}",
                 "Add a class for this day.",
                 actionLabel = "Add Class",
-                onAction = onAdd
+                onAction = onAdd,
+                modifier = modifier,
             )
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                modifier = modifier,
+                contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 items(items, key = { it.id }) { item ->
@@ -337,6 +416,7 @@ private fun MonthlyScheduleView(
     year: Int,
     allItems: List<ScheduleItem>,
     holidays: List<Holiday>,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
     onDateClick: (Long) -> Unit,
 ) {
     val todayCal = remember { Calendar.getInstance() }
@@ -350,7 +430,7 @@ private fun MonthlyScheduleView(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item {
@@ -679,9 +759,11 @@ private fun ClassActionDialog(
     item: ScheduleItem,
     onDismiss: () -> Unit,
     onEdit: (ScheduleItem) -> Unit,
+    onDuplicate: (DayOfWeek) -> Unit,
     onDelete: () -> Unit
 ) {
     var showEdit by remember { mutableStateOf(false) }
+    var showDuplicatePicker by remember { mutableStateOf(false) }
 
     if (showEdit) {
         ClassFormDialog(
@@ -697,35 +779,108 @@ private fun ClassActionDialog(
         return
     }
 
+    if (showDuplicatePicker) {
+        DuplicateDayDialog(
+            item = item,
+            onDismiss = { showDuplicatePicker = false },
+            onConfirm = { targetDay ->
+                onDuplicate(targetDay)
+                showDuplicatePicker = false
+            },
+        )
+        return
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(item.subjectName) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("${item.startTime} - ${item.endTime}")
-                item.teacher?.let { Text("Teacher: $it") }
-                item.room?.let { Text("Room: $it") }
-                Text("Day: ${item.dayOfWeek.displayName}")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("${item.startTime} - ${item.endTime}")
+                    item.teacher?.let { Text("Teacher: $it") }
+                    item.room?.let { Text("Room: $it") }
+                    Text("Day: ${item.dayOfWeek.displayName}")
+                }
+                HorizontalDivider()
+                TextButton(
+                    onClick = { showEdit = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Edit")
+                    }
+                }
+                TextButton(
+                    onClick = { showDuplicatePicker = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Duplicate")
+                    }
+                }
+                TextButton(
+                    onClick = onDelete,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Delete")
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        }
+    )
+}
+
+@Composable
+private fun DuplicateDayDialog(
+    item: ScheduleItem,
+    onDismiss: () -> Unit,
+    onConfirm: (DayOfWeek) -> Unit,
+) {
+    var selectedDay by remember { mutableStateOf(item.dayOfWeek) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Duplicate class") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Copy \"${item.subjectName}\" to which day?",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(DayOfWeek.entries) { day ->
+                        FilterChip(
+                            selected = selectedDay == day,
+                            onClick = { selectedDay = day },
+                            label = { Text(day.displayName.take(3)) },
+                        )
+                    }
+                }
+                Text(
+                    "Same time: ${DateUtils.formatTime12h(item.startTime)} – ${DateUtils.formatTime12h(item.endTime)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         },
         confirmButton = {
-            TextButton(onClick = { showEdit = true }) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Edit")
-                }
-            }
+            TextButton(onClick = { onConfirm(selectedDay) }) { Text("Duplicate") }
         },
         dismissButton = {
-            TextButton(onClick = onDelete) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Delete")
-                }
-            }
-        }
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
     )
 }
 

@@ -17,6 +17,9 @@ import javax.inject.Singleton
 class NotificationHelper @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
+    companion object {
+        const val REFERENCE_ID_EXTRA = "reference_id"
+    }
     init {
         createChannels()
     }
@@ -41,7 +44,7 @@ class NotificationHelper @Inject constructor(
     ) {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            referenceId?.let { putExtra("reference_id", it) }
+            referenceId?.let { putExtra(REFERENCE_ID_EXTRA, it) }
         }
         val pending = PendingIntent.getActivity(
             context,

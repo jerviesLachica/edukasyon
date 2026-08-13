@@ -5,16 +5,21 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavType
 import androidx.navigation.compose.*
+import androidx.navigation.navArgument
 import com.edukasyon.studentai.BuildConfig
 import com.edukasyon.studentai.ui.adaptive.AdaptiveScaffold
 import com.edukasyon.studentai.ui.components.LoadingScreen
+import com.edukasyon.studentai.ui.components.StarfieldScaffold
 import com.edukasyon.studentai.ui.navigation.MainTab
 import com.edukasyon.studentai.ui.navigation.Routes
 import com.edukasyon.studentai.ui.navigation.mainTabComposable
 import com.edukasyon.studentai.ui.navigation.navigateToTab
+import com.edukasyon.studentai.ui.navigation.routeToSelectedTab
 import com.edukasyon.studentai.ui.screens.*
 import com.edukasyon.studentai.ui.theme.StudentAiTheme
 import com.edukasyon.studentai.ui.viewmodel.MainViewModel
@@ -44,18 +49,38 @@ fun StudentAiAppContent(
         primaryColorHex = primaryColorHex,
         secondaryColorHex = secondaryColorHex
     ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background,
-            contentColor = MaterialTheme.colorScheme.onBackground
-        ) {
-            when {
-                !preferencesReady -> LoadingScreen(title = "StudentAI")
-                onboardingComplete -> MainNavigation(
-                    initialTabRoute = initialTabRoute,
-                    onInitialTabConsumed = onInitialTabConsumed,
-                )
-                else -> OnboardingScreen(onComplete = viewModel::markOnboardingFinished)
+        when {
+            !preferencesReady -> {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                    contentColor = MaterialTheme.colorScheme.onBackground,
+                ) {
+                    LoadingScreen(title = "StudentAI")
+                }
+            }
+            onboardingComplete -> {
+                StarfieldScaffold {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                    ) {
+                        MainNavigation(
+                            initialTabRoute = initialTabRoute,
+                            onInitialTabConsumed = onInitialTabConsumed,
+                        )
+                    }
+                }
+            }
+            else -> {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                    contentColor = MaterialTheme.colorScheme.onBackground,
+                ) {
+                    OnboardingScreen(onComplete = viewModel::markOnboardingFinished)
+                }
             }
         }
     }
@@ -70,11 +95,21 @@ fun MainNavigation(
     val tabs = MainTab.entries
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    var forceHideBottomBar by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentRoute) {
+        if (routeToSelectedTab(currentRoute) != MainTab.JEVI) {
+            forceHideBottomBar = false
+        }
+    }
 
     LaunchedEffect(initialTabRoute) {
         val route = initialTabRoute ?: return@LaunchedEffect
         MainTab.entries.find { it.route == route }?.let { tab ->
             navController.navigateToTab(tab)
+        } ?: run {
+            routeToSelectedTab(route)?.let { tab -> navController.navigateToTab(tab) }
+            navController.navigate(route) { launchSingleTop = true }
         }
         onInitialTabConsumed()
     }
@@ -82,6 +117,7 @@ fun MainNavigation(
     AdaptiveScaffold(
         currentRoute = currentRoute,
         tabs = tabs,
+        forceHideBottomBar = forceHideBottomBar,
         onTabSelected = { tab ->
             navController.navigateToTab(tab, resetHomeRoot = tab == MainTab.HOME)
         }
@@ -95,11 +131,12 @@ fun MainNavigation(
                 HomeScreen(
                     onAddTask = { navController.navigateToTab(MainTab.PLANNER) },
                     onAddClass = { navController.navigateToTab(MainTab.SCHEDULE) },
-                    onAddNote = { navController.navigate(Routes.NOTES) },
-                    onAskAi = { navController.navigateToTab(MainTab.AI) },
+                    onAddNote = { navController.navigate(Routes.noteEditor(Routes.NEW_NOTE_ID)) },
+                    onAskAi = { navController.navigateToTab(MainTab.JEVI) },
                     onNavigateToTab = { tab -> navController.navigateToTab(tab) },
                     onNavigateToRoute = { route -> navController.navigate(route) },
                     onOpenFeaturesGuide = { navController.navigate(Routes.FEATURES_GUIDE) },
+                    onNavigateFocus = { navController.navigate(Routes.FOCUS) },
                 )
             }
             mainTabComposable(MainTab.SCHEDULE) {
@@ -108,21 +145,22 @@ fun MainNavigation(
             mainTabComposable(MainTab.PLANNER) {
                 PlannerScreen(
                     onNavigateGrades = { navController.navigate(Routes.GRADES) },
-                    onNavigateCalendar = { navController.navigate(Routes.CALENDAR) }
+                    onNavigateCalendar = { navController.navigate(Routes.CALENDAR) },
+                    onOpenAssignmentIntelligence = { navController.navigate(Routes.ASSIGNMENT_INTELLIGENCE) },
+                    onNavigateFocus = { navController.navigate(Routes.FOCUS) },
                 )
             }
-            mainTabComposable(MainTab.AI) {
-                AiScreen(
-                    onOpenScanner = { navController.navigate(Routes.SCHEDULE_SCANNER) },
-                    onOpenFlashcardStudy = { navController.navigate(Routes.FLASHCARD_STUDY) },
-                    onOpenHistory = { filter ->
-                        navController.navigate(Routes.aiConversationHistory(filter))
-                    },
+            mainTabComposable(MainTab.JEVI) {
+                JeviHubScreen(
+                    onOpenDecks = { navController.navigate(Routes.JEVI_DECKS) },
+                    onOpenReview = { navController.navigate(Routes.JEVI_REVIEW) },
+                    onOpenCreate = { navController.navigate(Routes.JEVI_CREATE) },
+                    onOpenTutor = { navController.navigate(Routes.JEVI_TUTOR) },
+                    onOpenQuiz = { navController.navigate(Routes.JEVI_QUIZ) },
                 )
             }
             mainTabComposable(MainTab.PROFILE) {
                 ProfileScreen(
-                    onNavigateChat = { navController.navigate(Routes.CHAT_LIST) },
                     onNavigateFeaturesGuide = { navController.navigate(Routes.FEATURES_GUIDE) },
                     onNavigateNotificationSettings = { navController.navigate(Routes.NOTIFICATION_SETTINGS) },
                     onRequestNotificationPermission = { /* handled in ProfileScreen */ }
@@ -144,7 +182,15 @@ fun MainNavigation(
                     onNavigateToPlanner = { navController.navigateToTab(MainTab.PLANNER) }
                 )
             }
-            composable(Routes.NOTES) { NotesScreen() }
+            composable(Routes.NOTES) {
+                NotesScreen(
+                    onOpenEditor = { noteId -> navController.navigate(Routes.noteEditor(noteId)) },
+                    onCreateNote = { navController.navigate(Routes.noteEditor(Routes.NEW_NOTE_ID)) },
+                )
+            }
+            composable(Routes.NOTE_EDITOR) {
+                NoteEditorScreen(onBack = { navController.popBackStack() })
+            }
             composable(Routes.FEATURES_GUIDE) {
                 FeaturesGuideScreen(
                     onBack = { navController.popBackStack() },
@@ -156,18 +202,86 @@ fun MainNavigation(
             }
             composable(Routes.GRADES) { GradesScreen() }
             composable(Routes.CALENDAR) { CalendarScreen() }
+            composable(Routes.FOCUS) {
+                FocusScreen(onBack = { navController.popBackStack() })
+            }
             composable(Routes.SCHEDULE_SCANNER) {
                 ScheduleScannerScreen(onBack = { navController.popBackStack() })
             }
-            composable(Routes.CHAT_LIST) {
-                ChatListScreen(
-                    onOpenChat = { id -> navController.navigate(Routes.chatThread(id)) },
-                    onBack = { navController.popBackStack() }
+            composable(Routes.ASSIGNMENT_INTELLIGENCE) {
+                val plannerBackStackEntry = remember(it) {
+                    navController.getBackStackEntry(MainTab.PLANNER.route)
+                }
+                AssignmentIntelligenceScreen(
+                    onBack = { navController.popBackStack() },
+                    onAddedToPlanner = { navController.popBackStack() },
+                    viewModel = hiltViewModel(plannerBackStackEntry),
                 )
             }
-            composable(Routes.CHAT_THREAD) { entry ->
-                val id = entry.arguments?.getString("conversationId") ?: return@composable
-                ChatThreadScreen(conversationId = id, onBack = { navController.popBackStack() })
+            composable(Routes.JEVI_DECKS) {
+                JeviDecksScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenDeck = { deckId ->
+                        navController.navigate(Routes.jeviDeckDetail(deckId))
+                    },
+                )
+            }
+            composable(
+                route = Routes.JEVI_DECK_DETAIL,
+                arguments = listOf(
+                    navArgument("deckId") { type = NavType.StringType },
+                ),
+            ) { entry ->
+                val deckId = entry.arguments?.getString("deckId")
+                if (deckId != null) {
+                    JeviDeckDetailScreen(
+                        onBack = { navController.popBackStack() },
+                        onReviewDue = { id ->
+                            navController.navigate(Routes.jeviReviewDeck(id, studyAll = false))
+                        },
+                        onStudyAll = { id ->
+                            navController.navigate(Routes.jeviReviewDeck(id, studyAll = true))
+                        },
+                    )
+                }
+            }
+            composable(Routes.JEVI_CREATE) {
+                JeviCreateScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.JEVI_QUIZ) {
+                JeviQuizArenaScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.JEVI_TUTOR) {
+                AiScreen(
+                    onOpenHistory = { filter ->
+                        navController.navigate(Routes.aiConversationHistory(filter))
+                    },
+                    onChatInputActive = { active -> forceHideBottomBar = active },
+                )
+            }
+            composable(Routes.JEVI_REVIEW) {
+                FlashcardStudyScreen(onBack = { navController.popBackStack() })
+            }
+            composable(
+                route = Routes.JEVI_REVIEW_DECK,
+                arguments = listOf(
+                    navArgument("deckId") { type = NavType.StringType },
+                    navArgument("studyAll") {
+                        type = NavType.BoolType
+                        defaultValue = false
+                    },
+                ),
+            ) { entry ->
+                val deckId = entry.arguments?.getString("deckId")
+                val studyAll = entry.arguments?.getBoolean("studyAll") ?: false
+                FlashcardStudyScreen(
+                    deckId = deckId,
+                    studyAll = studyAll,
+                    onBack = { navController.popBackStack() },
+                    onStudyAll = { id ->
+                        navController.navigate(Routes.jeviReviewDeck(id, studyAll = true))
+                    },
+                )
             }
             composable(Routes.FLASHCARD_STUDY) {
                 FlashcardStudyScreen(onBack = { navController.popBackStack() })

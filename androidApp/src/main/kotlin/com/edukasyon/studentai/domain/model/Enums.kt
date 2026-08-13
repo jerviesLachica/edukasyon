@@ -95,9 +95,11 @@ enum class QuestionType {
     SHORT_ANSWER
 }
 
-enum class AiModel(val slug: String, val displayName: String) {
-    AUTO("auto", "Auto"),
-    REASONING("step-3.7-flash", "Step 3.7 Flash");
+enum class AiModel(val slug: String, val displayName: String, val chatDescription: String) {
+    AUTO("auto", "Auto", "Fast general answers"),
+    REASONING("step-3.7-flash", "Step 3.7 Flash", "Stronger reasoning & vision");
+
+    val isStepModel: Boolean get() = this == REASONING
 
     companion object {
         fun fromSlug(slug: String): AiModel = when (slug) {

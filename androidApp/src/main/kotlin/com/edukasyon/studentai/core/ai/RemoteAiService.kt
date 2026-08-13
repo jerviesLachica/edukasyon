@@ -2,7 +2,11 @@ package com.edukasyon.studentai.core.ai
 
 import com.edukasyon.studentai.core.network.AiApiService
 import com.edukasyon.studentai.core.network.toDomain
+import com.edukasyon.studentai.domain.model.AssignmentAnalysisInput
+import com.edukasyon.studentai.domain.model.AssignmentBreakdown
 import com.edukasyon.studentai.domain.model.Flashcard
+import com.edukasyon.studentai.domain.model.FocusPlan
+import com.edukasyon.studentai.domain.model.FocusPlanContext
 import com.edukasyon.studentai.domain.model.Quiz
 import com.edukasyon.studentai.domain.model.StudyPlan
 import java.io.IOException
@@ -21,6 +25,12 @@ class RemoteAiService @Inject constructor(
                 subject = request.subject,
                 contextSummary = request.contextSummary,
                 conversationId = request.conversationId,
+                historyMessages = request.historyMessages.map {
+                    com.edukasyon.studentai.core.network.ChatHistoryMessageDto(
+                        role = it.role,
+                        content = it.content,
+                    )
+                },
                 attachmentName = request.attachmentName,
                 attachmentMimeType = request.attachmentMimeType,
                 imageBase64 = request.imageBase64,
@@ -28,18 +38,28 @@ class RemoteAiService @Inject constructor(
                 model = request.model,
             )
         )
-        val reply = response.reply.trim()
-        if (reply.isEmpty()) {
-            throw AiException("Gizmo returned an empty reply. Please try again.")
+        val split = ReasoningContentSplitter.split(
+            raw = response.reply,
+            existingReasoning = response.reasoning?.trim()?.takeIf { it.isNotEmpty() },
+        )
+        val recovered = ReasoningContentSplitter.recoverEmptyReply(split)
+        if (recovered.reply.isEmpty() && recovered.reasoning.isNullOrBlank()) {
+            throw AiException("Jarvis returned an empty reply.")
         }
-        AiChatResponse(reply = reply, conversationId = response.conversationId)
+        AiChatResponse(
+            reply = recovered.reply,
+            conversationId = response.conversationId,
+            reasoning = recovered.reasoning,
+            model = response.model,
+        )
     }
 
-    override suspend fun analyzeSchedule(imageData: ByteArray): ScheduleAnalysisResult {
+    override suspend fun analyzeSchedule(input: ScheduleScanInput): ScheduleAnalysisResult {
         return try {
             val response = api.analyzeSchedule(
                 com.edukasyon.studentai.core.network.ScheduleAnalysisRequest(
-                    imageBase64 = android.util.Base64.encodeToString(imageData, android.util.Base64.NO_WRAP)
+                    imageBase64 = android.util.Base64.encodeToString(input.imageData, android.util.Base64.NO_WRAP),
+                    extractedText = input.extractedText?.takeIf { it.isNotBlank() },
                 )
             )
             ScheduleAnalysisResult(
@@ -70,19 +90,38 @@ class RemoteAiService @Inject constructor(
             ).toDomain()
         }
 
+    override suspend fun analyzeAssignment(input: AssignmentAnalysisInput): AssignmentBreakdown =
+        apiCall {
+            api.analyzeAssignment(
+                com.edukasyon.studentai.core.network.AssignmentBreakdownRequest(
+                    text = input.text,
+                    attachmentText = input.attachmentText,
+                    imageBase64 = input.imageBase64,
+                )
+            ).toDomain()
+        }
+
+    override suspend fun generateFocusPlan(context: FocusPlanContext): FocusPlan =
+        apiCall {
+            api.generateFocusPlan(
+                com.edukasyon.studentai.core.network.FocusPlanRequest(
+                    totalMinutes = context.totalMinutes,
+                    subjects = context.subjects,
+                    upcomingExams = context.upcomingExams,
+                    weakAreas = context.weakAreas,
+                    userPrompt = context.userPrompt,
+                )
+            ).toDomain()
+        }
+
     private suspend fun <T> apiCall(block: suspend () -> T): T {
         return try {
             block()
         } catch (e: IOException) {
             throw AiException("Internet connection required for this AI feature.", e)
         } catch (e: HttpException) {
-            val detail = e.response()?.errorBody()?.string()?.take(120)
-            val message = when (e.code()) {
-                502 -> "AI provider is temporarily unavailable. Please try again."
-                503 -> "AI service is busy. Please try again in a moment."
-                else -> detail?.let { "AI request failed: $it" }
-                    ?: "AI service returned an error (${e.code()}). Please try again."
-            }
+            val rawBody = e.response()?.errorBody()?.string()
+            val message = AiSafetyErrorParser.userMessage(e.code(), rawBody)
             throw AiException(message, e)
         } catch (e: Exception) {
             throw AiException("AI service error. Your offline data is still available.", e)

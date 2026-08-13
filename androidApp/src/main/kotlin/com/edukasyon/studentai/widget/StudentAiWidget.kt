@@ -28,7 +28,10 @@ abstract class BaseStudentAiWidget(
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
         WidgetPreferences.setWidgetSize(context, appWidgetId, widgetSize)
-        val snapshot = WidgetDataProvider.loadSnapshot(context, appWidgetId, widgetSize)
+
+        val cached = WidgetDataProvider.loadCachedSnapshot(context, appWidgetId, widgetSize)
+        val snapshot = cached ?: WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
+
         val startTab = when (snapshot.displayType) {
             WidgetDisplayType.TASKS, WidgetDisplayType.COMBINED -> "planner"
             WidgetDisplayType.SCHEDULE -> "schedule"
@@ -40,6 +43,16 @@ abstract class BaseStudentAiWidget(
                 WidgetSize.TALL_2X3 -> TallWidgetContent(snapshot, openAction)
             }
         }
+
+        if (cached != null && shouldRefreshCachedSnapshot(context, appWidgetId)) {
+            WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
+            update(context, id)
+        }
+    }
+
+    private fun shouldRefreshCachedSnapshot(context: Context, appWidgetId: Int): Boolean {
+        val savedAt = WidgetSnapshotCache.readSavedAtMs(context, appWidgetId) ?: return true
+        return System.currentTimeMillis() - savedAt > 30_000L
     }
 }
 
@@ -52,7 +65,10 @@ class StudentAiWidget2x2Receiver : GlanceAppWidgetReceiver() {
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
-        appWidgetIds.forEach { WidgetPreferences.remove(context, it) }
+        appWidgetIds.forEach {
+            WidgetPreferences.remove(context, it)
+            WidgetSnapshotCache.invalidate(context, it)
+        }
     }
 }
 
@@ -61,6 +77,9 @@ class StudentAiWidget2x3Receiver : GlanceAppWidgetReceiver() {
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
-        appWidgetIds.forEach { WidgetPreferences.remove(context, it) }
+        appWidgetIds.forEach {
+            WidgetPreferences.remove(context, it)
+            WidgetSnapshotCache.invalidate(context, it)
+        }
     }
 }

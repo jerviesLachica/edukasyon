@@ -7,4 +7,21 @@
     <string name="widget_2x3_label">StudentAI 2×3</string>
     <string name="widget_add_title">Home screen widget</string>
     <string name="widget_add_subtitle">Long-press your home screen → Widgets → StudentAI. Choose 2×2 or 2×3, then pick tasks, schedule, or combined view.</string>
+    <string name="widget_add_description">See today\'s tasks and schedule at a glance — right from your home screen.</string>
+    <string name="widget_add_button">Add to Home Screen</string>
+    <string name="widget_customize_button">Customize</string>
+    <string name="widget_dismiss">Dismiss</string>
+    <string name="widget_pick_size_title">Choose widget size</string>
+    <string name="widget_pick_size_subtitle">Pick the layout that fits your home screen.</string>
+    <string name="widget_manual_title">Add widget manually</string>
+    <string name="widget_manual_intro">Your launcher doesn\'t support one-tap pinning. Follow these steps:</string>
+    <string name="widget_manual_step_1">Long-press an empty area on your home screen</string>
+    <string name="widget_manual_step_2">Tap \"Widgets\" from the menu</string>
+    <string name="widget_manual_step_3">Find \"StudentAI\" and drag a widget to your home screen</string>
+    <string name="widget_manual_step_4">Choose tasks, schedule, or combined view when prompted</string>
+    <string name="widget_manual_hint">Long-press your home screen → Widgets → StudentAI</string>
+    <string name="widget_manual_hint_short">Or long-press your home screen → Widgets → StudentAI</string>
+    <string name="widget_open_settings">Open home settings</string>
+    <string name="widget_got_it">Got it</string>
+    <string name="widget_loading_hint">Loading your schedule…</string>
 </resources>

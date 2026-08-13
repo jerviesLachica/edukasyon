@@ -21,6 +21,7 @@ object StudentAiSpacing {
 object StudentAiShapes {
     val card = RoundedCornerShape(16.dp)
     val dashboard = RoundedCornerShape(22.dp)
+    val snackbar = RoundedCornerShape(24.dp)
     val chip = RoundedCornerShape(12.dp)
     val button = RoundedCornerShape(12.dp)
     val hero = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)

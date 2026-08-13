@@ -66,3 +66,66 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         db.execSQL("ALTER TABLE messages ADD COLUMN metadataJson TEXT")
     }
 }
+
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS jevi_decks (
+                id TEXT NOT NULL PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT,
+                subjectId TEXT,
+                sourceNoteId TEXT,
+                colorHex TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                deletedAt INTEGER,
+                syncState TEXT NOT NULL
+            )"""
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_jevi_decks_subjectId ON jevi_decks(subjectId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_jevi_decks_updatedAt ON jevi_decks(updatedAt)")
+
+        db.execSQL("ALTER TABLE flashcards ADD COLUMN deckId TEXT")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_flashcards_deckId ON flashcards(deckId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_flashcards_nextReviewAt ON flashcards(nextReviewAt)")
+
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS jevi_review_records (
+                id TEXT NOT NULL PRIMARY KEY,
+                flashcardId TEXT NOT NULL,
+                deckId TEXT,
+                quality INTEGER NOT NULL,
+                reviewedAt INTEGER NOT NULL,
+                intervalBefore INTEGER NOT NULL,
+                intervalAfter INTEGER NOT NULL,
+                easeFactorAfter REAL NOT NULL
+            )"""
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_jevi_review_records_flashcardId ON jevi_review_records(flashcardId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_jevi_review_records_deckId ON jevi_review_records(deckId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_jevi_review_records_reviewedAt ON jevi_review_records(reviewedAt)")
+
+        val now = System.currentTimeMillis()
+        db.execSQL(
+            """INSERT OR IGNORE INTO jevi_decks
+                (id, title, description, subjectId, sourceNoteId, colorHex, createdAt, updatedAt, deletedAt, syncState)
+                VALUES ('jevi-default-deck', 'General', 'Default deck for existing flashcards', NULL, NULL, '#6366F1', $now, $now, NULL, 'LOCAL_ONLY')"""
+        )
+        db.execSQL("UPDATE flashcards SET deckId = 'jevi-default-deck', updatedAt = $now WHERE deckId IS NULL AND deletedAt IS NULL")
+    }
+}
+
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE users ADD COLUMN preferredStatus TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE users ADD COLUMN lastProfileEditAt INTEGER")
+    }
+}
+
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE exams ADD COLUMN linkedDeckId TEXT")
+    }
+}

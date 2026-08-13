@@ -31,7 +31,7 @@ gradlew.bat :androidApp:assembleDebug
 - **Onboarding** — school setup, continue offline
 - **Home dashboard** — next class, schedule, tasks, exams, AI suggestions
 - **Schedule** — daily view, add/edit/delete classes
-- **Planner** — tasks, assignments, exams with CRUD
+- **Planner** — tasks, assignments, exams with CRUD; **Assignment Intelligence** (AI breakdown → subtasks)
 - **Notes** — create, search, delete
 - **Grades** — weighted grade calculation
 - **Calendar** — unified events from tasks/exams/assignments
@@ -43,7 +43,7 @@ gradlew.bat :androidApp:assembleDebug
 
 - No API keys in the Android app
 - Backend URL via `BuildConfig.AI_BACKEND_URL`
-- Run `backend/` with provider key in `backend/.env` (see `backend/.env.example`): [hcnsec.cn](https://api.hcnsec.cn/v1) (`auto` default, optional `step-3.7-flash`)
+- Run `backend/` with provider key in `backend/.env` (see `backend/.env.example`): [hcnsec.cn](https://api.hcnsec.cn/v1) — text uses `auto`, vision auto-routes to `step-3.7-flash`
 
 ## Application ID
 
@@ -66,4 +66,21 @@ Guest onboarding signs in anonymously when online; offline guest mode still work
 3. Deploy rules: `firebase deploy --only firestore:rules,auth`
 4. In [Firebase Console](https://console.firebase.google.com/project/edukasyon-studentai), confirm **Authentication → Sign-in method → Anonymous** is enabled
 
-No extra Android setup is required beyond building the app.
+## Deferred / follow-up
+
+- Per-subtask calendar entries (currently one parent task + checklist subtasks; suggested dates in description)
+- Full Google Calendar two-way sync
+- Push reminders for individual subtask offsets (parent task uses existing `ReminderSyncService` / WorkManager)
+
+## Assignment Intelligence (backend)
+
+Endpoint: `POST /api/ai/assignment-breakdown` (via AiSafetyGateway)
+
+Deploy: restart backend after pull; requires `AI_API_KEY` in `backend/.env` for real analysis (mock without key).
+
+```bash
+cd backend && npm install && npm start
+# npm test  — includes AssignmentBreakdownValidator tests
+```
+
+Request body: `{ "text"?: string, "attachmentText"?: string, "imageBase64"?: string }`

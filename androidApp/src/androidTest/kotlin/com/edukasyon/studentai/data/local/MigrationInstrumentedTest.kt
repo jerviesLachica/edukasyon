@@ -103,4 +103,96 @@ class MigrationInstrumentedTest {
             cursor.close()
         }
     }
+
+    @Test
+    fun migrate6To7_addsConversationMetadataColumns() {
+        helper.createDatabase(testDb, 6).close()
+        helper.runMigrationsAndValidate(testDb, 7, true, MIGRATION_6_7)
+        helper.createDatabase(testDb, 7).use { db ->
+            val cursor = db.query("PRAGMA table_info(conversations)")
+            val columns = mutableListOf<String>()
+            while (cursor.moveToNext()) {
+                columns.add(cursor.getString(cursor.getColumnIndex("name")))
+            }
+            cursor.close()
+            assertTrue(columns.contains("conversationType"))
+            assertTrue(columns.contains("backendConversationId"))
+        }
+    }
+
+    @Test
+    fun migrate7To8_createsJeviTablesAndDeckId() {
+        helper.createDatabase(testDb, 7).apply {
+            execSQL(
+                """INSERT INTO flashcards (id, question, answer, subjectId, topic, difficulty,
+                    reviewCount, correctCount, incorrectCount, lastReviewedAt, nextReviewAt,
+                    easeFactor, intervalDays, createdAt, updatedAt, deletedAt, syncState)
+                    VALUES ('fc1', 'Q', 'A', NULL, NULL, 'medium', 0, 0, 0, NULL, NULL, 2.5, 1, 0, 0, NULL, 'LOCAL_ONLY')"""
+            )
+            close()
+        }
+        helper.runMigrationsAndValidate(testDb, 8, true, MIGRATION_7_8)
+        helper.createDatabase(testDb, 8).use { db ->
+            val deckCursor = db.query("SELECT id FROM jevi_decks WHERE id = 'jevi-default-deck'")
+            assertTrue(deckCursor.moveToFirst())
+            deckCursor.close()
+
+            val fcCursor = db.query("SELECT deckId FROM flashcards WHERE id = 'fc1'")
+            assertTrue(fcCursor.moveToFirst())
+            assertTrue(fcCursor.getString(0) == "jevi-default-deck")
+            fcCursor.close()
+
+            val tableCursor = db.query(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='jevi_review_records'"
+            )
+            assertTrue(tableCursor.moveToFirst())
+            tableCursor.close()
+        }
+    }
+
+    @Test
+    fun migrate8To9_addsProfileColumns() {
+        helper.createDatabase(testDb, 8).apply {
+            execSQL(
+                """INSERT INTO users (id, displayName, email, school, gradeLevel, section, schoolYear,
+                    semester, isGuest, avatarUri, createdAt, updatedAt, syncState)
+                    VALUES ('u1', 'Jervies', NULL, 'Rtu', '3rd Year', 'A', '2025-2026', '1st', 1, NULL, 0, 0, 'LOCAL_ONLY')"""
+            )
+            close()
+        }
+        helper.runMigrationsAndValidate(testDb, 9, true, MIGRATION_8_9)
+        helper.createDatabase(testDb, 9).use { db ->
+            val cursor = db.query("PRAGMA table_info(users)")
+            val columns = mutableListOf<String>()
+            while (cursor.moveToNext()) {
+                columns.add(cursor.getString(cursor.getColumnIndex("name")))
+            }
+            cursor.close()
+            assertTrue(columns.contains("bio"))
+            assertTrue(columns.contains("preferredStatus"))
+            assertTrue(columns.contains("lastProfileEditAt"))
+        }
+    }
+
+    @Test
+    fun migrate9To10_addsExamLinkedDeckId() {
+        helper.createDatabase(testDb, 9).apply {
+            execSQL(
+                """INSERT INTO exams (id, title, subjectId, examDate, examTime, location, coverage, notes,
+                    reminderAt, createdAt, updatedAt, deletedAt, syncState)
+                    VALUES ('e1', 'Database Exam', 'sub1', 0, NULL, NULL, NULL, NULL, NULL, 0, 0, NULL, 'LOCAL_ONLY')"""
+            )
+            close()
+        }
+        helper.runMigrationsAndValidate(testDb, 10, true, MIGRATION_9_10)
+        helper.createDatabase(testDb, 10).use { db ->
+            val cursor = db.query("PRAGMA table_info(exams)")
+            val columns = mutableListOf<String>()
+            while (cursor.moveToNext()) {
+                columns.add(cursor.getString(cursor.getColumnIndex("name")))
+            }
+            cursor.close()
+            assertTrue(columns.contains("linkedDeckId"))
+        }
+    }
 }

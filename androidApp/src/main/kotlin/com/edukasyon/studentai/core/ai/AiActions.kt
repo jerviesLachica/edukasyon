@@ -199,6 +199,7 @@ class AppContextBuilder @Inject constructor(
     private val getUpcomingTasks: com.edukasyon.studentai.domain.usecase.GetUpcomingTasksUseCase,
     private val getUpcomingExams: com.edukasyon.studentai.domain.usecase.GetUpcomingExamsUseCase,
     private val getAllSubjects: com.edukasyon.studentai.domain.usecase.GetAllSubjectsUseCase,
+    private val getUser: com.edukasyon.studentai.domain.usecase.GetUserUseCase,
 ) {
     suspend fun buildSummary(): String {
         val today = DateUtils.getTodayDayOfWeek()
@@ -206,8 +207,16 @@ class AppContextBuilder @Inject constructor(
         val tasks = runCatching { getUpcomingTasks.execute(5) }.getOrDefault(emptyList())
         val exams = runCatching { getUpcomingExams.execute(3) }.getOrDefault(emptyList())
         val subjects = runCatching { getAllSubjects.execute(Unit) }.getOrDefault(emptyList())
+        val user = runCatching { getUser.execute(Unit) }.getOrNull()
 
         return buildString {
+            user?.let { profile ->
+                append("Student profile: ")
+                append("Name: ${profile.displayName}. ")
+                if (profile.school.isNotBlank()) append("School: ${profile.school}. ")
+                if (profile.preferredStatus.isNotBlank()) append("Status: ${profile.preferredStatus}. ")
+                if (profile.bio.isNotBlank()) append("Bio: ${profile.bio}. ")
+            }
             append("Today is ${today.displayName}. ")
             if (subjects.isNotEmpty()) {
                 append("Subjects: ${subjects.joinToString { it.name }}. ")

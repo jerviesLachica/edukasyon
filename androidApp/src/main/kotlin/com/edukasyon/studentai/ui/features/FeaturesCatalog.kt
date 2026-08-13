@@ -35,7 +35,9 @@ data class FeatureItem(
     val section: FeatureSection,
     val icon: ImageVector,
     val destination: FeatureDestination,
-    val isNew: Boolean = false
+    val isNew: Boolean = false,
+    /** Shorter label for home dashboard tiles; falls back to [title]. */
+    val dashboardLabel: String? = null,
 )
 
 object FeaturesCatalog {
@@ -96,6 +98,17 @@ object FeaturesCatalog {
             destination = FeatureDestination.Tab(MainTab.PLANNER)
         ),
         FeatureItem(
+            id = "focus",
+            title = "Focus & Pomodoro",
+            description = "Manual Pomodoro timers or AI-planned study blocks based on your subjects and exams.",
+            filterCategory = FeatureFilterCategory.STUDY,
+            section = FeatureSection.SCHEDULE_PLANNING,
+            icon = Icons.Default.Timer,
+            destination = FeatureDestination.Route(Routes.FOCUS),
+            isNew = true,
+            dashboardLabel = "Focus",
+        ),
+        FeatureItem(
             id = "tasks",
             title = "Tasks & Subtasks",
             description = "Create to-do items with priorities and due dates. Mark complete or add subtasks.",
@@ -129,7 +142,8 @@ object FeaturesCatalog {
             filterCategory = FeatureFilterCategory.STUDY,
             section = FeatureSection.SCHEDULE_PLANNING,
             icon = Icons.Default.Grade,
-            destination = FeatureDestination.Route(Routes.GRADES)
+            destination = FeatureDestination.Route(Routes.GRADES),
+            dashboardLabel = "Grades",
         ),
         FeatureItem(
             id = "calendar",
@@ -138,7 +152,8 @@ object FeaturesCatalog {
             filterCategory = FeatureFilterCategory.SCHEDULE,
             section = FeatureSection.SCHEDULE_PLANNING,
             icon = Icons.Default.Event,
-            destination = FeatureDestination.Route(Routes.CALENDAR)
+            destination = FeatureDestination.Route(Routes.CALENDAR),
+            dashboardLabel = "Calendar",
         ),
         FeatureItem(
             id = "holidays",
@@ -162,42 +177,33 @@ object FeaturesCatalog {
         // AI tools
         FeatureItem(
             id = "ai_hub",
-            title = "Gizmo AI Hub",
-            description = "Your AI study buddy with hearts, XP, streaks, tutor chat, tools, and scanner.",
+            title = "Jarvis AI Hub",
+            description = "Your AI study buddy with XP, streaks, tutor chat, tools, and scanner.",
             filterCategory = FeatureFilterCategory.AI,
             section = FeatureSection.AI_TOOLS,
             icon = Icons.Default.Psychology,
-            destination = FeatureDestination.Tab(MainTab.AI),
-            isNew = true
-        ),
-        FeatureItem(
-            id = "gizmo_hearts",
-            title = "Hearts & Memorise Mode",
-            description = "Quiz with 15 hearts like Gizmo — wrong answers cost a heart. Super Hearts protect you!",
-            filterCategory = FeatureFilterCategory.AI,
-            section = FeatureSection.AI_TOOLS,
-            icon = Icons.Default.Favorite,
-            destination = FeatureDestination.Tab(MainTab.AI),
+            destination = FeatureDestination.Tab(MainTab.JEVI),
             isNew = true
         ),
         FeatureItem(
             id = "gizmo_xp",
             title = "XP & Study Streaks",
-            description = "Earn XP from chatting, quizzes, and flashcards. Build daily streaks to level up Gizmo.",
+            description = "Earn XP from chatting, quizzes, and flashcards. Build daily streaks to level up Jarvis.",
             filterCategory = FeatureFilterCategory.AI,
             section = FeatureSection.AI_TOOLS,
             icon = Icons.Default.Star,
-            destination = FeatureDestination.Tab(MainTab.AI),
+            destination = FeatureDestination.Tab(MainTab.JEVI),
             isNew = true
         ),
         FeatureItem(
             id = "ai_tutor",
-            title = "Gizmo AI Tutor",
-            description = "Chat with Gizmo — ask questions, get explanations, and use quick study prompts.",
+            title = "Jarvis AI Tutor",
+            description = "Chat with Jarvis — ask questions, get explanations, and use quick study prompts.",
             filterCategory = FeatureFilterCategory.AI,
             section = FeatureSection.AI_TOOLS,
             icon = Icons.Default.Chat,
-            destination = FeatureDestination.Tab(MainTab.AI)
+            destination = FeatureDestination.Tab(MainTab.JEVI),
+            dashboardLabel = "Ask Jarvis",
         ),
         FeatureItem(
             id = "ai_summarizer",
@@ -206,34 +212,45 @@ object FeaturesCatalog {
             filterCategory = FeatureFilterCategory.AI,
             section = FeatureSection.AI_TOOLS,
             icon = Icons.Default.Summarize,
-            destination = FeatureDestination.Tab(MainTab.AI)
+            destination = FeatureDestination.Tab(MainTab.JEVI)
         ),
         FeatureItem(
             id = "ai_flashcards",
-            title = "AI Flashcards",
+            title = "JEVI Flashcards",
             description = "Generate flashcards from your notes or text, then study them with spaced repetition.",
             filterCategory = FeatureFilterCategory.AI,
             section = FeatureSection.AI_TOOLS,
             icon = Icons.Default.Style,
-            destination = FeatureDestination.Tab(MainTab.AI)
+            destination = FeatureDestination.Route(Routes.JEVI_CREATE)
         ),
         FeatureItem(
             id = "flashcard_study",
-            title = "Flashcard Study Mode",
-            description = "Review generated flashcards with SM-2 spaced repetition for better retention.",
+            title = "JEVI Review",
+            description = "Review flashcards with SM-2 spaced repetition for better retention.",
             filterCategory = FeatureFilterCategory.STUDY,
             section = FeatureSection.AI_TOOLS,
             icon = Icons.Default.AutoStories,
-            destination = FeatureDestination.Route(Routes.FLASHCARD_STUDY)
+            destination = FeatureDestination.Route(Routes.JEVI_REVIEW),
+            dashboardLabel = "Review",
+        ),
+        FeatureItem(
+            id = "jevi_quiz_arena",
+            title = "JEVI Quiz Arena",
+            description = "Generate quizzes from decks or topics, track score, and review mistakes.",
+            filterCategory = FeatureFilterCategory.STUDY,
+            section = FeatureSection.AI_TOOLS,
+            icon = Icons.Default.Quiz,
+            destination = FeatureDestination.Route(Routes.JEVI_QUIZ),
+            dashboardLabel = "Quiz Arena",
         ),
         FeatureItem(
             id = "ai_quiz",
             title = "AI Quiz Generator",
-            description = "Turn your study material into practice quizzes. Available in the AI Tools tab.",
+            description = "Turn your study material into practice quizzes. Also available in JEVI Quiz Arena.",
             filterCategory = FeatureFilterCategory.AI,
             section = FeatureSection.AI_TOOLS,
             icon = Icons.Default.Quiz,
-            destination = FeatureDestination.Tab(MainTab.AI)
+            destination = FeatureDestination.Route(Routes.JEVI_QUIZ)
         ),
         FeatureItem(
             id = "schedule_scanner",
@@ -243,18 +260,9 @@ object FeaturesCatalog {
             section = FeatureSection.AI_TOOLS,
             icon = Icons.Default.CameraAlt,
             destination = FeatureDestination.Route(Routes.SCHEDULE_SCANNER),
-            isNew = true
+            isNew = true,
+            dashboardLabel = "Scan Schedule",
         ),
-        FeatureItem(
-            id = "study_groups",
-            title = "Study Groups & Chat",
-            description = "Collaborate with classmates in group or direct chats for shared study sessions.",
-            filterCategory = FeatureFilterCategory.STUDY,
-            section = FeatureSection.AI_TOOLS,
-            icon = Icons.Default.Groups,
-            destination = FeatureDestination.Route(Routes.CHAT_LIST)
-        ),
-
         // Personalization
         FeatureItem(
             id = "profile",
@@ -328,6 +336,5 @@ object FeaturesCatalog {
         "calendar",
         "grades",
         "flashcard_study",
-        "study_groups",
     ).mapNotNull { id -> all.find { it.id == id } }
 }

@@ -1,9 +1,5 @@
 package com.edukasyon.studentai.ui.screens
 
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
-import android.os.Build
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -26,7 +22,9 @@ import com.edukasyon.studentai.ui.components.GradientHeader
 import com.edukasyon.studentai.ui.components.ModernCard
 import com.edukasyon.studentai.ui.features.*
 import com.edukasyon.studentai.ui.navigation.MainTab
-import com.edukasyon.studentai.widget.StudentAiWidget2x2Receiver
+import com.edukasyon.studentai.widget.WidgetPinHelper
+import com.edukasyon.studentai.widget.WidgetPinResult
+import com.edukasyon.studentai.widget.WidgetSize
 
 private enum class FilterChipOption(val label: String) {
     ALL("All"),
@@ -87,19 +85,9 @@ fun FeaturesGuideScreen(
         WidgetInstructionsDialog(
             onDismiss = { showWidgetInstructions = false },
             onRequestPin = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    val manager = context.getSystemService(AppWidgetManager::class.java)
-                    if (manager?.isRequestPinAppWidgetSupported == true) {
-                        manager.requestPinAppWidget(
-                            ComponentName(context, StudentAiWidget2x2Receiver::class.java),
-                            null,
-                            null
-                        )
-                    } else {
-                        Toast.makeText(context, "Long-press your home screen to add widgets.", Toast.LENGTH_LONG).show()
-                    }
-                } else {
-                    Toast.makeText(context, "Long-press your home screen to add widgets.", Toast.LENGTH_LONG).show()
+                when (WidgetPinHelper.requestPinWidget(context, WidgetSize.SMALL_2X2)) {
+                    WidgetPinResult.PIN_DIALOG_REQUESTED -> Unit
+                    WidgetPinResult.MANUAL_INSTRUCTIONS_NEEDED -> WidgetPinHelper.showManualInstructionsToast(context)
                 }
             }
         )

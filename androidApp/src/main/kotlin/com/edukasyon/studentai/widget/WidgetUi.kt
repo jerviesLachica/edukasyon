@@ -81,15 +81,13 @@ private fun WidgetBackgroundLayer(context: Context, snapshot: WidgetSnapshot) {
             ) {}
         }
         else -> {
+            val (widthDp, heightDp) = WidgetDataProvider.backgroundSizeDp(snapshot.widgetSize)
             val bitmap = WidgetBackgroundGenerator.getBitmap(
                 context = context,
                 preset = snapshot.designPreset,
                 colors = snapshot.designColors,
-                widthDp = 320,
-                heightDp = when (snapshot.widgetSize) {
-                    WidgetSize.SMALL_2X2 -> 320
-                    WidgetSize.TALL_2X3 -> 480
-                }
+                widthDp = widthDp,
+                heightDp = heightDp
             )
             Image(
                 provider = ImageProvider(bitmap),

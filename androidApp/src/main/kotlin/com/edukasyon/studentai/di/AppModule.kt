@@ -14,13 +14,16 @@ import com.edukasyon.studentai.data.local.MIGRATION_3_4
 import com.edukasyon.studentai.data.local.MIGRATION_4_5
 import com.edukasyon.studentai.data.local.MIGRATION_5_6
 import com.edukasyon.studentai.data.local.MIGRATION_6_7
+import com.edukasyon.studentai.data.local.MIGRATION_7_8
+import com.edukasyon.studentai.data.local.MIGRATION_8_9
+import com.edukasyon.studentai.data.local.MIGRATION_9_10
 import com.edukasyon.studentai.data.repository.AiConversationRepositoryImpl
 import com.edukasyon.studentai.data.repository.AssignmentRepositoryImpl
-import com.edukasyon.studentai.data.repository.ChatRepositoryImpl
 import com.edukasyon.studentai.data.repository.CalendarRepositoryImpl
 import com.edukasyon.studentai.data.repository.ExamRepositoryImpl
 import com.edukasyon.studentai.data.repository.FlashcardRepositoryImpl
 import com.edukasyon.studentai.data.repository.GradeRepositoryImpl
+import com.edukasyon.studentai.data.repository.JeviRepositoryImpl
 import com.edukasyon.studentai.data.repository.LectureFileRepositoryImpl
 import com.edukasyon.studentai.data.repository.NoteRepositoryImpl
 import com.edukasyon.studentai.data.repository.QuizRepositoryImpl
@@ -31,11 +34,11 @@ import com.edukasyon.studentai.data.repository.TaskRepositoryImpl
 import com.edukasyon.studentai.data.repository.UserRepositoryImpl
 import com.edukasyon.studentai.domain.repository.AiConversationRepository
 import com.edukasyon.studentai.domain.repository.AssignmentRepository
-import com.edukasyon.studentai.domain.repository.ChatRepository
 import com.edukasyon.studentai.domain.repository.CalendarRepository
 import com.edukasyon.studentai.domain.repository.ExamRepository
 import com.edukasyon.studentai.domain.repository.FlashcardRepository
 import com.edukasyon.studentai.domain.repository.GradeRepository
+import com.edukasyon.studentai.domain.repository.JeviRepository
 import com.edukasyon.studentai.domain.repository.LectureFileRepository
 import com.edukasyon.studentai.domain.repository.NoteRepository
 import com.edukasyon.studentai.domain.repository.QuizRepository
@@ -73,6 +76,9 @@ object DatabaseModule {
                 MIGRATION_4_5,
                 MIGRATION_5_6,
                 MIGRATION_6_7,
+                MIGRATION_7_8,
+                MIGRATION_8_9,
+                MIGRATION_9_10,
             )
         if (BuildConfig.DEBUG) {
             // Recover from schema validation failures during development without manual app-data clears.
@@ -91,6 +97,8 @@ object DatabaseModule {
     @Provides fun provideNoteDao(db: StudentAiDatabase) = db.noteDao()
     @Provides fun provideNoteTagDao(db: StudentAiDatabase) = db.noteTagDao()
     @Provides fun provideFlashcardDao(db: StudentAiDatabase) = db.flashcardDao()
+    @Provides fun provideJeviDeckDao(db: StudentAiDatabase) = db.jeviDeckDao()
+    @Provides fun provideJeviReviewRecordDao(db: StudentAiDatabase) = db.jeviReviewRecordDao()
     @Provides fun provideQuizDao(db: StudentAiDatabase) = db.quizDao()
     @Provides fun provideQuizQuestionDao(db: StudentAiDatabase) = db.quizQuestionDao()
     @Provides fun provideStudySessionDao(db: StudentAiDatabase) = db.studySessionDao()
@@ -111,9 +119,10 @@ object NetworkModule {
     fun provideJson(): Json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     @Provides @Singleton
-    fun provideOkHttp(): OkHttpClient = OkHttpClient.Builder()
+    fun provideOkHttp(deviceIdInterceptor: com.edukasyon.studentai.core.network.AiSafetyHeadersInterceptor): OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
+        .addInterceptor(deviceIdInterceptor)
         .apply {
             if (BuildConfig.DEBUG) {
                 addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
@@ -158,8 +167,8 @@ abstract class RepositoryModule {
     @Binds @Singleton abstract fun bindSubjectRepo(impl: SubjectRepositoryImpl): SubjectRepository
     @Binds @Singleton abstract fun bindCalendarRepo(impl: CalendarRepositoryImpl): CalendarRepository
     @Binds @Singleton abstract fun bindFlashcardRepo(impl: FlashcardRepositoryImpl): FlashcardRepository
+    @Binds @Singleton abstract fun bindJeviRepo(impl: JeviRepositoryImpl): JeviRepository
     @Binds @Singleton abstract fun bindQuizRepo(impl: QuizRepositoryImpl): QuizRepository
-    @Binds @Singleton abstract fun bindChatRepo(impl: ChatRepositoryImpl): ChatRepository
     @Binds @Singleton abstract fun bindAiConversationRepo(impl: AiConversationRepositoryImpl): AiConversationRepository
     @Binds @Singleton abstract fun bindSearchRepo(impl: SearchRepositoryImpl): SearchRepository
     @Binds @Singleton abstract fun bindLectureFileRepo(impl: LectureFileRepositoryImpl): LectureFileRepository
@@ -323,6 +332,14 @@ object UseCaseModule {
         SaveQuizUseCase(repo)
 
     @Provides @Singleton
+    fun provideObserveQuizzesUseCase(repo: QuizRepository) =
+        ObserveQuizzesUseCase(repo)
+
+    @Provides @Singleton
+    fun provideGetQuizUseCase(repo: QuizRepository) =
+        GetQuizUseCase(repo)
+
+    @Provides @Singleton
     fun provideAiChatUseCase(ai: AiService) =
         AiChatUseCase(ai)
 
@@ -345,6 +362,14 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideAiAnalyzeScheduleUseCase(ai: AiService) =
         AiAnalyzeScheduleUseCase(ai)
+
+    @Provides @Singleton
+    fun provideAiAnalyzeAssignmentUseCase(ai: AiService) =
+        AiAnalyzeAssignmentUseCase(ai)
+
+    @Provides @Singleton
+    fun provideSaveAssignmentBreakdownToPlannerUseCase(repo: TaskRepository) =
+        SaveAssignmentBreakdownToPlannerUseCase(repo)
 
     @Provides @Singleton
     fun provideGlobalSearchUseCase(repo: SearchRepository) =

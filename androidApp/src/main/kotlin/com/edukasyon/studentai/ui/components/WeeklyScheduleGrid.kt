@@ -1,7 +1,11 @@
 package com.edukasyon.studentai.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -15,11 +19,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.edukasyon.studentai.core.util.DateUtils
 import com.edukasyon.studentai.domain.model.DayOfWeek
@@ -29,6 +44,7 @@ import com.edukasyon.studentai.domain.model.ScheduleWeekTemplates
 import com.edukasyon.studentai.ui.adaptive.isMediumOrExpandedWidth
 import com.edukasyon.studentai.ui.theme.isValidHexColor
 import com.edukasyon.studentai.ui.theme.parseHexColor
+import kotlin.math.roundToInt
 
 private val DayColumnShape = RoundedCornerShape(20.dp)
 private val DayPillShape = RoundedCornerShape(50)
@@ -43,67 +59,160 @@ fun WeeklyScheduleGrid(
     onDayEmptyClick: (DayOfWeek) -> Unit,
     onCustomizeTemplates: () -> Unit,
     modifier: Modifier = Modifier,
-    title: String = "My Schedule"
+    title: String = "My Schedule",
+    onItemMove: (ScheduleItem, DayOfWeek) -> Unit = { _, _ -> },
 ) {
     val expanded = isMediumOrExpandedWidth()
     val today = DateUtils.getTodayDayOfWeek()
+    val hapticFeedback = LocalHapticFeedback.current
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-    ) {
-        ScheduleDecorativeHeader(
-            title = title,
-            onCustomize = onCustomizeTemplates
-        )
+    var draggedItem by remember { mutableStateOf<ScheduleItem?>(null) }
+    var dragPosition by remember { mutableStateOf(Offset.Zero) }
+    var dragGrabOffset by remember { mutableStateOf(Offset.Zero) }
+    var dropTargetDay by remember { mutableStateOf<DayOfWeek?>(null) }
+    val columnBounds = remember { mutableStateMapOf<DayOfWeek, Rect>() }
 
-        if (expanded) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 360.dp)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                DayOfWeek.entries.forEach { day ->
-                    DayColumn(
-                        day = day,
-                        items = itemsByDay[day].orEmpty(),
-                        template = dayTemplates.templateFor(day),
-                        isToday = day == today,
-                        isSelected = day == selectedDay,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                        onItemClick = onItemClick,
-                        onEmptyClick = { onDayEmptyClick(day) }
-                    )
+    fun resolveDropTarget(position: Offset): DayOfWeek? =
+        columnBounds.entries.firstOrNull { (_, bounds) -> bounds.contains(position) }?.key
+
+    fun finishDrag(performMove: Boolean) {
+        val item = draggedItem
+        val targetDay = dropTargetDay
+        if (performMove && item != null && targetDay != null && item.dayOfWeek != targetDay) {
+            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+            onItemMove(item, targetDay)
+        }
+        draggedItem = null
+        dragGrabOffset = Offset.Zero
+        dropTargetDay = null
+    }
+
+    val draggedAccentColor = draggedItem?.let { item ->
+        parseHexColor(item.colorHex)
+            ?: dayTemplates.templateFor(item.dayOfWeek).accentColorHex?.let { parseHexColor(it) }
+            ?: MaterialTheme.colorScheme.primary
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            ScheduleDecorativeHeader(
+                title = title,
+                onCustomize = onCustomizeTemplates
+            )
+
+            if (expanded) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 360.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DayOfWeek.entries.forEach { day ->
+                        DayColumn(
+                            day = day,
+                            items = itemsByDay[day].orEmpty(),
+                            template = dayTemplates.templateFor(day),
+                            isToday = day == today,
+                            isSelected = day == selectedDay,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .onGloballyPositioned { coordinates ->
+                                    columnBounds[day] = coordinates.boundsInRoot()
+                                },
+                            onItemClick = onItemClick,
+                            onEmptyClick = { onDayEmptyClick(day) },
+                            draggedItemId = draggedItem?.id,
+                            isDropTarget = dropTargetDay == day && draggedItem != null,
+                            enableDrag = true,
+                            onDragStart = { item, fingerPosition, grabOffset ->
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                draggedItem = item
+                                dragPosition = fingerPosition
+                                dragGrabOffset = grabOffset
+                                dropTargetDay = resolveDropTarget(fingerPosition)
+                            },
+                            onDrag = { position ->
+                                dragPosition = position
+                                dropTargetDay = resolveDropTarget(position)
+                            },
+                            onDragEnd = { finishDrag(performMove = true) },
+                            onDragCancel = { finishDrag(performMove = false) },
+                        )
+                    }
+                }
+            } else {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(DayOfWeek.entries) { day ->
+                        DayColumn(
+                            day = day,
+                            items = itemsByDay[day].orEmpty(),
+                            template = dayTemplates.templateFor(day),
+                            isToday = day == today,
+                            isSelected = day == selectedDay,
+                            modifier = Modifier
+                                .width(108.dp)
+                                .height(340.dp)
+                                .onGloballyPositioned { coordinates ->
+                                    columnBounds[day] = coordinates.boundsInRoot()
+                                },
+                            onItemClick = onItemClick,
+                            onEmptyClick = { onDayEmptyClick(day) },
+                            draggedItemId = draggedItem?.id,
+                            isDropTarget = dropTargetDay == day && draggedItem != null,
+                            enableDrag = true,
+                            onDragStart = { item, fingerPosition, grabOffset ->
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                draggedItem = item
+                                dragPosition = fingerPosition
+                                dragGrabOffset = grabOffset
+                                dropTargetDay = resolveDropTarget(fingerPosition)
+                            },
+                            onDrag = { position ->
+                                dragPosition = position
+                                dropTargetDay = resolveDropTarget(position)
+                            },
+                            onDragEnd = { finishDrag(performMove = true) },
+                            onDragCancel = { finishDrag(performMove = false) },
+                        )
+                    }
                 }
             }
-        } else {
-            LazyRow(
+        }
+
+        draggedItem?.let { item ->
+            val accent = draggedAccentColor ?: MaterialTheme.colorScheme.primary
+            ScheduleClassCard(
+                item = item,
+                accentColor = accent,
+                onClick = {},
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(DayOfWeek.entries) { day ->
-                    DayColumn(
-                        day = day,
-                        items = itemsByDay[day].orEmpty(),
-                        template = dayTemplates.templateFor(day),
-                        isToday = day == today,
-                        isSelected = day == selectedDay,
-                        modifier = Modifier
-                            .width(108.dp)
-                            .height(340.dp),
-                        onItemClick = onItemClick,
-                        onEmptyClick = { onDayEmptyClick(day) }
-                    )
-                }
-            }
+                    .width(100.dp)
+                    .offset {
+                        IntOffset(
+                            (dragPosition.x - dragGrabOffset.x).roundToInt(),
+                            (dragPosition.y - dragGrabOffset.y).roundToInt(),
+                        )
+                    }
+                    .graphicsLayer {
+                        scaleX = 1.06f
+                        scaleY = 1.06f
+                        shadowElevation = 12f
+                        alpha = 0.95f
+                    },
+                isDragging = true,
+            )
         }
     }
 }
@@ -160,7 +269,14 @@ fun DayColumn(
     isSelected: Boolean,
     onItemClick: (ScheduleItem) -> Unit,
     onEmptyClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    draggedItemId: String? = null,
+    isDropTarget: Boolean = false,
+    enableDrag: Boolean = false,
+    onDragStart: ((ScheduleItem, Offset, Offset) -> Unit)? = null,
+    onDrag: ((Offset) -> Unit)? = null,
+    onDragEnd: (() -> Unit)? = null,
+    onDragCancel: (() -> Unit)? = null,
 ) {
     val backgroundColor = parseHexColor(template.backgroundColorHex)
         ?: MaterialTheme.colorScheme.surfaceContainerLow
@@ -185,6 +301,12 @@ fun DayColumn(
             )
         }
 
+        val dropHighlightAlpha by animateFloatAsState(
+            targetValue = if (isDropTarget) 1f else 0f,
+            animationSpec = spring(stiffness = 400f),
+            label = "dropHighlight",
+        )
+
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -194,9 +316,24 @@ fun DayColumn(
                         accentColor.copy(alpha = 0.12f),
                         DayColumnShape
                     ) else Modifier
+                )
+                .then(
+                    if (dropHighlightAlpha > 0f) {
+                        Modifier.border(
+                            width = 2.dp,
+                            color = accentColor.copy(alpha = 0.5f + dropHighlightAlpha * 0.5f),
+                            shape = DayColumnShape,
+                        )
+                    } else {
+                        Modifier
+                    }
                 ),
             shape = DayColumnShape,
-            color = backgroundColor,
+            color = if (isDropTarget) {
+                accentColor.copy(alpha = 0.08f + dropHighlightAlpha * 0.12f)
+            } else {
+                backgroundColor
+            },
             tonalElevation = if (isSelected) 2.dp else 0.dp,
             shadowElevation = if (isToday) 2.dp else 0.dp
         ) {
@@ -228,7 +365,17 @@ fun DayColumn(
                         ScheduleClassCard(
                             item = item,
                             accentColor = accentColor,
-                            onClick = { onItemClick(item) }
+                            onClick = { onItemClick(item) },
+                            isDragging = draggedItemId == item.id,
+                            enableDrag = enableDrag,
+                            onDragStart = onDragStart?.let { callback ->
+                                { fingerPosition, grabOffset ->
+                                    callback(item, fingerPosition, grabOffset)
+                                }
+                            },
+                            onDrag = onDrag,
+                            onDragEnd = onDragEnd,
+                            onDragCancel = onDragCancel,
                         )
                     }
                     Box(
@@ -257,17 +404,49 @@ fun ScheduleClassCard(
     item: ScheduleItem,
     accentColor: Color,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isDragging: Boolean = false,
+    enableDrag: Boolean = false,
+    onDragStart: ((Offset, Offset) -> Unit)? = null,
+    onDrag: ((Offset) -> Unit)? = null,
+    onDragEnd: (() -> Unit)? = null,
+    onDragCancel: (() -> Unit)? = null,
 ) {
     val itemColor = parseHexColor(item.colorHex) ?: accentColor
+    val cardAlpha by animateFloatAsState(
+        targetValue = if (isDragging) 0.35f else 1f,
+        label = "cardAlpha",
+    )
+    val cardScale by animateFloatAsState(
+        targetValue = if (isDragging) 0.92f else 1f,
+        animationSpec = spring(stiffness = 400f),
+        label = "cardScale",
+    )
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .graphicsLayer {
+                alpha = cardAlpha
+                scaleX = cardScale
+                scaleY = cardScale
+            }
+            .clickable(onClick = onClick)
+            .then(
+                if (enableDrag && onDragStart != null) {
+                    Modifier.scheduleCardDragSource(
+                        onDragStart = onDragStart,
+                        onDrag = onDrag,
+                        onDragEnd = onDragEnd,
+                        onDragCancel = onDragCancel,
+                    )
+                } else {
+                    Modifier
+                }
+            ),
         shape = ClassCardShape,
         color = Color.White.copy(alpha = 0.85f),
-        tonalElevation = 1.dp
+        tonalElevation = if (isDragging) 0.dp else 1.dp
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Box(
@@ -306,6 +485,31 @@ fun ScheduleClassCard(
             }
         }
     }
+}
+
+private fun Modifier.scheduleCardDragSource(
+    onDragStart: (Offset, Offset) -> Unit,
+    onDrag: ((Offset) -> Unit)?,
+    onDragEnd: (() -> Unit)?,
+    onDragCancel: (() -> Unit)?,
+): Modifier = composed {
+    var cardPositionInRoot by remember { mutableStateOf(Offset.Zero) }
+    this
+        .onGloballyPositioned { coordinates ->
+            cardPositionInRoot = coordinates.positionInRoot()
+        }
+        .pointerInput(onDragStart, onDrag, onDragEnd, onDragCancel) {
+            detectDragGesturesAfterLongPress(
+                onDragStart = { localOffset ->
+                    onDragStart(cardPositionInRoot + localOffset, localOffset)
+                },
+                onDragEnd = { onDragEnd?.invoke() },
+                onDragCancel = { onDragCancel?.invoke() },
+            ) { change, _ ->
+                change.consume()
+                onDrag?.invoke(cardPositionInRoot + change.position)
+            }
+        }
 }
 
 private val DayTemplatePresets = listOf(

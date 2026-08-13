@@ -35,6 +35,7 @@ class ReminderWorker @AssistedInject constructor(
             ReminderType.CLASS -> preferences.classReminders.first()
             ReminderType.TASK, ReminderType.ASSIGNMENT -> preferences.taskReminders.first()
             ReminderType.EXAM -> preferences.examReminders.first()
+            ReminderType.FOCUS, ReminderType.SCHEDULE_SCAN -> preferences.notificationsEnabled.first()
         }
         if (!enabled) return Result.success()
 

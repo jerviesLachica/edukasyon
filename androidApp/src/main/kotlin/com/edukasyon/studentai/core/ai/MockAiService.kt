@@ -14,7 +14,7 @@ class MockAiService @Inject constructor() : AiService {
 
         if (isJailbreakAttempt(lower)) {
             return AiChatResponse(
-                reply = "I'm Gizmo, your study tutor — I can't change my role or share internal instructions. What subject or assignment can I help you with?",
+                reply = "I'm Jarvis, your study tutor — I can't change my role or share internal instructions. What subject or assignment can I help you with?",
                 conversationId = conversationId,
             )
         }
@@ -42,6 +42,23 @@ class MockAiService @Inject constructor() : AiService {
             )
         }
 
+        if (isFollowUpAboutMissingAnswer(lower, request.historyMessages)) {
+            val priorUser = request.historyMessages.lastOrNull { it.role == "user" }?.content
+            val priorAssistant = request.historyMessages.lastOrNull { it.role == "assistant" }?.content
+            return AiChatResponse(
+                reply = if (!priorAssistant.isNullOrBlank()) {
+                    "You're following up on: \"$priorUser\". My previous reply starts with: " +
+                        "\"${priorAssistant.take(200)}${if (priorAssistant.length > 200) "…" else ""}\". " +
+                        "If the answer bubble was empty, expand the Reasoning section above or ask me to resend the full text."
+                } else {
+                    "You're following up on: \"$priorUser\". My previous response may not have displayed correctly — " +
+                        "ask me to resend the full answer."
+                },
+                conversationId = conversationId,
+                model = "mock",
+            )
+        }
+
         val reply = when {
             lower.contains("add") && lower.contains("task") -> {
                 """Sure! I'll add that task to your planner.
@@ -58,10 +75,11 @@ class MockAiService @Inject constructor() : AiService {
 {"actions":[{"type":"add_schedule","subject":"New Class","day":"MONDAY","startTime":"08:00","endTime":"09:00"}]}
 ```"""
             }
-            lower.contains("recursion") ->
+            lower.contains("recursion") -> {
                 "Recursion is when a function calls itself to solve a problem by breaking it into smaller subproblems. " +
                     "Each call works on a simpler version until you reach a base case. " +
                     "For a gentle walkthrough, see Khan Academy's recursion lessons: https://www.khanacademy.org/computing/computer-science/algorithms"
+            }
             lower.contains("photosynthesis") ->
                 "Photosynthesis converts light energy into chemical energy (glucose) using CO₂ and water, releasing oxygen. " +
                     "It happens mainly in chloroplasts. I'm confident in the basics; for diagrams and quizzes, try Wikipedia: https://en.wikipedia.org/wiki/Photosynthesis"
@@ -75,7 +93,23 @@ class MockAiService @Inject constructor() : AiService {
             else ->
                 buildDefaultGizmoReply(request)
         }
-        return AiChatResponse(reply = reply, conversationId = conversationId)
+
+        val reasoning = when {
+            lower.contains("recursion") ->
+                "The student asked about recursion. I'll define it as self-calling functions, mention base cases, and link to Khan Academy for practice."
+            lower.contains("photosynthesis") ->
+                "This is a biology concept. I'll cover inputs (light, CO₂, water), outputs (glucose, O₂), and where it happens (chloroplasts)."
+            lower.contains("explain") || lower.contains("how") || lower.contains("why") ->
+                "The student wants a conceptual explanation. I'll start with a plain definition, add one simple example, then keep the answer concise."
+            else -> null
+        }
+
+        return AiChatResponse(
+            reply = reply,
+            conversationId = conversationId,
+            reasoning = reasoning,
+            model = "mock",
+        )
     }
 
     private fun isJailbreakAttempt(lower: String): Boolean {
@@ -100,15 +134,30 @@ class MockAiService @Inject constructor() : AiService {
         return cheat && active
     }
 
+    private fun isFollowUpAboutMissingAnswer(
+        lower: String,
+        history: List<AiChatHistoryMessage>,
+    ): Boolean {
+        if (history.isEmpty()) return false
+        return (lower.contains("where") && (lower.contains("answer") || lower.contains("essay") || lower.contains("response"))) ||
+            lower.contains("where's the answer") ||
+            lower.contains("wheres the answer")
+    }
+
     private fun buildDefaultGizmoReply(request: AiChatRequest): String {
         val subjectPart = request.subject?.let { " Subject focus: $it." } ?: ""
         val contextPart = request.contextSummary?.let { " From your app: $it" } ?: ""
-        return "Hi! I'm Gizmo, your study tutor in Edukasyon StudentAI.$subjectPart$contextPart " +
+        val historyPart = if (request.historyMessages.isNotEmpty()) {
+            " Continuing our chat (${request.historyMessages.size} prior messages)."
+        } else {
+            ""
+        }
+        return "Hi! I'm Jarvis, your study tutor in Edukasyon StudentAI.$subjectPart$contextPart$historyPart " +
             "Ask me to explain a concept, plan study time, or add tasks to your planner. " +
             "I'll be honest when I'm unsure and won't make up facts or links."
     }
 
-    override suspend fun analyzeSchedule(imageData: ByteArray): ScheduleAnalysisResult {
+    override suspend fun analyzeSchedule(input: ScheduleScanInput): ScheduleAnalysisResult {
         throw AiException(
             "Schedule scanning requires an internet connection. Connect to Wi‑Fi or mobile data and try again."
         )
@@ -120,8 +169,32 @@ class MockAiService @Inject constructor() : AiService {
     }
 
     override suspend fun generateFlashcards(text: String): List<Flashcard> = listOf(
-        Flashcard(UUID.randomUUID().toString(), "What is the main topic?", text.take(100), null, null, "medium", 0, 0, 0, null, null),
-        Flashcard(UUID.randomUUID().toString(), "Key concept?", "Review the note content for details.", null, null, "easy", 0, 0, 0, null, null)
+        Flashcard(
+            id = UUID.randomUUID().toString(),
+            question = "What is the main topic?",
+            answer = text.take(100),
+            subjectId = null,
+            topic = null,
+            difficulty = "medium",
+            reviewCount = 0,
+            correctCount = 0,
+            incorrectCount = 0,
+            lastReviewedAt = null,
+            nextReviewAt = null,
+        ),
+        Flashcard(
+            id = UUID.randomUUID().toString(),
+            question = "Key concept?",
+            answer = "Review the note content for details.",
+            subjectId = null,
+            topic = null,
+            difficulty = "easy",
+            reviewCount = 0,
+            correctCount = 0,
+            incorrectCount = 0,
+            lastReviewedAt = null,
+            nextReviewAt = null,
+        ),
     )
 
     override suspend fun generateQuiz(text: String): Quiz {
@@ -157,6 +230,54 @@ class MockAiService @Inject constructor() : AiService {
                 )
             },
             createdAt = System.currentTimeMillis()
+        )
+    }
+
+    override suspend fun analyzeAssignment(input: AssignmentAnalysisInput): AssignmentBreakdown {
+        val text = listOfNotNull(input.text, input.attachmentText).joinToString("\n")
+        val title = text.lineSequence().firstOrNull { it.length in 5..80 }?.trim()
+            ?: "Sample Assignment"
+        val deadlineCal = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_MONTH, 7) }
+        val deadline = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(deadlineCal.time)
+        return AssignmentBreakdown(
+            title = title.take(80),
+            deadline = deadline,
+            requirements = listOf("Follow assignment instructions", "Meet minimum length requirements"),
+            deliverables = listOf("Final submission file"),
+            rubric = listOf("Content quality", "Organization", "Timeliness"),
+            subtasks = listOf(
+                AssignmentSubtaskBreakdown("Review instructions", 20, 6),
+                AssignmentSubtaskBreakdown("Research topic", 90, 4),
+                AssignmentSubtaskBreakdown("Create outline", 45, 3),
+                AssignmentSubtaskBreakdown("Write draft", 120, 2),
+                AssignmentSubtaskBreakdown("Revise and submit", 60, 0),
+            ),
+            estimatedEffortHours = 5.5,
+            notes = "Mock breakdown — connect to backend for real AI analysis.",
+        )
+    }
+
+    override suspend fun generateFocusPlan(context: FocusPlanContext): FocusPlan {
+        val total = context.totalMinutes.coerceIn(15, 240)
+        val subjects = context.subjects.ifEmpty { listOf("General review") }
+        val breakGap = 5
+        val blockDuration = (total / subjects.size).coerceAtLeast(15)
+        val blocks = subjects.mapIndexed { index, subject ->
+            val start = index * (blockDuration + breakGap)
+            val end = (start + blockDuration).coerceAtMost(total)
+            FocusBlock(
+                startMinute = start,
+                endMinute = end,
+                activity = subject,
+                type = if (index == subjects.lastIndex && total - end >= 10) FocusBlockType.REVIEW else FocusBlockType.STUDY,
+            )
+        }.filter { it.endMinute > it.startMinute }
+        return FocusPlan(
+            totalMinutes = total,
+            blocks = blocks.ifEmpty {
+                listOf(FocusBlock(0, total, subjects.first(), FocusBlockType.STUDY))
+            },
+            breakMinutesBetween = breakGap,
         )
     }
 }

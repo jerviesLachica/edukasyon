@@ -163,10 +163,10 @@ fun widgetThemeFor(design: WidgetDesignPreset, colors: WidgetDesignColors): Widg
 
 object WidgetAccentPresets {
     val presets = listOf(
-        "#00BCD4" to "Cyan",
-        "#3949AB" to "Blue",
-        "#7C3AED" to "Purple",
-        "#E11D48" to "Red",
-        "#00897B" to "Teal"
+        "#F97316" to "Coral",
+        "#F8B195" to "Peach",
+        "#E11D48" to "Rose",
+        "#3949AB" to "Indigo",
+        "#00897B" to "Teal",
     )
 }

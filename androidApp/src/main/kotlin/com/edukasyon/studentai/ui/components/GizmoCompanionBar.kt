@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
@@ -33,76 +32,188 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.edukasyon.studentai.domain.model.GizmoCompanionState
 import com.edukasyon.studentai.domain.model.GizmoMood
-import kotlin.math.ceil
 
 @Composable
 fun GizmoCompanionHeader(
     gizmo: GizmoCompanionState,
     isOnline: Boolean = true,
+    expanded: Boolean = true,
+    onToggleExpanded: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val expandSpring = spring<IntSize>(stiffness = Spring.StiffnessMediumLow)
+    val fadeSpring = spring<Float>(stiffness = Spring.StiffnessMediumLow)
+
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (expanded) 0.35f else 0.28f),
         shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
+        tonalElevation = if (expanded) 0.dp else 2.dp,
     ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(
+            Modifier.padding(
+                horizontal = 12.dp,
+                vertical = if (expanded) 12.dp else 8.dp,
+            ),
+        ) {
             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggleExpanded),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                GizmoAvatar(mood = gizmo.mood, level = gizmo.level)
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "Gizmo",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        gizmo.mood.greeting,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Star,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                        Spacer(Modifier.width(4.dp))
+                GizmoAvatar(
+                    mood = gizmo.mood,
+                    level = gizmo.level,
+                    modifier = Modifier.size(if (expanded) 56.dp else 40.dp),
+                )
+                if (expanded) {
+                    Column(Modifier.weight(1f)) {
                         Text(
-                            "Lv.${gizmo.level} · ${gizmo.xp} XP",
-                            style = MaterialTheme.typography.labelSmall,
+                            "Jarvis",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            gizmo.mood.greeting,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Star,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "Lv.${gizmo.level} · ${gizmo.xp} XP",
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                        LinearProgressIndicator(
+                            progress = { gizmo.xpProgress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp)),
                         )
                     }
-                    LinearProgressIndicator(
-                        progress = { gizmo.xpProgress },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp)),
+                } else {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "Jarvis",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "Lv.${gizmo.level} · AI Tutor",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    GizmoCompactStats(gizmo = gizmo, isOnline = isOnline)
+                }
+                IconButton(
+                    onClick = onToggleExpanded,
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Icon(
+                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (expanded) "Collapse companion bar" else "Expand companion bar",
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
-            Spacer(Modifier.height(10.dp))
-            GizmoCapabilityChips(isOnline = isOnline)
-            Spacer(Modifier.height(8.dp))
-            GizmoHeartsRow(gizmo = gizmo)
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(animationSpec = expandSpring) + fadeIn(animationSpec = fadeSpring),
+                exit = shrinkVertically(animationSpec = expandSpring) + fadeOut(animationSpec = fadeSpring),
+            ) {
+                Column {
+                    Spacer(Modifier.height(10.dp))
+                    GizmoCapabilityChips(isOnline = isOnline)
+                    Spacer(Modifier.height(8.dp))
+                    GizmoStreakRow(gizmo = gizmo)
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun GizmoCompactStats(
+    gizmo: GizmoCompanionState,
+    isOnline: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (gizmo.streakDays > 0) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.LocalFireDepartment,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+                Spacer(Modifier.width(3.dp))
+                Text(
+                    "${gizmo.streakDays}d",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isOnline) {
+                        Color(0xFF4CAF50)
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    },
+                ),
+        )
     }
 }
 
@@ -178,81 +289,113 @@ fun GizmoAvatar(
 }
 
 @Composable
-fun GizmoHeartsRow(
+fun GizmoStreakRow(
     gizmo: GizmoCompanionState,
+    modifier: Modifier = Modifier,
+) {
+    if (gizmo.streakDays <= 0) return
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.LocalFireDepartment,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.error,
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            "${gizmo.streakDays}-day streak",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+fun JarvisThinkingIndicator(
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Start,
+        verticalAlignment = Alignment.Top,
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            repeat(gizmo.maxHearts.coerceAtMost(15)) { index ->
-                val filled = index < gizmo.hearts
-                Icon(
-                    Icons.Default.Favorite,
-                    contentDescription = null,
-                    modifier = Modifier.size(if (index < 5) 16.dp else 12.dp),
-                    tint = if (filled) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                    },
-                )
-            }
-            Spacer(Modifier.width(6.dp))
+        Text("🤖", modifier = Modifier.padding(end = 6.dp, top = 4.dp))
+        Column(Modifier.weight(1f, fill = false)) {
             Text(
-                "${gizmo.hearts}/${gizmo.maxHearts}",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
+                "Jarvis",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.height(4.dp))
+            GeneratingLoader(
+                label = "Thinking",
+                style = GeneratingLoaderStyle.Compact,
             )
         }
+    }
+}
 
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (gizmo.superHearts > 0) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+@Composable
+fun JarvisReasoningSection(
+    reasoning: String,
+    modifier: Modifier = Modifier,
+    initiallyExpanded: Boolean = false,
+) {
+    var expanded by remember(reasoning) { mutableStateOf(initiallyExpanded) }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     Icon(
-                        Icons.Default.Shield,
+                        Icons.Outlined.Psychology,
                         contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                     )
-                    Spacer(Modifier.width(2.dp))
                     Text(
-                        "${gizmo.superHearts}",
-                        style = MaterialTheme.typography.labelSmall,
+                        "Reasoning",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium,
                     )
                 }
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (expanded) "Collapse reasoning" else "Expand reasoning",
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
             }
-            if (gizmo.streakDays > 0) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.LocalFireDepartment,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.error,
-                    )
-                    Spacer(Modifier.width(2.dp))
-                    Text(
-                        "${gizmo.streakDays}d",
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(),
+                exit = shrinkVertically(),
+            ) {
+                MarkdownChatText(
+                    markdown = reasoning,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
             }
         }
-    }
-
-    gizmo.heartsCooldownRemainingMs?.let { remaining ->
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "Hearts refilling in ${formatCooldown(remaining)}",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.error,
-        )
     }
 }
 
@@ -264,6 +407,7 @@ fun GizmoChatBubble(
     modifier: Modifier = Modifier,
     attachmentName: String? = null,
     attachmentIsImage: Boolean = false,
+    reasoning: String? = null,
     onCopy: (() -> Unit)? = null,
 ) {
     Row(
@@ -284,60 +428,72 @@ fun GizmoChatBubble(
                 color = MaterialTheme.colorScheme.primary,
             )
             Spacer(Modifier.height(2.dp))
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(
-                    topStart = 12.dp,
-                    topEnd = 12.dp,
-                    bottomStart = if (isUser) 12.dp else 4.dp,
-                    bottomEnd = if (isUser) 4.dp else 12.dp,
-                ),
-                color = if (isUser) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                },
-            ) {
-                Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                    if (attachmentName != null) {
-                        AssistChip(
-                            onClick = {},
-                            enabled = false,
-                            label = {
-                                Text(
-                                    attachmentName,
-                                    maxLines = 1,
-                                    style = MaterialTheme.typography.labelSmall,
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    if (attachmentIsImage) Icons.Outlined.Image else Icons.Outlined.InsertDriveFile,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            },
-                            modifier = Modifier.padding(bottom = 6.dp),
-                        )
-                    }
-                    if (message.isNotBlank()) {
-                        Text(message, style = MaterialTheme.typography.bodyMedium)
-                    }
-                    if (!isUser && onCopy != null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            IconButton(
-                                onClick = onCopy,
-                                modifier = Modifier.size(32.dp),
+            if (!isUser && !reasoning.isNullOrBlank()) {
+                JarvisReasoningSection(
+                    reasoning = reasoning,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+            }
+            if (isUser || message.isNotBlank() || attachmentName != null) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(
+                        topStart = 12.dp,
+                        topEnd = 12.dp,
+                        bottomStart = if (isUser) 12.dp else 4.dp,
+                        bottomEnd = if (isUser) 4.dp else 12.dp,
+                    ),
+                    color = if (isUser) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+                ) {
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                        if (attachmentName != null) {
+                            AssistChip(
+                                onClick = {},
+                                enabled = false,
+                                label = {
+                                    Text(
+                                        attachmentName,
+                                        maxLines = 1,
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        if (attachmentIsImage) Icons.Outlined.Image else Icons.Outlined.InsertDriveFile,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                },
+                                modifier = Modifier.padding(bottom = 6.dp),
+                            )
+                        }
+                        if (message.isNotBlank()) {
+                            if (isUser) {
+                                Text(message, style = MaterialTheme.typography.bodyMedium)
+                            } else {
+                                MarkdownChatText(markdown = message)
+                            }
+                        }
+                        if (!isUser && onCopy != null && message.isNotBlank()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
                             ) {
-                                Icon(
-                                    Icons.Outlined.ContentCopy,
-                                    contentDescription = "Copy response",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                )
+                                IconButton(
+                                    onClick = onCopy,
+                                    modifier = Modifier.size(32.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.ContentCopy,
+                                        contentDescription = "Copy response",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    )
+                                }
                             }
                         }
                     }
@@ -345,11 +501,4 @@ fun GizmoChatBubble(
             }
         }
     }
-}
-
-private fun formatCooldown(ms: Long): String {
-    val totalSeconds = ceil(ms / 1000.0).toInt()
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
 }

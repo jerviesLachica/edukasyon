@@ -29,6 +29,12 @@ interface AiApiService {
 
     @POST("api/ai/study-plan")
     suspend fun generateStudyPlan(@Body request: StudyPlanRequest): StudyPlanResponseDto
+
+    @POST("api/ai/assignment-breakdown")
+    suspend fun analyzeAssignment(@Body request: AssignmentBreakdownRequest): AssignmentBreakdownResponseDto
+
+    @POST("api/ai/focus-plan")
+    suspend fun generateFocusPlan(@Body request: FocusPlanRequest): FocusPlanResponseDto
 }
 
 @Serializable data class HealthResponseDto(
@@ -40,19 +46,33 @@ interface AiApiService {
     val textModel: String? = null,
     val routingPolicy: String? = null,
 )
+@Serializable data class ChatHistoryMessageDto(
+    val role: String,
+    val content: String,
+)
+
 @Serializable data class ChatRequest(
     val message: String,
     val subject: String? = null,
     val contextSummary: String? = null,
     val conversationId: String? = null,
+    val historyMessages: List<ChatHistoryMessageDto> = emptyList(),
     val attachmentName: String? = null,
     val attachmentMimeType: String? = null,
     val imageBase64: String? = null,
     val attachmentText: String? = null,
     val model: String? = null,
 )
-@Serializable data class ChatResponseDto(val reply: String, val conversationId: String)
-@Serializable data class ScheduleAnalysisRequest(val imageBase64: String)
+@Serializable data class ChatResponseDto(
+    val reply: String,
+    val conversationId: String,
+    val reasoning: String? = null,
+    val model: String? = null,
+)
+@Serializable data class ScheduleAnalysisRequest(
+    val imageBase64: String,
+    val extractedText: String? = null,
+)
 @Serializable data class ExtractedClassDto(
     val subject: String,
     val teacher: String? = null,
@@ -76,6 +96,74 @@ interface AiApiService {
 )
 @Serializable data class StudyPlanItemDto(val dayOfWeek: String, val startTime: String, val endTime: String, val subjectName: String, val topic: String, val activity: String)
 @Serializable data class StudyPlanResponseDto(val title: String, val items: List<StudyPlanItemDto>)
+@Serializable data class AssignmentBreakdownRequest(
+    val text: String? = null,
+    val attachmentText: String? = null,
+    val imageBase64: String? = null,
+)
+@Serializable data class AssignmentSubtaskDto(
+    val title: String,
+    val estimatedMinutes: Int = 30,
+    val dueOffsetDays: Int = 0,
+)
+@Serializable data class AssignmentBreakdownResponseDto(
+    val title: String,
+    val deadline: String? = null,
+    val requirements: List<String> = emptyList(),
+    val deliverables: List<String> = emptyList(),
+    val rubric: List<String> = emptyList(),
+    val subtasks: List<AssignmentSubtaskDto> = emptyList(),
+    val estimatedEffortHours: Double = 1.0,
+    val notes: String = "",
+)
+@Serializable data class FocusPlanRequest(
+    val totalMinutes: Int,
+    val subjects: List<String> = emptyList(),
+    val upcomingExams: List<String> = emptyList(),
+    val weakAreas: List<String> = emptyList(),
+    val userPrompt: String? = null,
+)
+@Serializable data class FocusBlockDto(
+    val startMinute: Int,
+    val endMinute: Int,
+    val activity: String,
+    val type: String = "STUDY",
+)
+@Serializable data class FocusPlanResponseDto(
+    val totalMinutes: Int,
+    val blocks: List<FocusBlockDto>,
+    val breakMinutesBetween: Int = 5,
+)
+
+fun AssignmentBreakdownResponseDto.toDomain() = AssignmentBreakdown(
+    title = title,
+    deadline = deadline,
+    requirements = requirements,
+    deliverables = deliverables,
+    rubric = rubric,
+    subtasks = subtasks.map {
+        AssignmentSubtaskBreakdown(
+            title = it.title,
+            estimatedMinutes = it.estimatedMinutes,
+            dueOffsetDays = it.dueOffsetDays,
+        )
+    },
+    estimatedEffortHours = estimatedEffortHours,
+    notes = notes,
+)
+
+fun FocusPlanResponseDto.toDomain() = FocusPlan(
+    totalMinutes = totalMinutes,
+    blocks = blocks.map {
+        FocusBlock(
+            startMinute = it.startMinute,
+            endMinute = it.endMinute,
+            activity = it.activity,
+            type = FocusBlockType.fromString(it.type),
+        )
+    },
+    breakMinutesBetween = breakMinutesBetween,
+)
 
 fun FlashcardDto.toDomain() = Flashcard(
     id = java.util.UUID.randomUUID().toString(), question = question, answer = answer,

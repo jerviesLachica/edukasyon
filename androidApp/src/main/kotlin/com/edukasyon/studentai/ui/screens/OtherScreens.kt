@@ -4,7 +4,10 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -19,27 +22,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.edukasyon.studentai.domain.model.Note
 import com.edukasyon.studentai.domain.model.AiModel
+import com.edukasyon.studentai.domain.model.PreferredStudentStatus
+import com.edukasyon.studentai.domain.model.ProfileEditPolicy
+import com.edukasyon.studentai.domain.model.SyncState
 import com.edukasyon.studentai.domain.model.ThemeMode
 import com.edukasyon.studentai.R
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveWidth
 import com.edukasyon.studentai.ui.adaptive.AdaptiveWidth
 import com.edukasyon.studentai.ui.components.*
-import com.edukasyon.studentai.ui.theme.StudentAiGradients
 import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import com.edukasyon.studentai.ui.viewmodel.CalendarViewModel
 import com.edukasyon.studentai.ui.viewmodel.NotesViewModel
 import com.edukasyon.studentai.ui.viewmodel.ProfileViewModel
-import java.util.UUID
+import com.edukasyon.studentai.ui.viewmodel.ProfileUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    onNavigateChat: () -> Unit = {},
     onNavigateFeaturesGuide: () -> Unit = {},
     onNavigateNotificationSettings: () -> Unit = {},
     onRequestNotificationPermission: () -> Unit = {},
@@ -71,6 +75,12 @@ fun ProfileScreen(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) viewModel.setNotifications(true)
+    }
+
+    val googleSignInLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        viewModel.handleGoogleSignInResult(result.data)
     }
 
     LaunchedEffect(state.notificationsEnabled) {
@@ -109,24 +119,76 @@ fun ProfileScreen(
         )
     }
 
+    if (state.showEditSheet) {
+        ProfileEditSheet(
+            state = state,
+            onDismiss = viewModel::dismissEditSheet,
+            onSave = viewModel::saveProfile,
+            onDisplayNameChange = viewModel::updateEditDisplayName,
+            onSchoolChange = viewModel::updateEditSchool,
+            onPreferredStatusChange = viewModel::updateEditPreferredStatus,
+            onBioChange = viewModel::updateEditBio,
+        )
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
+            val profileSubtitle = buildList {
+                state.user?.school?.takeIf { it.isNotBlank() }?.let { add(it) }
+                state.user?.preferredStatus?.takeIf { it.isNotBlank() }?.let { add(it) }
+            }.joinToString(" · ").ifBlank { "StudentAI profile" }
+
             GradientHeader(
+                modifier = Modifier.clickable(onClick = viewModel::openEditSheet),
                 title = state.user?.displayName ?: "Guest Student",
-                subtitle = state.user?.school?.takeIf { it.isNotBlank() } ?: "StudentAI profile",
+                subtitle = profileSubtitle,
                 trailing = {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.onPrimary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        IconButton(onClick = viewModel::openEditSheet) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Edit profile",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                            )
                         }
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.Person,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(22.dp),
+                                )
+                            }
+                        }
+                    }
+                },
+                bottomContent = {
+                    state.user?.bio?.takeIf { it.isNotBlank() }?.let { bio ->
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = bio,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (!state.canEditProfile) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "You can update your profile again in ${state.daysUntilNextEdit} day(s)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f),
+                        )
                     }
                 }
             )
@@ -217,17 +279,81 @@ fun ProfileScreen(
 
         item {
             SettingsGroup(title = "Home Screen Widget") {
-                WidgetSetupCard(modifier = Modifier.padding(0.dp))
+                WidgetSetupCard(
+                    modifier = Modifier.padding(0.dp),
+                    variant = WidgetSetupCardVariant.Profile,
+                )
             }
         }
 
         item {
-            SettingsGroup(title = "Study Groups") {
+            SettingsGroup(title = "Cloud Sync") {
+                val lastSyncedAt = state.lastSyncedAt
+                val syncSubtitle = when {
+                    state.isSigningInWithGoogle -> "Signing in with Google…"
+                    !state.isGoogleSignedIn -> "Use the same Google account on phone and tablet to sync decks, notes, and planner"
+                    state.isSyncing -> "Syncing your study data…"
+                    !state.isOnline -> "Offline — local data available, sync when online"
+                    state.syncStatus == SyncState.FAILED -> "Last sync failed — tap Sync now to retry"
+                    lastSyncedAt != null -> "Last synced ${formatSyncTime(lastSyncedAt)}"
+                    else -> "Keeps decks, notes, planner, and grades in sync"
+                }
+                if (!state.isGoogleSignedIn) {
+                    Text(
+                        text = syncSubtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                    Button(
+                        onClick = {
+                            viewModel.getGoogleSignInIntent()?.let { googleSignInLauncher.launch(it) }
+                        },
+                        enabled = !state.isSigningInWithGoogle && state.isOnline,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                    ) {
+                        if (state.isSigningInWithGoogle) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Sign in with Google")
+                    }
+                    Spacer(Modifier.height(8.dp))
+                } else {
+                    SettingsRow(
+                        title = "Signed in",
+                        subtitle = state.firebaseEmail ?: "Google account linked",
+                        trailing = {
+                            TextButton(onClick = viewModel::signOutGoogle) {
+                                Text("Sign out")
+                            }
+                        }
+                    )
+                }
                 SettingsRow(
-                    title = "Open chats",
-                    subtitle = "Collaborate with classmates",
+                    title = "Multi-device sync",
+                    subtitle = if (state.isGoogleSignedIn) syncSubtitle else "Sign in above to enable sync",
                     trailing = {
-                        TextButton(onClick = onNavigateChat) { Text("Open") }
+                        if (state.isSyncing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            TextButton(
+                                onClick = viewModel::syncNow,
+                                enabled = state.isGoogleSignedIn && state.isOnline,
+                            ) {
+                                Text("Sync now")
+                            }
+                        }
                     }
                 )
             }
@@ -263,30 +389,24 @@ fun ProfileScreen(
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "AI model",
+                    "Jarvis chat model",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "Auto is the default for chat, images, schedule scanning, and study tools. Step 3.7 Flash adds stronger reasoning for harder questions and the Tools tab.",
+                    "Selected on the Jarvis AI screen. Auto is fast and unlimited; Step 3.7 Flash is stronger but limited to 5 requests every 10 minutes.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AiModel.entries.forEach { model ->
-                        FilterChip(
-                            selected = state.aiModel == model,
-                            onClick = { viewModel.setAiModel(model) },
-                            label = {
-                                Text("${model.displayName} (${model.slug})")
-                            },
-                            leadingIcon = if (state.aiModel == model) {
-                                { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
-                            } else null
-                        )
-                    }
-                }
+                Text(
+                    text = when (state.aiModel) {
+                        AiModel.AUTO -> "Current: Auto — fast general answers"
+                        AiModel.REASONING -> "Current: Step 3.7 Flash — stronger reasoning (limited)"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
         }
 
@@ -304,33 +424,61 @@ fun ProfileScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotesScreen(viewModel: NotesViewModel = hiltViewModel()) {
+fun NotesScreen(
+    onOpenEditor: (noteId: String) -> Unit = {},
+    onCreateNote: () -> Unit = {},
+    viewModel: NotesViewModel = hiltViewModel(),
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var showAdd by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(title = { Text("Notes") })
-        OutlinedTextField(state.searchQuery, { viewModel.search(it) }, Modifier.fillMaxWidth().padding(16.dp), placeholder = { Text("Search notes...") }, leadingIcon = { Icon(Icons.Default.Search, null) })
-        if (state.isLoading) LoadingState()
-        else if (state.notes.isEmpty()) EmptyState("No notes", "Create your first note.", actionLabel = "Add Note", onAction = { showAdd = true })
-        else LazyColumn {
-            items(state.notes) { note ->
-                StudentAiCard {
-                    Text(note.title, style = MaterialTheme.typography.titleSmall)
-                    Text(note.content.take(100), maxLines = 2, style = MaterialTheme.typography.bodySmall)
-                    Row { IconButton(onClick = { viewModel.deleteNote(note.id) }) { Icon(Icons.Default.Delete, null) } }
+        OutlinedTextField(
+            value = state.searchQuery,
+            onValueChange = { viewModel.search(it) },
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            placeholder = { Text("Search notes...") },
+            leadingIcon = { Icon(Icons.Default.Search, null) },
+        )
+        if (state.isLoading) {
+            LoadingState()
+        } else if (state.notes.isEmpty()) {
+            EmptyState(
+                "No notes",
+                "Create your first note.",
+                actionLabel = "Add Note",
+                onAction = onCreateNote,
+            )
+        } else {
+            LazyColumn(Modifier.weight(1f)) {
+                items(state.notes, key = { it.id }) { note ->
+                    StudentAiCard(onClick = { onOpenEditor(note.id) }) {
+                        Text(note.title, style = MaterialTheme.typography.titleSmall)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            note.content,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            IconButton(onClick = { viewModel.deleteNote(note.id) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete note")
+                            }
+                        }
+                    }
                 }
             }
         }
-        FloatingActionButton(onClick = { showAdd = true }, modifier = Modifier.padding(16.dp)) { Icon(Icons.Default.Add, "Add") }
-    }
-    if (showAdd) {
-        var title by remember { mutableStateOf("") }
-        var content by remember { mutableStateOf("") }
-        AlertDialog(onDismissRequest = { showAdd = false }, title = { Text("New Note") },
-            text = { Column { OutlinedTextField(title, { title = it }, label = { Text("Title") }); OutlinedTextField(content, { content = it }, label = { Text("Content") }, minLines = 4) } },
-            confirmButton = { TextButton(onClick = { val now = System.currentTimeMillis(); viewModel.saveNote(Note(UUID.randomUUID().toString(), title, content, null, emptyList(), now, now, false, false)); showAdd = false }) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { showAdd = false }) { Text("Cancel") } })
+        StudentAiAddFab(
+            onClick = onCreateNote,
+            contentDescription = "Add note",
+            modifier = Modifier.padding(16.dp),
+        )
     }
 }
 
@@ -412,7 +560,6 @@ fun OnboardingScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .background(StudentAiGradients.subtleSurfaceBrush())
             .verticalScroll(scrollState)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -614,7 +761,9 @@ private fun OnboardingWidgetsStep(onExplore: () -> Unit, onSkip: () -> Unit) {
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
     WidgetSetupCard(modifier = Modifier.fillMaxWidth())
-    Button(onClick = onExplore, modifier = Modifier.fillMaxWidth(), shape = StudentAiShapes.button) { Text("Got it") }
+    Button(onClick = onExplore, modifier = Modifier.fillMaxWidth(), shape = StudentAiShapes.button) {
+        Text("Add to Home Screen")
+    }
     TextButton(onClick = onSkip) { Text("Skip for now") }
 }
 
@@ -699,4 +848,160 @@ private fun OnboardingIllustration(step: Int) {
             )
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun ProfileEditSheet(
+    state: ProfileUiState,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+    onDisplayNameChange: (String) -> Unit,
+    onSchoolChange: (String) -> Unit,
+    onPreferredStatusChange: (String) -> Unit,
+    onBioChange: (String) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val draft = state.editDraft
+    val canSave = state.canEditProfile &&
+        draft.displayName.isNotBlank() &&
+        !state.isSavingProfile
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Edit profile", style = MaterialTheme.typography.headlineSmall)
+            Text(
+                "Name, school, status, and bio can be updated once per week.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            if (!state.canEditProfile) {
+                Surface(
+                    shape = StudentAiShapes.chip,
+                    color = MaterialTheme.colorScheme.errorContainer,
+                ) {
+                    Text(
+                        text = "You can update your profile again in ${state.daysUntilNextEdit} day(s).",
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = draft.displayName,
+                onValueChange = onDisplayNameChange,
+                label = { Text("Display name") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = StudentAiShapes.chip,
+                enabled = state.canEditProfile && !state.isSavingProfile,
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = draft.school,
+                onValueChange = onSchoolChange,
+                label = { Text("School") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = StudentAiShapes.chip,
+                enabled = state.canEditProfile && !state.isSavingProfile,
+                singleLine = true,
+            )
+
+            Text(
+                "Preferred status",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                PreferredStudentStatus.options.forEach { status ->
+                    FilterChip(
+                        selected = draft.preferredStatus == status.displayName,
+                        onClick = {
+                            if (state.canEditProfile && !state.isSavingProfile) {
+                                onPreferredStatusChange(status.displayName)
+                            }
+                        },
+                        label = { Text(status.displayName) },
+                        enabled = state.canEditProfile && !state.isSavingProfile,
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = draft.bio,
+                onValueChange = onBioChange,
+                label = { Text("Bio") },
+                placeholder = { Text("Tell Jarvis about your goals, interests, or study style…") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 120.dp),
+                shape = StudentAiShapes.chip,
+                enabled = state.canEditProfile && !state.isSavingProfile,
+                minLines = 4,
+                maxLines = 8,
+            )
+            Text(
+                text = "${draft.bio.length}/${ProfileEditPolicy.BIO_MAX_LENGTH}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.End),
+            )
+
+            state.profileSaveMessage?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    enabled = !state.isSavingProfile,
+                    shape = StudentAiShapes.button,
+                ) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f),
+                    enabled = canSave,
+                    shape = StudentAiShapes.button,
+                ) {
+                    if (state.isSavingProfile) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    } else {
+                        Text("Save")
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatSyncTime(timestamp: Long): String {
+    val formatter = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault())
+    return formatter.format(java.util.Date(timestamp))
 }

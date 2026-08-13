@@ -17,6 +17,8 @@ import com.edukasyon.studentai.data.local.entity.*
         NoteEntity::class,
         NoteTagEntity::class,
         FlashcardEntity::class,
+        JeviDeckEntity::class,
+        JeviReviewRecordEntity::class,
         QuizEntity::class,
         QuizQuestionEntity::class,
         StudySessionEntity::class,
@@ -31,7 +33,7 @@ import com.edukasyon.studentai.data.local.entity.*
         CachedHolidayEntity::class,
         LectureFileEntity::class
     ],
-    version = 7,
+    version = 10,
     exportSchema = false
 )
 abstract class StudentAiDatabase : RoomDatabase() {
@@ -45,6 +47,8 @@ abstract class StudentAiDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun noteTagDao(): NoteTagDao
     abstract fun flashcardDao(): FlashcardDao
+    abstract fun jeviDeckDao(): JeviDeckDao
+    abstract fun jeviReviewRecordDao(): JeviReviewRecordDao
     abstract fun quizDao(): QuizDao
     abstract fun quizQuestionDao(): QuizQuestionDao
     abstract fun studySessionDao(): StudySessionDao

@@ -14,6 +14,9 @@ interface UserDao {
     @Query("SELECT * FROM users LIMIT 1")
     fun observeUser(): Flow<UserEntity?>
 
+    @Query("SELECT * FROM users LIMIT 1")
+    suspend fun getUser(): UserEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(user: UserEntity)
 
@@ -37,6 +40,9 @@ interface SubjectDao {
 
     @Query("SELECT * FROM subjects WHERE deletedAt IS NULL AND (name LIKE '%' || :query || '%' OR code LIKE '%' || :query || '%')")
     fun search(query: String): Flow<List<SubjectEntity>>
+
+    @Query("SELECT * FROM subjects")
+    suspend fun getAllForSync(): List<SubjectEntity>
 }
 
 @Dao
@@ -58,6 +64,9 @@ interface ScheduleDao {
 
     @Query("SELECT * FROM schedule_items WHERE deletedAt IS NULL AND (subjectName LIKE '%' || :query || '%' OR teacher LIKE '%' || :query || '%' OR room LIKE '%' || :query || '%')")
     fun search(query: String): Flow<List<ScheduleItemEntity>>
+
+    @Query("SELECT * FROM schedule_items")
+    suspend fun getAllForSync(): List<ScheduleItemEntity>
 }
 
 @Dao
@@ -82,6 +91,9 @@ interface TaskDao {
 
     @Query("SELECT * FROM tasks WHERE deletedAt IS NULL AND title LIKE '%' || :query || '%'")
     fun search(query: String): Flow<List<TaskEntity>>
+
+    @Query("SELECT * FROM tasks")
+    suspend fun getAllForSync(): List<TaskEntity>
 }
 
 @Dao
@@ -97,6 +109,9 @@ interface SubtaskDao {
 
     @Query("DELETE FROM subtasks WHERE taskId = :taskId")
     suspend fun deleteByTask(taskId: String)
+
+    @Query("SELECT * FROM subtasks")
+    suspend fun getAllForSync(): List<SubtaskEntity>
 }
 
 @Dao
@@ -112,6 +127,9 @@ interface AssignmentDao {
 
     @Query("SELECT * FROM assignments WHERE deletedAt IS NULL AND title LIKE '%' || :query || '%'")
     fun search(query: String): Flow<List<AssignmentEntity>>
+
+    @Query("SELECT * FROM assignments")
+    suspend fun getAllForSync(): List<AssignmentEntity>
 }
 
 @Dao
@@ -130,6 +148,9 @@ interface ExamDao {
 
     @Query("SELECT * FROM exams WHERE deletedAt IS NULL AND title LIKE '%' || :query || '%'")
     fun search(query: String): Flow<List<ExamEntity>>
+
+    @Query("SELECT * FROM exams")
+    suspend fun getAllForSync(): List<ExamEntity>
 }
 
 @Dao
@@ -145,6 +166,12 @@ interface NoteDao {
 
     @Query("SELECT * FROM notes WHERE deletedAt IS NULL AND (title LIKE '%' || :query || '%' OR content LIKE '%' || :query || '%')")
     fun search(query: String): Flow<List<NoteEntity>>
+
+    @Query("SELECT * FROM notes WHERE id = :id AND deletedAt IS NULL LIMIT 1")
+    suspend fun getById(id: String): NoteEntity?
+
+    @Query("SELECT * FROM notes")
+    suspend fun getAllForSync(): List<NoteEntity>
 }
 
 @Dao
@@ -157,6 +184,76 @@ interface NoteTagDao {
 
     @Query("DELETE FROM note_tags WHERE noteId = :noteId")
     suspend fun deleteByNote(noteId: String)
+
+    @Query("SELECT * FROM note_tags")
+    suspend fun getAllForSync(): List<NoteTagEntity>
+}
+
+@Dao
+interface JeviDeckDao {
+    @Query("SELECT * FROM jevi_decks WHERE deletedAt IS NULL ORDER BY updatedAt DESC")
+    fun observeAll(): Flow<List<JeviDeckEntity>>
+
+    @Query("SELECT * FROM jevi_decks WHERE id = :id AND deletedAt IS NULL LIMIT 1")
+    fun observeById(id: String): Flow<JeviDeckEntity?>
+
+    @Query("SELECT * FROM jevi_decks WHERE id = :id AND deletedAt IS NULL LIMIT 1")
+    suspend fun getById(id: String): JeviDeckEntity?
+
+    @Query(
+        """SELECT * FROM jevi_decks
+            WHERE deletedAt IS NULL AND subjectId = :subjectId
+            ORDER BY updatedAt DESC LIMIT 1"""
+    )
+    suspend fun getFirstBySubject(subjectId: String): JeviDeckEntity?
+
+    @Query(
+        """SELECT * FROM jevi_decks
+            WHERE deletedAt IS NULL AND subjectId = :subjectId
+            ORDER BY updatedAt DESC LIMIT 1"""
+    )
+    fun observeFirstBySubject(subjectId: String): Flow<JeviDeckEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(deck: JeviDeckEntity)
+
+    @Query("UPDATE jevi_decks SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun softDelete(id: String, deletedAt: Long, updatedAt: Long)
+
+    @Query("SELECT COUNT(*) FROM flashcards WHERE deckId = :deckId AND deletedAt IS NULL")
+    fun observeCardCount(deckId: String): Flow<Int>
+
+    @Query(
+        """SELECT COUNT(*) FROM flashcards
+            WHERE deckId = :deckId AND deletedAt IS NULL
+            AND (nextReviewAt IS NULL OR nextReviewAt <= :now)"""
+    )
+    fun observeDueCount(deckId: String, now: Long): Flow<Int>
+
+    @Query(
+        """SELECT COUNT(*) FROM flashcards
+            WHERE deckId = :deckId AND deletedAt IS NULL
+            AND reviewCount >= 3 AND intervalDays >= 21"""
+    )
+    fun observeMasteredCount(deckId: String): Flow<Int>
+
+    @Query("SELECT * FROM jevi_decks")
+    suspend fun getAllForSync(): List<JeviDeckEntity>
+}
+
+@Dao
+interface JeviReviewRecordDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(record: JeviReviewRecordEntity)
+
+    @Query("SELECT * FROM jevi_review_records WHERE flashcardId = :flashcardId ORDER BY reviewedAt DESC")
+    fun observeByFlashcard(flashcardId: String): Flow<List<JeviReviewRecordEntity>>
+
+    @Query("SELECT COUNT(*) FROM jevi_review_records WHERE reviewedAt >= :since")
+    suspend fun countSince(since: Long): Int
+
+    @Query("SELECT * FROM jevi_review_records")
+    suspend fun getAllForSync(): List<JeviReviewRecordEntity>
 }
 
 @Dao
@@ -167,17 +264,52 @@ interface FlashcardDao {
     @Query("SELECT * FROM flashcards WHERE deletedAt IS NULL AND (nextReviewAt IS NULL OR nextReviewAt <= :now) ORDER BY nextReviewAt ASC")
     fun observeDue(now: Long): Flow<List<FlashcardEntity>>
 
+    @Query("SELECT * FROM flashcards WHERE deletedAt IS NULL AND deckId = :deckId ORDER BY nextReviewAt ASC")
+    fun observeByDeck(deckId: String): Flow<List<FlashcardEntity>>
+
+    @Query(
+        """SELECT * FROM flashcards WHERE deletedAt IS NULL AND deckId = :deckId
+            AND (nextReviewAt IS NULL OR nextReviewAt <= :now) ORDER BY nextReviewAt ASC"""
+    )
+    fun observeDueByDeck(deckId: String, now: Long): Flow<List<FlashcardEntity>>
+
+    @Query("SELECT COUNT(*) FROM flashcards WHERE deletedAt IS NULL")
+    fun observeTotalCount(): Flow<Int>
+
+    @Query(
+        """SELECT COUNT(*) FROM flashcards WHERE deletedAt IS NULL
+            AND (nextReviewAt IS NULL OR nextReviewAt <= :now)"""
+    )
+    fun observeDueCount(now: Long): Flow<Int>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(flashcard: FlashcardEntity)
 
+    @Query("UPDATE flashcards SET deckId = :deckId, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun assignDeck(id: String, deckId: String, updatedAt: Long)
+
+    @Query("UPDATE flashcards SET deckId = :deckId, updatedAt = :updatedAt WHERE deckId IS NULL AND deletedAt IS NULL")
+    suspend fun assignOrphansToDeck(deckId: String, updatedAt: Long)
+
     @Query("SELECT * FROM flashcards WHERE deletedAt IS NULL AND question LIKE '%' || :query || '%'")
     fun search(query: String): Flow<List<FlashcardEntity>>
+
+    @Query("SELECT * FROM flashcards")
+    suspend fun getAllForSync(): List<FlashcardEntity>
 }
 
 @Dao
 interface QuizDao {
     @Query("SELECT * FROM quizzes WHERE deletedAt IS NULL ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<QuizEntity>>
+
+    @Query("SELECT * FROM quizzes WHERE id = :quizId AND deletedAt IS NULL LIMIT 1")
+    suspend fun getById(quizId: String): QuizEntity?
+
+    @Query(
+        "SELECT * FROM quizzes WHERE deletedAt IS NULL AND sourceNoteId = :deckSource ORDER BY createdAt DESC"
+    )
+    fun observeByDeckSource(deckSource: String): Flow<List<QuizEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(quiz: QuizEntity)
@@ -247,6 +379,9 @@ interface GradeEntryDao {
 
     @Query("UPDATE grade_entries SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: String, deletedAt: Long, updatedAt: Long)
+
+    @Query("SELECT * FROM grade_entries")
+    suspend fun getAllForSync(): List<GradeEntryEntity>
 }
 
 @Dao
@@ -254,15 +389,15 @@ interface SyncMetadataDao {
     @Query("SELECT * FROM sync_metadata")
     fun observeAll(): Flow<List<SyncMetadataEntity>>
 
+    @Query("SELECT * FROM sync_metadata WHERE entityType = :entityType LIMIT 1")
+    fun observeByType(entityType: String): Flow<SyncMetadataEntity?>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(metadata: SyncMetadataEntity)
 }
 
 @Dao
 interface AiConversationDao {
-    @Query("SELECT * FROM conversations WHERE conversationType IS NULL ORDER BY updatedAt DESC")
-    fun observeStudyGroups(): Flow<List<ConversationEntity>>
-
     @Query(
         "SELECT * FROM conversations WHERE conversationType IN (:types) ORDER BY updatedAt DESC"
     )

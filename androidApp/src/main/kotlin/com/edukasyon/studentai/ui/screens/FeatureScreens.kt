@@ -13,15 +13,10 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,177 +30,36 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
+import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
+import com.edukasyon.studentai.ui.adaptive.rememberFlashcardMaxWidth
 import com.edukasyon.studentai.ui.components.BouncyButton
 import com.edukasyon.studentai.ui.components.BouncyOutlinedButton
 import com.edukasyon.studentai.ui.components.EmptyState
-import com.edukasyon.studentai.ui.components.StudentAiCard
 import com.edukasyon.studentai.ui.components.animatedClickable
-import com.edukasyon.studentai.ui.viewmodel.ChatViewModel
 import com.edukasyon.studentai.ui.viewmodel.FlashcardStudyViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ChatListScreen(
-    onOpenChat: (String) -> Unit,
-    onBack: () -> Unit = {},
-    viewModel: ChatViewModel = hiltViewModel()
-) {
-    val conversations by viewModel.conversations.collectAsStateWithLifecycle()
-    var showNew by remember { mutableStateOf(false) }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Study Groups") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showNew = true }) {
-                Icon(Icons.Default.Add, "New chat")
-            }
-        }
-    ) { padding ->
-        if (conversations.isEmpty()) {
-            EmptyState(
-                title = "No conversations",
-                message = "Start a study group chat to collaborate with classmates.",
-                actionLabel = "New Chat",
-                onAction = { showNew = true },
-                modifier = Modifier.padding(padding)
-            )
-        } else {
-            LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp)) {
-                items(conversations) { conv ->
-                    StudentAiCard(
-                        modifier = Modifier.fillMaxWidth().clickable { onOpenChat(conv.id) }
-                    ) {
-                        Text(conv.title, style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            if (conv.isGroup) "Group" else "Direct",
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    if (showNew) {
-        var title by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showNew = false },
-            title = { Text("New Study Group") },
-            text = {
-                OutlinedTextField(title, { title = it }, label = { Text("Group name") }, modifier = Modifier.fillMaxWidth())
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (title.isNotBlank()) {
-                        viewModel.createConversation(title) { id -> onOpenChat(id) }
-                        showNew = false
-                    }
-                }) { Text("Create") }
-            },
-            dismissButton = { TextButton(onClick = { showNew = false }) { Text("Cancel") } }
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ChatThreadScreen(
-    conversationId: String,
-    onBack: () -> Unit,
-    viewModel: ChatViewModel = hiltViewModel()
-) {
-    val messages by viewModel.messages(conversationId).collectAsStateWithLifecycle()
-    var input by remember { mutableStateOf("") }
-    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-
-    LaunchedEffect(conversationId) { viewModel.setActiveConversation(conversationId) }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Chat") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            LazyColumn(
-                Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
-                reverseLayout = true,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(messages.reversed()) { msg ->
-                    val isMe = msg.senderId == "me"
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
-                    ) {
-                        Surface(
-                            color = if (isMe) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceVariant,
-                            shape = MaterialTheme.shapes.medium
-                        ) {
-                            Column(Modifier.padding(12.dp)) {
-                                Text(msg.content)
-                                Text(
-                                    timeFormat.format(Date(msg.sentAt)),
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            Row(
-                Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    input,
-                    { input = it },
-                    Modifier.weight(1f),
-                    placeholder = { Text("Message...") }
-                )
-                IconButton(
-                    onClick = {
-                        if (input.isNotBlank()) {
-                            viewModel.sendMessage(conversationId, input)
-                            input = ""
-                        }
-                    }
-                ) { Icon(Icons.Default.Send, "Send") }
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FlashcardStudyScreen(
     onBack: () -> Unit,
-    viewModel: FlashcardStudyViewModel = hiltViewModel()
+    deckId: String? = null,
+    studyAll: Boolean = false,
+    onStudyAll: ((String) -> Unit)? = null,
+    viewModel: FlashcardStudyViewModel = hiltViewModel(
+        key = "${deckId ?: "jevi_review_all"}_$studyAll",
+    ),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val horizontalPadding = rememberAdaptiveHorizontalPadding()
+    val flashcardMaxWidth = rememberFlashcardMaxWidth()
     var flipped by remember { mutableStateOf(false) }
     val card = state.currentCard
-    val totalCards = state.dueCards.size
+    val totalCards = state.studyCards.size
     val currentNumber = (state.currentIndex + 1).coerceAtMost(totalCards)
+    val deckTitle = state.deck?.title
+    val deckCardCount = state.deck?.cardCount ?: 0
+    val deckDueCount = state.deck?.dueCount ?: 0
 
     LaunchedEffect(card?.id) {
         flipped = false
@@ -214,7 +68,16 @@ fun FlashcardStudyScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Study Flashcards") },
+                title = {
+                    Text(
+                        when {
+                            deckTitle != null && state.studyAll -> "$deckTitle · Study all"
+                            deckTitle != null -> "$deckTitle · Review"
+                            state.studyAll -> "JEVI Study All"
+                            else -> "JEVI Review"
+                        },
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
@@ -223,89 +86,142 @@ fun FlashcardStudyScreen(
             )
         }
     ) { padding ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            FlashcardStudyProgressHeader(
-                remaining = state.remaining,
-                currentNumber = currentNumber,
-                totalCards = totalCards,
-            )
-
-            Spacer(Modifier.height(24.dp))
-
-            if (card == null) {
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    EmptyState("All caught up!", "No flashcards due for review right now.")
-                }
-            } else {
-                AnimatedContent(
-                    targetState = card.id,
-                    modifier = Modifier.weight(1f),
-                    transitionSpec = {
-                        (slideInHorizontally { it / 3 } + fadeIn(tween(300)))
-                            .togetherWith(slideOutHorizontally { -it / 3 } + fadeOut(tween(200)))
-                    },
-                    label = "cardTransition",
-                ) { _ ->
+        AdaptiveContentContainer(Modifier.padding(padding)) { contentModifier ->
+            Column(
+                contentModifier
+                    .fillMaxSize()
+                    .padding(horizontal = horizontalPadding, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .then(
+                            if (flashcardMaxWidth != Dp.Unspecified) {
+                                Modifier.widthIn(max = flashcardMaxWidth)
+                            } else {
+                                Modifier
+                            },
+                        ),
+                    contentAlignment = Alignment.TopCenter,
+                ) {
                     Column(
-                        modifier = Modifier.fillMaxSize(),
+                        Modifier.fillMaxSize(),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
                     ) {
-                        FlashcardFlipCard(
-                            question = card.question,
-                            answer = card.answer,
-                            topic = card.topic,
-                            isFlipped = flipped,
-                            onFlip = { flipped = !flipped },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 280.dp, max = 360.dp),
+                        FlashcardStudyProgressHeader(
+                            remaining = state.remaining,
+                            currentNumber = currentNumber,
+                            totalCards = totalCards,
+                            studyAll = state.studyAll,
                         )
 
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(24.dp))
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Icon(
-                                Icons.Outlined.TouchApp,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                if (flipped) "How well did you know this?" else "Tap card to reveal answer",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                        if (card == null) {
+                            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                                ) {
+                                    when {
+                                        !state.studyAll && deckId != null && deckCardCount > 0 && deckDueCount == 0 -> {
+                                            EmptyState(
+                                                title = "No cards due",
+                                                message = "This deck has $deckCardCount cards, but none are due for review right now.",
+                                            )
+                                            if (onStudyAll != null) {
+                                                BouncyButton(onClick = { onStudyAll(deckId) }) {
+                                                    Text("Study all $deckCardCount cards")
+                                                }
+                                            }
+                                        }
+                                        deckCardCount == 0 && totalCards == 0 -> {
+                                            EmptyState(
+                                                title = "No cards yet",
+                                                message = "Generate flashcards with JEVI AI or add cards to this deck.",
+                                            )
+                                        }
+                                        else -> {
+                                            EmptyState(
+                                                title = if (state.studyAll) "Session complete" else "All caught up!",
+                                                message = if (state.studyAll) {
+                                                    "You've reviewed every card in this session."
+                                                } else {
+                                                    "No flashcards are due for review right now."
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            AnimatedContent(
+                                targetState = card.id,
+                                modifier = Modifier.weight(1f),
+                                transitionSpec = {
+                                    (slideInHorizontally { it / 3 } + fadeIn(tween(300)))
+                                        .togetherWith(slideOutHorizontally { -it / 3 } + fadeOut(tween(200)))
+                                },
+                                label = "cardTransition",
+                            ) { _ ->
+                                Column(
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center,
+                                ) {
+                                    FlashcardFlipCard(
+                                        question = card.question,
+                                        answer = card.answer,
+                                        topic = card.topic,
+                                        isFlipped = flipped,
+                                        onFlip = { flipped = !flipped },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = 280.dp, max = 360.dp),
+                                    )
+
+                                    Spacer(Modifier.height(16.dp))
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.TouchApp,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Text(
+                                            if (flipped) "How well did you know this?" else "Tap card to reveal answer",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(Modifier.height(20.dp))
+
+                            AnimatedVisibility(
+                                visible = flipped,
+                                enter = fadeIn(tween(250)) + slideInHorizontally { it / 4 },
+                                exit = fadeOut(tween(150)),
+                            ) {
+                                FlashcardRatingBar(
+                                    onAgain = { flipped = false; viewModel.rate(card, 0) },
+                                    onHard = { flipped = false; viewModel.rate(card, 1) },
+                                    onGood = { flipped = false; viewModel.rate(card, 3) },
+                                    onEasy = { flipped = false; viewModel.rate(card, 5) },
+                                )
+                            }
+
+                            if (!flipped) {
+                                Spacer(Modifier.height(72.dp))
+                            }
                         }
                     }
-                }
-
-                Spacer(Modifier.height(20.dp))
-
-                AnimatedVisibility(
-                    visible = flipped,
-                    enter = fadeIn(tween(250)) + slideInHorizontally { it / 4 },
-                    exit = fadeOut(tween(150)),
-                ) {
-                    FlashcardRatingBar(
-                        onAgain = { flipped = false; viewModel.rate(card, 0) },
-                        onHard = { flipped = false; viewModel.rate(card, 1) },
-                        onGood = { flipped = false; viewModel.rate(card, 3) },
-                        onEasy = { flipped = false; viewModel.rate(card, 5) },
-                    )
-                }
-
-                if (!flipped) {
-                    Spacer(Modifier.height(72.dp))
                 }
             }
         }
@@ -317,6 +233,7 @@ private fun FlashcardStudyProgressHeader(
     remaining: Int,
     currentNumber: Int,
     totalCards: Int,
+    studyAll: Boolean = false,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -328,7 +245,7 @@ private fun FlashcardStudyProgressHeader(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "$remaining cards due",
+                if (studyAll) "$remaining cards left" else "$remaining cards due",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
             )

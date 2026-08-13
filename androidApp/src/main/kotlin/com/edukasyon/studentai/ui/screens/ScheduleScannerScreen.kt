@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,9 +45,13 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edukasyon.studentai.ui.components.EmptyState
 import com.edukasyon.studentai.ui.components.ErrorBanner
-import com.edukasyon.studentai.ui.components.StarPreloader
+import com.edukasyon.studentai.ui.components.ScanningOverlay
+import com.edukasyon.studentai.ui.components.ScheduleScanFailureOverlay
 import com.edukasyon.studentai.ui.components.StudentAiCard
+import com.edukasyon.studentai.ui.components.StudentAiSnackbarHost
+import com.edukasyon.studentai.core.mlkit.rememberDocumentScanLauncher
 import com.edukasyon.studentai.ui.viewmodel.AiViewModel
+import com.edukasyon.studentai.ui.viewmodel.ScheduleScanStatus
 import com.edukasyon.studentai.ui.viewmodel.sharedAiViewModel
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
@@ -79,7 +84,7 @@ fun ScheduleScannerScreen(
     }
 
     LaunchedEffect(Unit) {
-        viewModel.clearScannedClasses()
+        viewModel.onScheduleScannerOpened()
         if (!hasCameraPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
@@ -99,9 +104,25 @@ fun ScheduleScannerScreen(
     var isCameraInitializing by remember { mutableStateOf(false) }
     var bindRetryCount by remember { mutableIntStateOf(0) }
     var previewViewRef by remember { mutableStateOf<PreviewView?>(null) }
+    var pendingScanImageBytes by remember { mutableStateOf<ByteArray?>(null) }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
     val scope = rememberCoroutineScope()
     val showCamera = state.scannedClasses.isEmpty()
+    val isScanning = state.scheduleScanStatus == ScheduleScanStatus.SCANNING
+    val showScanFailure = state.scheduleScanStatus == ScheduleScanStatus.UNREADABLE ||
+        state.scheduleScanStatus == ScheduleScanStatus.RETRY_LATER
+    val cooldownActive = state.scheduleScanRetryAfterMillis?.let { System.currentTimeMillis() < it } == true
+    val scanBlocked = isScanning || showScanFailure || cooldownActive
+
+    fun submitScanImage(bytes: ByteArray) {
+        pendingScanImageBytes = bytes
+        viewModel.analyzeScheduleImage(bytes)
+    }
+
+    val launchDocumentScan = rememberDocumentScanLauncher(
+        onResult = { bytes -> submitScanImage(bytes) },
+        onError = { message -> captureError = message },
+    )
 
     DisposableEffect(Unit) {
         onDispose {
@@ -172,7 +193,7 @@ fun ScheduleScannerScreen(
             context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
         }.onSuccess { bytes ->
             if (bytes != null && bytes.isNotEmpty()) {
-                viewModel.analyzeScheduleImage(bytes)
+                submitScanImage(bytes)
             } else {
                 captureError = "Could not read the selected image"
             }
@@ -198,7 +219,9 @@ fun ScheduleScannerScreen(
                             scope.launch { captureError = "Captured photo was empty. Please try again." }
                             return
                         }
-                        scope.launch { viewModel.analyzeScheduleImage(bytes) }
+                        scope.launch {
+                            submitScanImage(bytes)
+                        }
                     } catch (e: Exception) {
                         scope.launch { captureError = e.message ?: "Failed to process photo" }
                     } finally {
@@ -219,7 +242,7 @@ fun ScheduleScannerScreen(
         } == true
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Scan Schedule") },
@@ -261,9 +284,29 @@ fun ScheduleScannerScreen(
                             },
                             modifier = Modifier.fillMaxSize(),
                         )
+                        if (isScanning) {
+                            ScanningOverlay(
+                                imageBytes = pendingScanImageBytes,
+                                extractedText = state.scheduleScanExtractedText,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                        if (showScanFailure) {
+                            ScheduleScanFailureOverlay(
+                                imageBytes = pendingScanImageBytes,
+                                status = state.scheduleScanStatus,
+                                retryCount = state.scheduleScanRetryCount,
+                                retryAfterMillis = state.scheduleScanRetryAfterMillis,
+                                onRetry = { viewModel.retryScheduleScan() },
+                                onDismiss = {
+                                    pendingScanImageBytes = null
+                                    viewModel.dismissScheduleScanFailure()
+                                },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                         when {
-                            state.isLoading -> StarPreloader(containerSize = 56.dp, showGlow = false)
-                            isCameraInitializing && cameraBindFailed == null -> CircularProgressIndicator()
+                            isCameraInitializing && !scanBlocked && cameraBindFailed == null -> CircularProgressIndicator()
                             cameraBindFailed != null -> {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -320,19 +363,27 @@ fun ScheduleScannerScreen(
                     ) {
                         OutlinedButton(
                             onClick = { galleryLauncher.launch("image/*") },
-                            enabled = !state.isLoading,
+                            enabled = !scanBlocked,
                         ) {
                             Icon(Icons.Default.PhotoLibrary, null)
                             Spacer(Modifier.width(8.dp))
                             Text("Gallery")
                         }
+                        OutlinedButton(
+                            onClick = launchDocumentScan,
+                            enabled = !scanBlocked,
+                        ) {
+                            Icon(Icons.Default.DocumentScanner, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Doc scan")
+                        }
                         Button(
                             onClick = { captureAndAnalyze() },
-                            enabled = !state.isLoading && cameraReady,
+                            enabled = !scanBlocked && cameraReady,
                         ) {
                             Icon(Icons.Default.CameraAlt, null)
                             Spacer(Modifier.width(8.dp))
-                            Text(if (state.isLoading) "Analyzing…" else "Capture & Analyze")
+                            Text(if (isScanning) "Scanning…" else "Capture & Analyze")
                         }
                     }
                 }
@@ -363,6 +414,7 @@ fun ScheduleScannerScreen(
                         ) {
                             OutlinedButton(
                                 onClick = {
+                                    pendingScanImageBytes = null
                                     viewModel.clearScannedClasses()
                                     bindRetryCount++
                                 },

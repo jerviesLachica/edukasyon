@@ -5,8 +5,6 @@ import com.edukasyon.studentai.core.util.DateUtils
 import com.edukasyon.studentai.core.util.TaskSorter
 import com.edukasyon.studentai.data.mapper.toDomain
 import com.edukasyon.studentai.data.preferences.UserPreferences
-import com.edukasyon.studentai.domain.model.DayOfWeek
-import com.edukasyon.studentai.domain.model.ThemeMode
 import com.edukasyon.studentai.ui.theme.parseHexColor
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.flow.first
@@ -16,7 +14,26 @@ import java.util.Locale
 
 object WidgetDataProvider {
 
-    suspend fun loadSnapshot(
+    /** Loads from Room, writes cache, and pre-warms the design bitmap off the UI path. */
+    suspend fun loadSnapshotFresh(
+        context: Context,
+        appWidgetId: Int,
+        widgetSize: WidgetSize
+    ): WidgetSnapshot {
+        val snapshot = buildSnapshot(context, appWidgetId, widgetSize)
+        WidgetSnapshotCache.write(context, appWidgetId, snapshot)
+        prewarmBackground(context, snapshot)
+        return snapshot
+    }
+
+    /** Fast path for first paint after process death — no DB or DataStore I/O. */
+    fun loadCachedSnapshot(context: Context, appWidgetId: Int, widgetSize: WidgetSize): WidgetSnapshot? {
+        return WidgetSnapshotCache.read(context, appWidgetId)?.takeIf { cached ->
+            cached.widgetSize == widgetSize
+        }
+    }
+
+    private suspend fun buildSnapshot(
         context: Context,
         appWidgetId: Int,
         widgetSize: WidgetSize
@@ -32,18 +49,9 @@ object WidgetDataProvider {
             WidgetSize.TALL_2X3 -> WidgetDisplayType.COMBINED
         }
         val displayType = WidgetPreferences.getDisplayType(context, appWidgetId, defaultType)
-        val themeMode = userPreferences.themeMode.first()
-        val isDarkTheme = when (themeMode) {
-            ThemeMode.DARK -> true
-            ThemeMode.LIGHT -> false
-            ThemeMode.SYSTEM -> {
-                (context.resources.configuration.uiMode and
-                    android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
-                    android.content.res.Configuration.UI_MODE_NIGHT_YES
-            }
-        }
 
-        val accentHex = WidgetPreferences.getAccentColorHex(context, appWidgetId)
+        val widgetAccent = WidgetPreferences.getAccentColorHex(context, appWidgetId)
+        val accentHex = widgetAccent
             ?: userPreferences.primaryColorHex.first().takeIf { it.isNotBlank() }
             ?: UserPreferences.DEFAULT_PRIMARY_COLOR
 
@@ -64,31 +72,39 @@ object WidgetDataProvider {
             WidgetSize.SMALL_2X2 -> 4
             WidgetSize.TALL_2X3 -> 6
         }
+        val needsCalendar = widgetSize == WidgetSize.TALL_2X3 &&
+            displayType == WidgetDisplayType.COMBINED
 
         val todayDow = DateUtils.getTodayDayOfWeek()
+        val fetchExtra = if (needsCalendar) 1 else 2
         val upcomingTasks = TaskSorter.sortByPriorityAndDueDate(
-            taskDao.getUpcoming(taskLimit + 4).map { it.toDomain() }
+            taskDao.getUpcoming(taskLimit + fetchExtra).map { it.toDomain() }
         )
         val todaySchedule = scheduleDao.getByDay(todayDow.name)
             .map { it.toDomain() }
             .sortedBy { it.startTime }
 
-        val monthStart = Calendar.getInstance().apply {
-            set(Calendar.DAY_OF_MONTH, 1)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
+        val calendarDays = if (needsCalendar) {
+            val monthStart = Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val monthEnd = Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
+                set(Calendar.HOUR_OF_DAY, 23)
+                set(Calendar.MINUTE, 59)
+                set(Calendar.SECOND, 59)
+                set(Calendar.MILLISECOND, 999)
+            }
+            val tasksInMonth = taskDao.getDueInRange(monthStart.timeInMillis, monthEnd.timeInMillis)
+            val eventsInMonth = calendarEventDao.getInRange(monthStart.timeInMillis, monthEnd.timeInMillis)
+            buildMonthCalendar(today, tasksInMonth, eventsInMonth, accentHex)
+        } else {
+            emptyList()
         }
-        val monthEnd = Calendar.getInstance().apply {
-            set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
-            set(Calendar.HOUR_OF_DAY, 23)
-            set(Calendar.MINUTE, 59)
-            set(Calendar.SECOND, 59)
-            set(Calendar.MILLISECOND, 999)
-        }
-        val tasksInMonth = taskDao.getDueInRange(monthStart.timeInMillis, monthEnd.timeInMillis)
-        val eventsInMonth = calendarEventDao.getInRange(monthStart.timeInMillis, monthEnd.timeInMillis)
 
         val taskItems = upcomingTasks.take(taskLimit).mapIndexed { index, task ->
             WidgetTaskItem(
@@ -111,7 +127,6 @@ object WidgetDataProvider {
             )
         }
 
-        val calendarDays = buildMonthCalendar(today, tasksInMonth, eventsInMonth, accentHex)
         val moreCount = when (displayType) {
             WidgetDisplayType.TASKS -> (upcomingTasks.size - taskLimit).coerceAtLeast(0)
             WidgetDisplayType.SCHEDULE -> (todaySchedule.size - scheduleLimit).coerceAtLeast(0)
@@ -131,7 +146,7 @@ object WidgetDataProvider {
             calendarWeekdayLabels = listOf("S", "M", "T", "W", "T", "F", "S"),
             moreCount = moreCount,
             accentColorHex = accentHex,
-            isDarkTheme = isDarkTheme,
+            isDarkTheme = false,
             displayType = displayType,
             widgetSize = widgetSize,
             designPreset = designPreset,
@@ -140,6 +155,23 @@ object WidgetDataProvider {
             currentTaskProgress = progressInfo?.first,
             currentTaskTimeLeft = progressInfo?.second
         )
+    }
+
+    private fun prewarmBackground(context: Context, snapshot: WidgetSnapshot) {
+        if (snapshot.designPreset == WidgetDesignPreset.MINIMAL) return
+        val (widthDp, heightDp) = backgroundSizeDp(snapshot.widgetSize)
+        WidgetBackgroundGenerator.getBitmap(
+            context = context,
+            preset = snapshot.designPreset,
+            colors = snapshot.designColors,
+            widthDp = widthDp,
+            heightDp = heightDp
+        )
+    }
+
+    internal fun backgroundSizeDp(widgetSize: WidgetSize): Pair<Int, Int> = when (widgetSize) {
+        WidgetSize.SMALL_2X2 -> 160 to 160
+        WidgetSize.TALL_2X3 -> 160 to 240
     }
 
     private fun formatTaskSubtitle(dueDate: Long?, dueTime: String?): String {

@@ -1,32 +1,70 @@
 package com.edukasyon.studentai.ui.viewmodel
 
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.edukasyon.studentai.core.util.DateUtils
+import com.edukasyon.studentai.core.util.GradeCalculator
+import com.edukasyon.studentai.core.util.SubjectPickerMerger
+import com.edukasyon.studentai.core.ai.AiModelRouter
+import com.edukasyon.studentai.core.ai.StepModelQuotaTracker
 import com.edukasyon.studentai.domain.model.*
 import com.edukasyon.studentai.domain.repository.*
 import com.edukasyon.studentai.core.firebase.FirebaseAuthManager
 import com.edukasyon.studentai.core.firebase.FirestoreSyncService
 import com.edukasyon.studentai.domain.usecase.*
+import com.edukasyon.studentai.ui.navigation.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
+import com.edukasyon.studentai.core.notifications.ReminderScheduler
+import com.edukasyon.studentai.core.notifications.ReminderType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import javax.inject.Inject
+
+data class HomeWeekDay(
+    val dayOfWeek: DayOfWeek,
+    val dateOfMonth: Int,
+    val shortLabel: String,
+    val isToday: Boolean,
+)
+
+data class AcademicOverview(
+    val subjectsCount: Int = 0,
+    val currentGpa: Double? = null,
+    val tasksCount: Int = 0,
+    val upcomingExamsCount: Int = 0,
+    val weekProgressPercent: Int = 0,
+    val strongestSubject: String? = null,
+    val needsAttentionSubject: String? = null,
+)
 
 data class HomeUiState(
     val isLoading: Boolean = true,
     val greeting: String = "",
     val userName: String = "Student",
+    val avatarUri: String? = null,
+    val selectedDay: DayOfWeek = DateUtils.getTodayDayOfWeek(),
+    val weekDays: List<HomeWeekDay> = emptyList(),
+    val classesTodayCount: Int = 0,
+    val assignmentCount: Int = 0,
     val nextClass: ScheduleItem? = null,
     val todaySchedule: List<ScheduleItem> = emptyList(),
+    val selectedDaySchedule: List<ScheduleItem> = emptyList(),
     val upcomingTasks: List<Task> = emptyList(),
     val upcomingExams: List<Exam> = emptyList(),
+    val examReadiness: Map<String, ExamReadiness> = emptyMap(),
+    val subjectNames: Map<String, String> = emptyMap(),
     val aiSuggestion: String? = null,
-    val isOnline: Boolean = true
+    val isOnline: Boolean = true,
+    val showNotificationDot: Boolean = false,
+    val academicOverview: AcademicOverview = AcademicOverview(),
 )
 
 @HiltViewModel
@@ -35,42 +73,106 @@ class HomeViewModel @Inject constructor(
     private val scheduleRepo: ScheduleRepository,
     private val taskRepo: TaskRepository,
     private val examRepo: ExamRepository,
+    private val subjectRepo: SubjectRepository,
+    private val gradeRepo: GradeRepository,
+    private val observeExamReadinessMap: ObserveExamReadinessMapUseCase,
     private val connectivity: com.edukasyon.studentai.core.network.ConnectivityMonitor
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private val _selectedDay = MutableStateFlow(DateUtils.getTodayDayOfWeek())
 
     init { loadDashboard() }
+
+    fun selectDay(day: DayOfWeek) {
+        _selectedDay.value = day
+    }
 
     private fun loadDashboard() {
         viewModelScope.launch {
             try {
-                combine(
-                    userRepo.observeUser().onStart { emit(null) },
-                    scheduleRepo.observeByDay(DateUtils.getTodayDayOfWeek()).onStart { emit(emptyList()) },
-                    taskRepo.observeUpcoming(5).onStart { emit(emptyList()) },
-                    examRepo.observeUpcoming(3).onStart { emit(emptyList()) },
-                    connectivity.isOnline.onStart { emit(true) }
-                ) { user, schedule, tasks, exams, online ->
-                    val sorted = schedule.sortedBy { it.startTime }
-                    val next = sorted.firstOrNull { isUpcoming(it.startTime) }
-                    val suggestion = exams.firstOrNull()?.let { exam ->
+                val dashboardFlow = combine(
+                    combine(
+                        userRepo.observeUser().onStart { emit(null) },
+                        scheduleRepo.observeSchedule().onStart { emit(emptyList()) },
+                        taskRepo.observeUpcoming(5).onStart { emit(emptyList()) },
+                    ) { user, allSchedule, tasks ->
+                        Triple(user, allSchedule, tasks)
+                    },
+                    combine(
+                        examRepo.observeUpcoming(3).onStart { emit(emptyList()) },
+                        connectivity.isOnline.onStart { emit(true) },
+                        subjectRepo.observeSubjects().onStart { emit(emptyList()) },
+                    ) { exams, online, subjects ->
+                        Triple(exams, online, subjects)
+                    },
+                    combine(
+                        gradeRepo.observeGrades().onStart { emit(emptyList()) },
+                        taskRepo.observeTasks().onStart { emit(emptyList()) },
+                        examRepo.observeExams().onStart { emit(emptyList()) },
+                    ) { grades, allTasks, allExams ->
+                        Triple(grades, allTasks, allExams)
+                    },
+                ) { scheduleData, metaData, academicData ->
+                    DashboardSnapshot(
+                        user = scheduleData.first,
+                        allSchedule = scheduleData.second,
+                        tasks = scheduleData.third,
+                        exams = metaData.first,
+                        online = metaData.second,
+                        subjects = metaData.third,
+                        grades = academicData.first,
+                        allTasks = academicData.second,
+                        allExams = academicData.third,
+                    )
+                }
+                combine(dashboardFlow, _selectedDay, observeExamReadinessMap()) { snapshot, selectedDay, readinessMap ->
+                    val today = DateUtils.getTodayDayOfWeek()
+                    val todaySchedule = snapshot.allSchedule
+                        .filter { it.dayOfWeek == today }
+                        .sortedBy { it.startTime }
+                    val selectedSchedule = snapshot.allSchedule
+                        .filter { it.dayOfWeek == selectedDay }
+                        .sortedBy { it.startTime }
+                    val subjectNames = snapshot.subjects.associate { it.id to it.name }
+                    val next = todaySchedule.firstOrNull { isUpcoming(it.startTime) }
+                    val suggestion = snapshot.exams.firstOrNull()?.let { exam ->
                         "You have a ${exam.title} ${DateUtils.formatCountdown(exam.examDate)}. Would you like me to create a study plan?"
                     }
+                    val academicOverview = buildAcademicOverview(
+                        subjects = snapshot.subjects,
+                        grades = snapshot.grades,
+                        allTasks = snapshot.allTasks,
+                        allExams = snapshot.allExams,
+                    )
                     HomeUiState(
                         isLoading = false,
                         greeting = DateUtils.greeting(),
-                        userName = user?.displayName ?: "Student",
+                        userName = snapshot.user?.displayName ?: "Student",
+                        avatarUri = snapshot.user?.avatarUri,
+                        selectedDay = selectedDay,
+                        weekDays = buildCurrentWeekDays(selectedDay),
+                        classesTodayCount = todaySchedule.size,
+                        assignmentCount = snapshot.tasks.size,
                         nextClass = next,
-                        todaySchedule = sorted,
-                        upcomingTasks = tasks,
-                        upcomingExams = exams,
+                        todaySchedule = todaySchedule,
+                        selectedDaySchedule = selectedSchedule,
+                        upcomingTasks = snapshot.tasks,
+                        upcomingExams = snapshot.exams,
+                        examReadiness = readinessMap,
+                        subjectNames = subjectNames,
                         aiSuggestion = suggestion,
-                        isOnline = online
+                        isOnline = snapshot.online,
+                        showNotificationDot = snapshot.tasks.isNotEmpty() || snapshot.exams.isNotEmpty(),
+                        academicOverview = academicOverview,
                     )
                 }.collect { _uiState.value = it }
             } catch (_: Exception) {
-                _uiState.value = HomeUiState(isLoading = false, greeting = DateUtils.greeting())
+                _uiState.value = HomeUiState(
+                    isLoading = false,
+                    greeting = DateUtils.greeting(),
+                    weekDays = buildCurrentWeekDays(DateUtils.getTodayDayOfWeek()),
+                )
             }
         }
     }
@@ -81,6 +183,148 @@ class HomeViewModel @Inject constructor(
         val classMinutes = parts[0].toInt() * 60 + parts.getOrElse(1) { "0" }.toInt()
         val nowMinutes = now.get(java.util.Calendar.HOUR_OF_DAY) * 60 + now.get(java.util.Calendar.MINUTE)
         return classMinutes >= nowMinutes
+    }
+
+    private data class DashboardSnapshot(
+        val user: UserProfile?,
+        val allSchedule: List<ScheduleItem>,
+        val tasks: List<Task>,
+        val exams: List<Exam>,
+        val online: Boolean,
+        val subjects: List<Subject>,
+        val grades: List<GradeEntry>,
+        val allTasks: List<Task>,
+        val allExams: List<Exam>,
+    )
+
+    companion object {
+        fun buildAcademicOverview(
+            subjects: List<Subject>,
+            grades: List<GradeEntry>,
+            allTasks: List<Task>,
+            allExams: List<Exam>,
+        ): AcademicOverview {
+            val now = System.currentTimeMillis()
+            val subjectById = subjects.associateBy { it.id }
+            val pendingTasks = allTasks.count {
+                it.status == TaskStatus.PENDING || it.status == TaskStatus.IN_PROGRESS
+            }
+            val upcomingExamsCount = allExams.count { it.examDate >= now }
+            val currentGpa = grades.takeIf { it.isNotEmpty() }
+                ?.let { GradeCalculator.calculateWeightedGrade(it) }
+
+            val subjectAverages = grades
+                .groupBy { it.subjectId }
+                .map { (subjectId, entries) ->
+                    val average = entries
+                        .map { GradeCalculator.calculatePercentage(it.score, it.maxScore) }
+                        .average()
+                    (subjectById[subjectId]?.name ?: "General") to average
+                }
+                .sortedByDescending { it.second }
+
+            val strongestSubject = subjectAverages.firstOrNull()?.first
+            val needsAttentionSubject = subjectAverages
+                .takeIf { it.size > 1 }
+                ?.last()
+                ?.first
+
+            return AcademicOverview(
+                subjectsCount = subjects.size,
+                currentGpa = currentGpa,
+                tasksCount = pendingTasks,
+                upcomingExamsCount = upcomingExamsCount,
+                weekProgressPercent = computeWeekProgressPercent(allTasks),
+                strongestSubject = strongestSubject,
+                needsAttentionSubject = needsAttentionSubject,
+            )
+        }
+
+        private fun computeWeekProgressPercent(allTasks: List<Task>): Int {
+            val (weekStart, weekEnd) = currentWeekRangeMillis()
+            val weekTasks = allTasks.filter { task ->
+                task.status != TaskStatus.ARCHIVED && isTaskRelevantThisWeek(task, weekStart, weekEnd)
+            }
+            val pool = weekTasks.ifEmpty {
+                allTasks.filter { it.status != TaskStatus.ARCHIVED }
+            }
+            if (pool.isEmpty()) return 0
+            val completed = pool.count { it.status == TaskStatus.COMPLETED }
+            return ((completed.toDouble() / pool.size) * 100).toInt().coerceIn(0, 100)
+        }
+
+        private fun isTaskRelevantThisWeek(task: Task, weekStart: Long, weekEnd: Long): Boolean {
+            val dueInWeek = task.dueDate?.let { it in weekStart until weekEnd } == true
+            val completedInWeek = task.completedAt?.let { it in weekStart until weekEnd } == true
+            return dueInWeek || completedInWeek
+        }
+
+        private fun currentWeekRangeMillis(): Pair<Long, Long> {
+            val startCal = java.util.Calendar.getInstance().apply {
+                firstDayOfWeek = java.util.Calendar.SUNDAY
+                set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.SUNDAY)
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+            val weekStart = startCal.timeInMillis
+            val weekEnd = (startCal.clone() as java.util.Calendar).apply {
+                add(java.util.Calendar.DAY_OF_MONTH, 7)
+            }.timeInMillis
+            return weekStart to weekEnd
+        }
+
+        fun buildCurrentWeekDays(selectedDay: DayOfWeek): List<HomeWeekDay> {
+            val today = DateUtils.getTodayDayOfWeek()
+            val cal = java.util.Calendar.getInstance().apply {
+                firstDayOfWeek = java.util.Calendar.SUNDAY
+                set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.SUNDAY)
+            }
+            val labelFormat = java.text.SimpleDateFormat("EEE", java.util.Locale.getDefault())
+            return (0..6).map { offset ->
+                val dayCal = (cal.clone() as java.util.Calendar).apply {
+                    add(java.util.Calendar.DAY_OF_MONTH, offset)
+                }
+                val dayOfWeek = calendarDayToDomain(dayCal.get(java.util.Calendar.DAY_OF_WEEK))
+                HomeWeekDay(
+                    dayOfWeek = dayOfWeek,
+                    dateOfMonth = dayCal.get(java.util.Calendar.DAY_OF_MONTH),
+                    shortLabel = labelFormat.format(dayCal.time),
+                    isToday = dayOfWeek == today,
+                )
+            }
+        }
+
+        private fun calendarDayToDomain(calendarDay: Int): DayOfWeek = when (calendarDay) {
+            java.util.Calendar.MONDAY -> DayOfWeek.MONDAY
+            java.util.Calendar.TUESDAY -> DayOfWeek.TUESDAY
+            java.util.Calendar.WEDNESDAY -> DayOfWeek.WEDNESDAY
+            java.util.Calendar.THURSDAY -> DayOfWeek.THURSDAY
+            java.util.Calendar.FRIDAY -> DayOfWeek.FRIDAY
+            java.util.Calendar.SATURDAY -> DayOfWeek.SATURDAY
+            else -> DayOfWeek.SUNDAY
+        }
+
+        fun isClassActive(item: ScheduleItem, selectedDay: DayOfWeek): Boolean {
+            if (selectedDay != DateUtils.getTodayDayOfWeek()) return false
+            val nowMinutes = currentMinutesOfDay()
+            val start = timeToMinutes(item.startTime) ?: return false
+            val end = timeToMinutes(item.endTime) ?: return false
+            return nowMinutes in start until end
+        }
+
+        fun timeToMinutes(time: String): Int? {
+            val parts = time.split(":")
+            val hour = parts.getOrNull(0)?.toIntOrNull() ?: return null
+            val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+            return hour * 60 + minute
+        }
+
+        private fun currentMinutesOfDay(): Int {
+            val now = java.util.Calendar.getInstance()
+            return now.get(java.util.Calendar.HOUR_OF_DAY) * 60 + now.get(java.util.Calendar.MINUTE)
+        }
     }
 }
 
@@ -164,6 +408,25 @@ class ScheduleViewModel @Inject constructor(
     fun updateClass(item: ScheduleItem) { viewModelScope.launch { updateScheduleItem.execute(item) } }
     fun deleteClass(id: String) { viewModelScope.launch { deleteScheduleItem.execute(id) } }
 
+    fun moveClassToDay(item: ScheduleItem, targetDay: DayOfWeek): String? {
+        if (item.dayOfWeek == targetDay) return null
+        viewModelScope.launch { updateScheduleItem.execute(item.copy(dayOfWeek = targetDay)) }
+        return "Moved to ${targetDay.displayName}"
+    }
+
+    fun duplicateClass(item: ScheduleItem, targetDay: DayOfWeek): String {
+        val copy = item.copy(
+            id = java.util.UUID.randomUUID().toString(),
+            dayOfWeek = targetDay,
+        )
+        viewModelScope.launch { addScheduleItem.execute(copy) }
+        return if (targetDay == item.dayOfWeek) {
+            "Class duplicated — drag to move"
+        } else {
+            "Duplicated to ${targetDay.displayName}"
+        }
+    }
+
     fun itemsForSelectedDay(): List<ScheduleItem> =
         _uiState.value.allItems.filter { it.dayOfWeek == _uiState.value.selectedDay }.sortedBy { it.startTime }
 
@@ -186,6 +449,10 @@ data class PlannerUiState(
     val tasks: List<Task> = emptyList(),
     val assignments: List<Assignment> = emptyList(),
     val exams: List<Exam> = emptyList(),
+    val examReadiness: Map<String, ExamReadiness> = emptyMap(),
+    val subjects: List<Subject> = emptyList(),
+    val jeviDecks: List<JeviDeck> = emptyList(),
+    val expandedExamId: String? = null,
     val isLoading: Boolean = true
 )
 
@@ -200,20 +467,64 @@ class PlannerViewModel @Inject constructor(
     private val deleteTaskUseCase: DeleteTaskUseCase,
     private val saveAssignment: SaveAssignmentUseCase,
     private val deleteAssignment: DeleteAssignmentUseCase,
-    private val saveExam: SaveExamUseCase
+    private val saveExam: SaveExamUseCase,
+    private val subjectRepo: SubjectRepository,
+    private val scheduleRepo: ScheduleRepository,
+    private val getJeviDecks: GetJeviDecksUseCase,
+    private val observeExamReadinessMap: ObserveExamReadinessMapUseCase,
+    private val linkExamStudy: LinkExamStudyUseCase,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PlannerUiState())
     val uiState: StateFlow<PlannerUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            combine(taskRepo.observeTasks(), assignmentRepo.observeAssignments(), examRepo.observeExams()) { t, a, e ->
-                PlannerUiState(isLoading = false, tasks = t, assignments = a, exams = e, selectedTab = _uiState.value.selectedTab)
+            combine(
+                combine(
+                    taskRepo.observeTasks(),
+                    assignmentRepo.observeAssignments(),
+                    examRepo.observeExams(),
+                ) { tasks, assignments, exams -> Triple(tasks, assignments, exams) },
+                combine(
+                    subjectRepo.observeSubjects(),
+                    scheduleRepo.observeSchedule(),
+                    getJeviDecks(),
+                    observeExamReadinessMap(),
+                ) { subjects, schedule, decks, readiness ->
+                    Triple(
+                        SubjectPickerMerger.mergeSubjectsForPicker(subjects, schedule),
+                        decks,
+                        readiness,
+                    )
+                },
+            ) { (tasks, assignments, exams), (subjects, decks, readiness) ->
+                PlannerUiState(
+                    isLoading = false,
+                    tasks = tasks,
+                    assignments = assignments,
+                    exams = exams,
+                    subjects = subjects,
+                    jeviDecks = decks,
+                    examReadiness = readiness,
+                    selectedTab = _uiState.value.selectedTab,
+                    expandedExamId = _uiState.value.expandedExamId,
+                )
             }.collect { _uiState.value = it }
         }
     }
 
     fun selectTab(tab: Int) { _uiState.update { it.copy(selectedTab = tab) } }
+    fun toggleExamExpanded(examId: String) {
+        _uiState.update { state ->
+            state.copy(expandedExamId = if (state.expandedExamId == examId) null else examId)
+        }
+    }
+
+    fun linkExamStudy(exam: Exam, subjectId: String, deckId: String?, newDeckTitle: String?) {
+        viewModelScope.launch {
+            linkExamStudy.linkSubjectAndDeck(exam, subjectId, deckId, newDeckTitle)
+        }
+    }
     fun addTask(task: Task) { viewModelScope.launch { createTask.execute(task) } }
     fun updateTask(task: Task) { viewModelScope.launch { updateTaskUseCase.execute(task) } }
     fun completeTask(id: String) { viewModelScope.launch { completeTaskUseCase.execute(id) } }
@@ -246,6 +557,7 @@ class PlannerViewModel @Inject constructor(
         }
     }
     fun addExam(e: Exam) { viewModelScope.launch { saveExam.execute(e) } }
+    fun updateExam(e: Exam) { viewModelScope.launch { saveExam.execute(e) } }
 
     fun addSubtask(taskId: String, title: String) {
         viewModelScope.launch {
@@ -310,6 +622,143 @@ class NotesViewModel @Inject constructor(
     }
 }
 
+data class NoteEditorUiState(
+    val title: String = "",
+    val content: String = "",
+    val isLoading: Boolean = true,
+    val isSaving: Boolean = false,
+    val isDirty: Boolean = false,
+    val lastSavedAt: Long? = null,
+    val canDelete: Boolean = false,
+)
+
+@HiltViewModel
+class NoteEditorViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
+    private val noteRepo: NoteRepository,
+    private val saveNoteUseCase: SaveNoteUseCase,
+    private val deleteNoteUseCase: DeleteNoteUseCase,
+) : ViewModel() {
+    private val routeNoteId: String = savedStateHandle.get<String>("noteId") ?: Routes.NEW_NOTE_ID
+    private val isNewNote = routeNoteId == Routes.NEW_NOTE_ID
+    val noteId: String = if (isNewNote) java.util.UUID.randomUUID().toString() else routeNoteId
+
+    private val _uiState = MutableStateFlow(NoteEditorUiState())
+    val uiState: StateFlow<NoteEditorUiState> = _uiState.asStateFlow()
+
+    private var originalNote: Note? = null
+    private var autoSaveJob: Job? = null
+    private var hasPersisted = false
+
+    init {
+        if (isNewNote) {
+            _uiState.update { it.copy(isLoading = false) }
+        } else {
+            viewModelScope.launch {
+                val note = noteRepo.getNoteById(noteId)
+                originalNote = note
+                hasPersisted = note != null
+                _uiState.update {
+                    it.copy(
+                        title = note?.title.orEmpty(),
+                        content = note?.content.orEmpty(),
+                        isLoading = false,
+                        canDelete = note != null,
+                    )
+                }
+            }
+        }
+    }
+
+    fun onTitleChange(title: String) {
+        _uiState.update { it.copy(title = title, isDirty = true) }
+        scheduleAutoSave()
+    }
+
+    fun onContentChange(content: String) {
+        _uiState.update { it.copy(content = content, isDirty = true) }
+        scheduleAutoSave()
+    }
+
+    private fun scheduleAutoSave() {
+        autoSaveJob?.cancel()
+        autoSaveJob = viewModelScope.launch {
+            delay(AUTO_SAVE_DELAY_MS)
+            saveNow()
+        }
+    }
+
+    fun saveNow() {
+        viewModelScope.launch { performSave() }
+    }
+
+    fun flushSave(onComplete: () -> Unit = {}) {
+        autoSaveJob?.cancel()
+        viewModelScope.launch {
+            performSave()
+            onComplete()
+        }
+    }
+
+    fun deleteNote(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            if (hasPersisted) {
+                deleteNoteUseCase.execute(noteId)
+            }
+            onComplete()
+        }
+    }
+
+    private suspend fun performSave() {
+        val state = _uiState.value
+        if (!state.isDirty) return
+        if (state.title.isBlank() && state.content.isBlank()) {
+            _uiState.update { it.copy(isDirty = false) }
+            return
+        }
+
+        _uiState.update { it.copy(isSaving = true) }
+        val now = System.currentTimeMillis()
+        val existing = originalNote
+        val displayTitle = state.title.trim().ifBlank {
+            state.content.lineSequence().firstOrNull()?.trim()?.take(80) ?: "Untitled"
+        }
+        val note = Note(
+            id = noteId,
+            title = displayTitle,
+            content = state.content,
+            subjectId = existing?.subjectId,
+            tags = existing?.tags ?: emptyList(),
+            createdAt = existing?.createdAt ?: now,
+            updatedAt = now,
+            isPinned = existing?.isPinned ?: false,
+            isFavorite = existing?.isFavorite ?: false,
+        )
+        saveNoteUseCase.execute(note)
+        originalNote = note
+        hasPersisted = true
+        _uiState.update {
+            it.copy(
+                isSaving = false,
+                isDirty = false,
+                lastSavedAt = now,
+                canDelete = true,
+            )
+        }
+    }
+
+    companion object {
+        private const val AUTO_SAVE_DELAY_MS = 1_500L
+    }
+}
+
+data class ToolsPdfState(
+    val fileName: String,
+    val extractedText: String? = null,
+    val isExtracting: Boolean = false,
+    val extractionError: String? = null,
+)
+
 data class AiUiState(
     val messages: List<GizmoChatMessage> = emptyList(),
     val gizmo: GizmoCompanionState = GizmoCompanionState(),
@@ -326,33 +775,35 @@ data class AiUiState(
     val studyPlan: StudyPlan? = null,
     val scannedClasses: List<com.edukasyon.studentai.core.ai.ExtractedClass> = emptyList(),
     val statusMessage: String? = null,
-    val heartsLostThisSession: Int = 0,
     val xpEarnedThisSession: Int = 0,
     val activeLocalConversationId: String? = null,
     val activeConversationType: AiConversationType? = null,
     val restoredToolInput: String? = null,
+    val toolsPdf: ToolsPdfState? = null,
+    val selectedChatModel: AiModel = AiModel.AUTO,
+    val stepQuotaRemaining: Int = StepModelQuotaTracker.LIMIT,
+    val stepQuotaLabel: String = "${StepModelQuotaTracker.LIMIT}/${StepModelQuotaTracker.LIMIT} left",
+    val stepQuotaExhausted: Boolean = false,
+    val scheduleScanStatus: ScheduleScanStatus = ScheduleScanStatus.IDLE,
+    val scheduleScanRetryCount: Int = 0,
+    val scheduleScanRetryAfterMillis: Long? = null,
+    val scheduleScanExtractedText: String? = null,
 )
 
-enum class AiTool { TUTOR, SUMMARIZE, FLASHCARDS, QUIZ, SCANNER }
-
-data class QuizSessionState(
-    val quiz: Quiz,
-    val currentIndex: Int = 0,
-    val selectedAnswer: String? = null,
-    val revealed: Boolean = false,
-    val correctCount: Int = 0,
-    val finished: Boolean = false,
-    val blockedByHearts: Boolean = false,
-) {
-    val currentQuestion: QuizQuestion? get() = quiz.questions.getOrNull(currentIndex)
-    val totalQuestions: Int get() = quiz.questions.size
-    val scorePercent: Int get() = if (totalQuestions == 0) 0 else (correctCount * 100) / totalQuestions
+enum class ScheduleScanStatus {
+    IDLE,
+    SCANNING,
+    UNREADABLE,
+    RETRY_LATER,
 }
+
+enum class AiTool { TUTOR, SUMMARIZE, FLASHCARDS, QUIZ, SCANNER, PDF_EXTRACT }
 
 private data class PendingAiAction(val tool: AiTool, val text: String)
 
 @HiltViewModel
 class AiViewModel @Inject constructor(
+    @ApplicationContext private val appContext: android.content.Context,
     private val aiChat: AiChatUseCase,
     private val aiSummarize: AiSummarizeUseCase,
     private val aiGenerateFlashcards: AiGenerateFlashcardsUseCase,
@@ -367,6 +818,8 @@ class AiViewModel @Inject constructor(
     private val connectivity: com.edukasyon.studentai.core.network.ConnectivityMonitor,
     private val preferences: com.edukasyon.studentai.data.preferences.UserPreferences,
     private val aiConversationRepo: AiConversationRepository,
+    private val reminderScheduler: ReminderScheduler,
+    private val mlKitTextRecognizer: com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AiUiState())
     val uiState: StateFlow<AiUiState> = _uiState.asStateFlow()
@@ -374,6 +827,10 @@ class AiViewModel @Inject constructor(
     private var lastChatMessage: String? = null
     private var backendConversationId: String? = null
     private var lastScannedImageBytes: ByteArray? = null
+    private var lastScannedExtractedText: String? = null
+    private var lastTutorRequestAtMs: Long = 0L
+    private var scheduleScanJob: Job? = null
+    private var scheduleScanAttemptCounter: Long = 0L
 
     init {
         viewModelScope.launch {
@@ -384,13 +841,88 @@ class AiViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            runCatching { gizmoManager.refreshHearts() }
-                .onSuccess { refreshed -> _uiState.update { it.copy(gizmo = refreshed) } }
-        }
-        viewModelScope.launch {
             connectivity.isOnline.collect { online ->
                 _uiState.update { it.copy(isOnline = online) }
             }
+        }
+        viewModelScope.launch {
+            combine(preferences.aiModel, preferences.stepModelUsageTimestamps) { model, timestamps ->
+                model to timestamps
+            }.collect { (model, timestamps) ->
+                applyChatModelAndQuota(model, timestamps)
+            }
+        }
+    }
+
+    private fun applyChatModelAndQuota(model: AiModel, timestamps: List<Long>) {
+        val status = StepModelQuotaTracker.status(timestamps)
+        var resolvedModel = model
+        var statusMessage: String? = null
+        if (model.isStepModel && status.exhausted) {
+            resolvedModel = AiModel.AUTO
+            statusMessage = STEP_QUOTA_SWITCH_MESSAGE
+            viewModelScope.launch { preferences.setAiModel(AiModel.AUTO) }
+        }
+        _uiState.update {
+            it.copy(
+                selectedChatModel = resolvedModel,
+                stepQuotaRemaining = status.remaining,
+                stepQuotaLabel = com.edukasyon.studentai.ui.components.stepQuotaLabelFromStatus(status),
+                stepQuotaExhausted = status.exhausted,
+                statusMessage = statusMessage ?: it.statusMessage,
+            )
+        }
+    }
+
+    fun setChatModel(model: AiModel) {
+        viewModelScope.launch {
+            val timestamps = preferences.stepModelUsageTimestamps.first()
+            val status = StepModelQuotaTracker.status(timestamps)
+            if (model.isStepModel && status.exhausted) {
+                _uiState.update {
+                    it.copy(
+                        statusMessage = STEP_QUOTA_SWITCH_MESSAGE,
+                        selectedChatModel = AiModel.AUTO,
+                    )
+                }
+                preferences.setAiModel(AiModel.AUTO)
+                return@launch
+            }
+            preferences.setAiModel(model)
+        }
+    }
+
+    private suspend fun resolveModelForSend(): AiModel {
+        val timestamps = preferences.stepModelUsageTimestamps.first()
+        val status = StepModelQuotaTracker.status(timestamps)
+        val preferred = preferences.aiModel.first()
+        if (preferred.isStepModel && status.exhausted) {
+            preferences.setAiModel(AiModel.AUTO)
+            _uiState.update {
+                it.copy(
+                    selectedChatModel = AiModel.AUTO,
+                    stepQuotaRemaining = status.remaining,
+                    stepQuotaLabel = com.edukasyon.studentai.ui.components.stepQuotaLabelFromStatus(status),
+                    stepQuotaExhausted = true,
+                    statusMessage = STEP_QUOTA_SWITCH_MESSAGE,
+                )
+            }
+            return AiModel.AUTO
+        }
+        return preferred
+    }
+
+    private suspend fun recordStepModelUseIfNeeded(model: AiModel) {
+        if (!model.isStepModel) return
+        val updated = StepModelQuotaTracker.recordUse(preferences.stepModelUsageTimestamps.first())
+        preferences.setStepModelUsageTimestamps(updated)
+        val status = StepModelQuotaTracker.status(updated)
+        _uiState.update {
+            it.copy(
+                stepQuotaRemaining = status.remaining,
+                stepQuotaLabel = com.edukasyon.studentai.ui.components.stepQuotaLabelFromStatus(status),
+                stepQuotaExhausted = status.exhausted,
+            )
         }
     }
 
@@ -444,12 +976,18 @@ class AiViewModel @Inject constructor(
                 AiConversationType.TUTOR -> {
                     val messages = storedMessages.map { msg ->
                         GizmoChatMessage(
-                            sender = if (msg.isUser) "You" else "Gizmo",
+                            sender = if (msg.isUser) "You" else "Jarvis",
                             content = msg.content,
                             isUser = msg.isUser,
                             timestamp = msg.sentAt,
                             attachmentName = msg.attachmentName,
                             attachmentIsImage = msg.attachmentIsImage,
+                            reasoning = if (!msg.isUser) {
+                                com.edukasyon.studentai.core.ai.AiConversationMetadata
+                                    .decodeTutorReasoning(msg.metadataJson)
+                            } else {
+                                null
+                            },
                         )
                     }
                     _uiState.update {
@@ -584,8 +1122,8 @@ class AiViewModel @Inject constructor(
 
     private fun aiErrorMessage(error: Throwable): String = when (error) {
         is com.edukasyon.studentai.core.ai.AiException ->
-            error.message ?: "Could not reach Gizmo. Check your connection and try again."
-        else -> error.message ?: "Could not reach Gizmo. Check your connection and try again."
+            error.message ?: "Could not reach Jarvis. Check your connection and try again."
+        else -> error.message ?: "Could not reach Jarvis. Check your connection and try again."
     }
 
     private fun titleFromText(text: String): String {
@@ -602,12 +1140,23 @@ class AiViewModel @Inject constructor(
             AiTool.FLASHCARDS -> generateFlashcards(action.text)
             AiTool.QUIZ -> generateQuiz(action.text)
             AiTool.TUTOR -> lastChatMessage?.let { sendMessage(it) }
-            AiTool.SCANNER -> lastScannedImageBytes?.let { analyzeScheduleImage(it) }
+            AiTool.SCANNER -> lastScannedImageBytes?.let {
+                analyzeScheduleImage(it, extractedText = lastScannedExtractedText, isRetry = true)
+            }
+            AiTool.PDF_EXTRACT -> Unit
         }
     }
 
     fun sendMessage(message: String, subject: String? = null, attachment: ChatAttachmentPayload? = null) {
         if (message.isBlank() && attachment == null) return
+        val rateLimitRemainingMs = tutorRateLimitRemainingMs()
+        if (rateLimitRemainingMs > 0) {
+            _uiState.update {
+                it.copy(statusMessage = formatTutorRateLimitMessage(rateLimitRemainingMs))
+            }
+            return
+        }
+        lastTutorRequestAtMs = System.currentTimeMillis()
         val displayMessage = message.ifBlank { "Please help me with this attachment." }
         lastChatMessage = displayMessage
         pendingAction = PendingAiAction(AiTool.TUTOR, displayMessage)
@@ -615,6 +1164,8 @@ class AiViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val localId = ensureTutorConversation(displayMessage)
+                val historyMessages = com.edukasyon.studentai.core.ai.ChatHistoryBuilder
+                    .fromConversationMessages(aiConversationRepo.getMessages(localId))
                 val userMessage = GizmoChatMessage(
                     sender = "You",
                     content = displayMessage,
@@ -650,17 +1201,26 @@ class AiViewModel @Inject constructor(
                     attachmentMimeOverride = mime
                     android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
                 }
-                val attachmentText = attachment?.takeIf { !it.isImage }?.textContent
-                val selectedModel = preferences.aiModel.first()
-                val modelOverride = selectedModel
-                    .takeIf { it == AiModel.REASONING }
-                    ?.slug
+                val attachmentText = when {
+                    attachment == null -> null
+                    !attachment.isImage -> attachment.textContent
+                    else -> {
+                        val ocr = mlKitTextRecognizer.recognizeFromBytes(attachment.bytes)
+                        ocr.text.takeIf { ocr.hasUsableText } ?: attachment.textContent
+                    }
+                }
+                val selectedModel = resolveModelForSend()
+                val modelOverride = AiModelRouter.chatModelOverride(selectedModel)
+                if (selectedModel.isStepModel) {
+                    recordStepModelUseIfNeeded(selectedModel)
+                }
                 val response = aiChat.execute(
                     com.edukasyon.studentai.core.ai.AiChatRequest(
                         message = displayMessage,
                         subject = subject,
                         contextSummary = contextSummary,
                         conversationId = backendConversationId,
+                        historyMessages = historyMessages,
                         attachmentName = attachment?.fileName,
                         attachmentMimeType = attachmentMimeOverride ?: attachment?.mimeType,
                         imageBase64 = imageBase64,
@@ -669,9 +1229,10 @@ class AiViewModel @Inject constructor(
                     )
                 )
                 val reply = response.reply.trim()
-                if (reply.isEmpty()) {
+                val reasoning = response.reasoning?.trim()?.takeIf { it.isNotEmpty() }
+                if (reply.isEmpty() && reasoning.isNullOrBlank()) {
                     throw com.edukasyon.studentai.core.ai.AiException(
-                        "Gizmo returned an empty reply. Please try again."
+                        "Jarvis returned an empty reply."
                     )
                 }
                 safePersistBackendConversationId(localId, response.conversationId)
@@ -687,6 +1248,8 @@ class AiViewModel @Inject constructor(
                         isUser = false,
                         content = parsed.displayText,
                         sentAt = assistantTimestamp,
+                        metadataJson = com.edukasyon.studentai.core.ai.AiConversationMetadata
+                            .encodeTutorReasoning(reasoning),
                     )
                 )
                 awardXp(GizmoConstants.XP_CHAT)
@@ -695,10 +1258,11 @@ class AiViewModel @Inject constructor(
                         isLoading = false,
                         loadingTool = null,
                         messages = s.messages + GizmoChatMessage(
-                            "Gizmo",
-                            parsed.displayText,
+                            sender = "Jarvis",
+                            content = parsed.displayText,
                             isUser = false,
                             timestamp = assistantTimestamp,
+                            reasoning = reasoning,
                         ),
                         statusMessage = appliedActions.takeIf { it.isNotEmpty() }?.joinToString(" · "),
                     )
@@ -708,6 +1272,16 @@ class AiViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Gizmo chat failed", e)
+                val wasStepModel = _uiState.value.selectedChatModel.isStepModel
+                if (wasStepModel && e.message?.contains("wait", ignoreCase = true) == true) {
+                    preferences.setAiModel(AiModel.AUTO)
+                    _uiState.update {
+                        it.copy(
+                            selectedChatModel = AiModel.AUTO,
+                            statusMessage = STEP_QUOTA_SWITCH_MESSAGE,
+                        )
+                    }
+                }
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -721,28 +1295,171 @@ class AiViewModel @Inject constructor(
 
     fun sendQuickPrompt(prompt: String) = sendMessage(prompt)
 
-    fun toggleMemoriseMode() {
+    fun attachToolsPdf(uri: android.net.Uri) {
         viewModelScope.launch {
-            val updated = gizmoManager.setMemoriseMode(!_uiState.value.gizmo.memoriseMode)
-            _uiState.update { it.copy(gizmo = updated) }
+            val reportedMime = appContext.contentResolver.getType(uri)
+            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "document.pdf"
+            if (!com.edukasyon.studentai.core.util.ChatAttachmentUtils.isPdf(reportedMime, name)) {
+                _uiState.update { it.copy(error = "Please select a PDF file.") }
+                return@launch
+            }
+
+            val bytes = appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (bytes == null || bytes.isEmpty()) {
+                _uiState.update { it.copy(error = "Could not read PDF file.") }
+                return@launch
+            }
+            if (bytes.size > com.edukasyon.studentai.core.util.MAX_TOOLS_PDF_BYTES) {
+                _uiState.update {
+                    it.copy(error = "PDF is too large (max ${com.edukasyon.studentai.core.util.MAX_TOOLS_PDF_BYTES / (1024 * 1024)} MB).")
+                }
+                return@launch
+            }
+
+            _uiState.update {
+                it.copy(
+                    toolsPdf = ToolsPdfState(fileName = name, isExtracting = true),
+                    isLoading = true,
+                    loadingTool = AiTool.PDF_EXTRACT,
+                    error = null,
+                )
+            }
+
+            try {
+                val embedded = com.edukasyon.studentai.core.util.ChatAttachmentUtils.extractEmbeddedPdfText(bytes)
+                val extracted = if (embedded != null) {
+                    embedded
+                } else {
+                    extractToolsPdfViaMlKit(uri)
+                }.trim()
+
+                if (extracted.isBlank()) {
+                    throw IllegalStateException("No text could be extracted from this PDF.")
+                }
+
+                _uiState.update {
+                    it.copy(
+                        toolsPdf = ToolsPdfState(
+                            fileName = name,
+                            extractedText = extracted.take(12_000),
+                        ),
+                        isLoading = false,
+                        loadingTool = null,
+                        statusMessage = "Extracted text from $name",
+                    )
+                }
+            } catch (e: CancellationException) {
+                _uiState.update {
+                    it.copy(
+                        toolsPdf = ToolsPdfState(fileName = name, extractionError = "Cancelled"),
+                        isLoading = false,
+                        loadingTool = null,
+                    )
+                }
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "PDF text extraction failed", e)
+                _uiState.update {
+                    it.copy(
+                        toolsPdf = ToolsPdfState(
+                            fileName = name,
+                            extractionError = aiErrorMessage(e),
+                        ),
+                        isLoading = false,
+                        loadingTool = null,
+                        error = aiErrorMessage(e),
+                    )
+                }
+            }
+        }
+    }
+
+    fun clearToolsPdf() {
+        _uiState.update { it.copy(toolsPdf = null) }
+    }
+
+    private suspend fun extractToolsPdfViaMlKit(uri: android.net.Uri): String {
+        val pages = com.edukasyon.studentai.core.util.ChatAttachmentUtils.renderPdfPagesAsJpeg(
+            appContext,
+            uri,
+            com.edukasyon.studentai.core.util.MAX_PDF_VISION_PAGES,
+        )
+        if (pages.isEmpty()) {
+            throw IllegalStateException("Could not render PDF pages for text extraction.")
+        }
+        val ocrResult = mlKitTextRecognizer.recognizeFromPageImages(pages)
+        if (ocrResult.hasUsableText) {
+            return ocrResult.text
+        }
+        return extractToolsPdfViaVision(uri, "document.pdf")
+    }
+
+    private suspend fun extractToolsPdfViaVision(uri: android.net.Uri, fileName: String): String {
+        if (!_uiState.value.isOnline) {
+            throw com.edukasyon.studentai.core.ai.AiException(
+                "This PDF looks scanned. Connect online so Jarvis can read it with vision."
+            )
+        }
+        val pages = com.edukasyon.studentai.core.util.ChatAttachmentUtils.renderPdfPagesAsJpeg(
+            appContext,
+            uri,
+            com.edukasyon.studentai.core.util.MAX_PDF_VISION_PAGES,
+        )
+        if (pages.isEmpty()) {
+            throw IllegalStateException("Could not render PDF pages for text extraction.")
+        }
+
+        val parts = mutableListOf<String>()
+        for ((index, pageBytes) in pages.withIndex()) {
+            val response = aiChat.execute(
+                com.edukasyon.studentai.core.ai.AiChatRequest(
+                    message = buildPdfExtractPrompt(fileName, index + 1, pages.size),
+                    attachmentName = "${fileName.substringBeforeLast('.')}-p${index + 1}.jpg",
+                    attachmentMimeType = "image/jpeg",
+                    imageBase64 = android.util.Base64.encodeToString(pageBytes, android.util.Base64.NO_WRAP),
+                )
+            )
+            val pageText = response.reply.trim()
+            if (pageText.isNotBlank()) {
+                parts.add(pageText)
+            }
+        }
+        return parts.joinToString("\n\n")
+    }
+
+    private fun buildPdfExtractPrompt(fileName: String, page: Int, total: Int): String =
+        "Extract ALL readable text from page $page of $total of the PDF document \"$fileName\". " +
+            "Return ONLY the extracted text with original paragraph breaks. No commentary, labels, or markdown."
+
+    private fun resolveToolsContent(manualInput: String): String {
+        val pdf = _uiState.value.toolsPdf
+        val manual = manualInput.trim()
+        val pdfText = pdf?.extractedText?.trim().orEmpty()
+        return when {
+            manual.isNotBlank() && pdfText.isNotBlank() ->
+                "$manual\n\n--- From PDF: ${pdf?.fileName} ---\n$pdfText"
+            manual.isNotBlank() -> manual
+            pdfText.isNotBlank() -> pdfText
+            else -> ""
         }
     }
 
     fun summarize(text: String) {
-        if (text.isBlank()) {
-            _uiState.update { it.copy(error = "Paste some note content to summarize.") }
+        val content = resolveToolsContent(text)
+        if (content.isBlank()) {
+            _uiState.update { it.copy(error = "Paste note content, enter a topic, or upload a PDF.") }
             return
         }
-        pendingAction = PendingAiAction(AiTool.SUMMARIZE, text)
+        pendingAction = PendingAiAction(AiTool.SUMMARIZE, content)
         viewModelScope.launch {
-            val localId = createToolConversation(AiConversationType.SUMMARIZE, text)
+            val localId = createToolConversation(AiConversationType.SUMMARIZE, content)
             val userTimestamp = System.currentTimeMillis()
             safePersistMessage(
                 AiConversationMessage(
                     id = aiMessageId(),
                     conversationId = localId,
                     isUser = true,
-                    content = text,
+                    content = content,
                     sentAt = userTimestamp,
                 )
             )
@@ -750,7 +1467,7 @@ class AiViewModel @Inject constructor(
                 it.copy(isLoading = true, loadingTool = AiTool.SUMMARIZE, error = null, lastSummary = null)
             }
             try {
-                val result = aiSummarize.execute(text)
+                val result = aiSummarize.execute(content)
                 val metadata = com.edukasyon.studentai.core.ai.AiConversationMetadata.encodeSummary(result)
                 safePersistMessage(
                     AiConversationMessage(
@@ -773,20 +1490,21 @@ class AiViewModel @Inject constructor(
     }
 
     fun generateFlashcards(text: String) {
-        if (text.isBlank()) {
-            _uiState.update { it.copy(error = "Paste note content or a topic to generate flashcards.") }
+        val content = resolveToolsContent(text)
+        if (content.isBlank()) {
+            _uiState.update { it.copy(error = "Paste note content, enter a topic, or upload a PDF.") }
             return
         }
-        pendingAction = PendingAiAction(AiTool.FLASHCARDS, text)
+        pendingAction = PendingAiAction(AiTool.FLASHCARDS, content)
         viewModelScope.launch {
-            val localId = createToolConversation(AiConversationType.FLASHCARDS, text)
+            val localId = createToolConversation(AiConversationType.FLASHCARDS, content)
             val userTimestamp = System.currentTimeMillis()
             safePersistMessage(
                 AiConversationMessage(
                     id = aiMessageId(),
                     conversationId = localId,
                     isUser = true,
-                    content = text,
+                    content = content,
                     sentAt = userTimestamp,
                 )
             )
@@ -800,7 +1518,7 @@ class AiViewModel @Inject constructor(
                 )
             }
             try {
-                val cards = aiGenerateFlashcards.execute(text)
+                val cards = aiGenerateFlashcards.execute(content)
                 if (cards.isEmpty()) {
                     _uiState.update {
                         it.copy(isLoading = false, loadingTool = null, error = "No flashcards were generated. Try again with more content.")
@@ -843,27 +1561,21 @@ class AiViewModel @Inject constructor(
     }
 
     fun generateQuiz(text: String) {
-        if (text.isBlank()) {
-            _uiState.update { it.copy(error = "Paste note content or a topic to generate a quiz.") }
+        val content = resolveToolsContent(text)
+        if (content.isBlank()) {
+            _uiState.update { it.copy(error = "Paste note content, enter a topic, or upload a PDF.") }
             return
         }
-        val gizmo = _uiState.value.gizmo
-        if (gizmo.memoriseMode && !gizmo.canQuiz) {
-            _uiState.update {
-                it.copy(error = "Out of hearts! Wait for them to refill or turn off Memorise mode.")
-            }
-            return
-        }
-        pendingAction = PendingAiAction(AiTool.QUIZ, text)
+        pendingAction = PendingAiAction(AiTool.QUIZ, content)
         viewModelScope.launch {
-            val localId = createToolConversation(AiConversationType.QUIZ, text)
+            val localId = createToolConversation(AiConversationType.QUIZ, content)
             val userTimestamp = System.currentTimeMillis()
             safePersistMessage(
                 AiConversationMessage(
                     id = aiMessageId(),
                     conversationId = localId,
                     isUser = true,
-                    content = text,
+                    content = content,
                     sentAt = userTimestamp,
                 )
             )
@@ -878,7 +1590,7 @@ class AiViewModel @Inject constructor(
                 )
             }
             try {
-                val quiz = aiGenerateQuiz.execute(text)
+                val quiz = aiGenerateQuiz.execute(content)
                 if (quiz.questions.isEmpty()) {
                     _uiState.update {
                         it.copy(isLoading = false, loadingTool = null, error = "No quiz questions were generated. Try again with more content.")
@@ -922,46 +1634,27 @@ class AiViewModel @Inject constructor(
         val question = session.currentQuestion ?: return
         val selected = session.selectedAnswer ?: return
         if (session.revealed) return
-        val isCorrect = selected.equals(question.correctAnswer, ignoreCase = true)
+        val isCorrect = question.isAnswerCorrect(selected)
         viewModelScope.launch {
             var gizmo = _uiState.value.gizmo
-            var heartsLost = _uiState.value.heartsLostThisSession
-            if (!isCorrect && gizmo.memoriseMode) {
-                gizmo = gizmoManager.loseHeart()
-                heartsLost += 1
-                if (!gizmo.canQuiz) {
-                    _uiState.update {
-                        it.copy(
-                            gizmo = gizmo,
-                            heartsLostThisSession = heartsLost,
-                            quizSession = session.copy(revealed = true, blockedByHearts = true),
-                            error = "Out of hearts! Wait ${formatCooldown(gizmo.heartsCooldownRemainingMs ?: 0)} to quiz again.",
-                        )
-                    }
-                    return@launch
-                }
-            } else if (isCorrect) {
+            if (isCorrect) {
                 awardXp(GizmoConstants.XP_CORRECT_ANSWER)
                 gizmo = _uiState.value.gizmo
             }
+            val wrongAnswers = if (!isCorrect) {
+                session.wrongAnswers + QuizWrongAnswer(question, selected)
+            } else session.wrongAnswers
             _uiState.update {
                 it.copy(
                     gizmo = gizmo,
-                    heartsLostThisSession = heartsLost,
                     quizSession = session.copy(
                         revealed = true,
                         correctCount = session.correctCount + if (isCorrect) 1 else 0,
+                        wrongAnswers = wrongAnswers,
                     ),
                 )
             }
         }
-    }
-
-    private fun formatCooldown(ms: Long): String {
-        val totalSeconds = kotlin.math.ceil(ms / 1000.0).toInt()
-        val minutes = totalSeconds / 60
-        val seconds = totalSeconds % 60
-        return if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
     }
 
     fun nextQuizQuestion() {
@@ -981,7 +1674,7 @@ class AiViewModel @Inject constructor(
                     quizSession = session.copy(
                         currentIndex = nextIndex,
                         selectedAnswer = null,
-                        revealed = false
+                        revealed = false,
                     )
                 )
             }
@@ -1011,45 +1704,173 @@ class AiViewModel @Inject constructor(
         }
     }
 
-    fun analyzeScheduleImage(imageData: ByteArray) {
+    fun analyzeScheduleImage(
+        imageData: ByteArray,
+        extractedText: String? = null,
+        isRetry: Boolean = false,
+    ) {
+        val current = _uiState.value
+        current.scheduleScanRetryAfterMillis?.let { retryAfter ->
+            if (System.currentTimeMillis() < retryAfter) return
+            _uiState.update {
+                it.copy(
+                    scheduleScanRetryCount = 0,
+                    scheduleScanRetryAfterMillis = null,
+                    scheduleScanStatus = ScheduleScanStatus.IDLE,
+                )
+            }
+            reminderScheduler.cancelReminder(SCHEDULE_SCAN_RETRY_WORK)
+        }
+
         lastScannedImageBytes = imageData.copyOf()
         pendingAction = PendingAiAction(AiTool.SCANNER, "")
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, loadingTool = AiTool.SCANNER, error = null) }
+        val attemptId = ++scheduleScanAttemptCounter
+        scheduleScanJob?.cancel()
+        scheduleScanJob = viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    loadingTool = AiTool.SCANNER,
+                    error = null,
+                    scheduleScanStatus = ScheduleScanStatus.SCANNING,
+                    scheduleScanRetryCount = if (isRetry) it.scheduleScanRetryCount else 0,
+                    scheduleScanExtractedText = null,
+                )
+            }
             try {
-                val result = aiAnalyzeSchedule.execute(imageData)
-                if (result.classes.isEmpty()) {
-                    _uiState.update {
+                val ocrText = extractedText?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: mlKitTextRecognizer.recognizeFromBytes(imageData).text
+                        .takeIf { it.isNotBlank() }
+                lastScannedExtractedText = ocrText
+                _uiState.update { it.copy(scheduleScanExtractedText = ocrText) }
+
+                val result = withTimeoutOrNull(SCHEDULE_SCAN_TIMEOUT_MS) {
+                    aiAnalyzeSchedule.execute(
+                        com.edukasyon.studentai.core.ai.ScheduleScanInput(
+                            imageData = imageData,
+                            extractedText = ocrText,
+                        )
+                    )
+                }
+                if (attemptId != scheduleScanAttemptCounter) return@launch
+
+                when {
+                    result == null -> registerScheduleScanFailure(attemptId)
+                    result.classes.isEmpty() -> registerScheduleScanFailure(attemptId)
+                    else -> _uiState.update {
                         it.copy(
                             isLoading = false,
                             loadingTool = null,
-                            error = "No classes found. Try a clearer photo or different angle.",
+                            scheduleScanStatus = ScheduleScanStatus.IDLE,
+                            scheduleScanRetryCount = 0,
+                            scheduleScanRetryAfterMillis = null,
+                            scannedClasses = result.classes,
+                            statusMessage = "Found ${result.classes.size} classes — review and import",
                         )
                     }
-                    return@launch
                 }
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        loadingTool = null,
-                        scannedClasses = result.classes,
-                        statusMessage = "Found ${result.classes.size} classes — review and import",
-                    )
-                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        loadingTool = null,
-                        error = e.message ?: "Failed to analyze schedule image",
-                    )
-                }
+                if (attemptId != scheduleScanAttemptCounter) return@launch
+                registerScheduleScanFailure(attemptId)
+            }
+        }
+    }
+
+    fun retryScheduleScan() {
+        val bytes = lastScannedImageBytes ?: return
+        analyzeScheduleImage(bytes, extractedText = lastScannedExtractedText, isRetry = true)
+    }
+
+    fun onScheduleScannerOpened() {
+        scheduleScanJob?.cancel()
+        val now = System.currentTimeMillis()
+        val retryAfter = _uiState.value.scheduleScanRetryAfterMillis
+        if (retryAfter != null && now < retryAfter) {
+            _uiState.update {
+                it.copy(
+                    scannedClasses = emptyList(),
+                    error = null,
+                    isLoading = false,
+                    loadingTool = null,
+                    scheduleScanStatus = ScheduleScanStatus.RETRY_LATER,
+                )
+            }
+        } else {
+            _uiState.update {
+                it.copy(
+                    scannedClasses = emptyList(),
+                    error = null,
+                    isLoading = false,
+                    loadingTool = null,
+                    scheduleScanStatus = ScheduleScanStatus.IDLE,
+                    scheduleScanRetryCount = 0,
+                    scheduleScanRetryAfterMillis = null,
+                )
+            }
+        }
+    }
+
+    fun dismissScheduleScanFailure() {
+        _uiState.update {
+            it.copy(
+                scheduleScanStatus = ScheduleScanStatus.IDLE,
+                isLoading = false,
+                loadingTool = null,
+            )
+        }
+    }
+
+    private fun registerScheduleScanFailure(attemptId: Long) {
+        if (attemptId != scheduleScanAttemptCounter) return
+        val newCount = _uiState.value.scheduleScanRetryCount + 1
+        if (newCount >= SCHEDULE_SCAN_MAX_RETRIES) {
+            val retryAt = System.currentTimeMillis() + SCHEDULE_SCAN_RETRY_LATER_MS
+            reminderScheduler.scheduleReminder(
+                uniqueWorkName = SCHEDULE_SCAN_RETRY_WORK,
+                type = ReminderType.SCHEDULE_SCAN,
+                title = "Ready to scan your schedule",
+                message = "You can try scanning your class schedule again now.",
+                triggerAtMillis = retryAt,
+                referenceId = Routes.SCHEDULE_SCANNER,
+            )
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    loadingTool = null,
+                    scheduleScanStatus = ScheduleScanStatus.RETRY_LATER,
+                    scheduleScanRetryCount = newCount,
+                    scheduleScanRetryAfterMillis = retryAt,
+                    error = null,
+                )
+            }
+        } else {
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    loadingTool = null,
+                    scheduleScanStatus = ScheduleScanStatus.UNREADABLE,
+                    scheduleScanRetryCount = newCount,
+                    error = null,
+                )
             }
         }
     }
 
     fun clearScannedClasses() {
-        _uiState.update { it.copy(scannedClasses = emptyList(), error = null) }
+        if (_uiState.value.scheduleScanRetryAfterMillis != null) {
+            reminderScheduler.cancelReminder(SCHEDULE_SCAN_RETRY_WORK)
+        }
+        _uiState.update {
+            it.copy(
+                scannedClasses = emptyList(),
+                error = null,
+                scheduleScanStatus = ScheduleScanStatus.IDLE,
+                scheduleScanRetryCount = 0,
+                scheduleScanRetryAfterMillis = null,
+            )
+        }
     }
 
     fun confirmScannedClasses() {
@@ -1084,10 +1905,32 @@ class AiViewModel @Inject constructor(
         }
     }
 
+    private fun tutorRateLimitRemainingMs(): Long {
+        val elapsed = System.currentTimeMillis() - lastTutorRequestAtMs
+        return (TUTOR_RATE_LIMIT_MS - elapsed).coerceAtLeast(0)
+    }
+
+    private fun formatTutorRateLimitMessage(remainingMs: Long): String =
+        com.edukasyon.studentai.ui.components.AiSafetyMessages.tutorClientCooldown(remainingMs)
+
     private companion object {
         const val TAG = "AiViewModel"
+        const val TUTOR_RATE_LIMIT_MS = 60_000L
+        const val SCHEDULE_SCAN_TIMEOUT_MS = 60_000L
+        const val SCHEDULE_SCAN_MAX_RETRIES = 5
+        const val SCHEDULE_SCAN_RETRY_LATER_MS = 30 * 60 * 1000L
+        const val SCHEDULE_SCAN_RETRY_WORK = "schedule_scan_retry_later"
+        const val STEP_QUOTA_SWITCH_MESSAGE =
+            "Step 3.7 Flash limit reached — switched to Auto. Try again in a few minutes."
     }
 }
+
+data class ProfileEditDraft(
+    val displayName: String = "",
+    val school: String = "",
+    val preferredStatus: String = "",
+    val bio: String = "",
+)
 
 data class ProfileUiState(
     val user: UserProfile? = null,
@@ -1100,15 +1943,34 @@ data class ProfileUiState(
     val examReminders: Boolean = true,
     val isOnline: Boolean = true,
     val aiModel: AiModel = AiModel.AUTO,
-    val backupMessage: String? = null
+    val backupMessage: String? = null,
+    val showEditSheet: Boolean = false,
+    val editDraft: ProfileEditDraft = ProfileEditDraft(),
+    val canEditProfile: Boolean = true,
+    val daysUntilNextEdit: Int = 0,
+    val profileSaveMessage: String? = null,
+    val isSavingProfile: Boolean = false,
+    val isFirebaseAuthenticated: Boolean = false,
+    val isGoogleSignedIn: Boolean = false,
+    val firebaseEmail: String? = null,
+    val isSigningInWithGoogle: Boolean = false,
+    val isSyncing: Boolean = false,
+    val lastSyncedAt: Long? = null,
+    val syncStatus: SyncState = SyncState.LOCAL_ONLY,
 )
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val userRepo: UserRepository,
+    private val updateProfile: com.edukasyon.studentai.domain.usecase.UpdateProfileUseCase,
+    private val saveUser: com.edukasyon.studentai.domain.usecase.SaveUserUseCase,
     private val preferences: com.edukasyon.studentai.data.preferences.UserPreferences,
     private val connectivity: com.edukasyon.studentai.core.network.ConnectivityMonitor,
-    private val dataBackupManager: com.edukasyon.studentai.core.backup.DataBackupManager
+    private val dataBackupManager: com.edukasyon.studentai.core.backup.DataBackupManager,
+    private val firestoreSyncService: com.edukasyon.studentai.core.firebase.FirestoreSyncService,
+    private val firebaseAuthManager: com.edukasyon.studentai.core.firebase.FirebaseAuthManager,
+    private val googleSignInHelper: com.edukasyon.studentai.core.firebase.GoogleSignInHelper,
+    private val syncMetadataDao: com.edukasyon.studentai.data.local.dao.SyncMetadataDao,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
@@ -1133,11 +1995,33 @@ class ProfileViewModel @Inject constructor(
                         preferences.aiModel
                     ) { task, exam, aiModel -> Triple(task, exam, aiModel) }
                 ) { colors, reminders -> colors to reminders },
-                connectivity.isOnline
-            ) { userInfo, prefs, online ->
+                combine(
+                    connectivity.isOnline,
+                    preferences.lastSyncedAt,
+                    syncMetadataDao.observeByType(com.edukasyon.studentai.core.firebase.FirestoreSyncService.ENTITY_TYPE_ALL),
+                ) { online, lastSynced, metadata ->
+                    Triple(online, lastSynced, metadata)
+                },
+                combine(
+                    preferences.firebaseAuthEmail,
+                    preferences.googleAccountLinked,
+                ) { email, linked -> email to linked },
+            ) { userInfo, prefs, syncInfo, authPrefs ->
                 val (colors, reminders) = prefs
+                val (online, lastSynced, metadata) = syncInfo
+                val (storedEmail, storedGoogleLinked) = authPrefs
+                val user = userInfo.first
+                val now = System.currentTimeMillis()
+                val canEdit = com.edukasyon.studentai.domain.model.ProfileEditPolicy
+                    .canEditProfile(now, user?.lastProfileEditAt)
+                val daysRemaining = com.edukasyon.studentai.domain.model.ProfileEditPolicy
+                    .daysUntilNextEdit(now, user?.lastProfileEditAt)
+                val syncStatus = metadata?.status?.let {
+                    runCatching { SyncState.valueOf(it) }.getOrNull()
+                } ?: SyncState.LOCAL_ONLY
+                val isGoogleSignedIn = firebaseAuthManager.isGoogleSignedIn || storedGoogleLinked
                 ProfileUiState(
-                    user = userInfo.first,
+                    user = user,
                     themeMode = userInfo.second,
                     notificationsEnabled = userInfo.third,
                     primaryColorHex = colors.first,
@@ -1146,9 +2030,163 @@ class ProfileViewModel @Inject constructor(
                     taskReminders = reminders.first,
                     examReminders = reminders.second,
                     aiModel = reminders.third,
-                    isOnline = online
+                    isOnline = online,
+                    canEditProfile = canEdit,
+                    daysUntilNextEdit = daysRemaining,
+                    showEditSheet = _uiState.value.showEditSheet,
+                    editDraft = _uiState.value.editDraft,
+                    profileSaveMessage = _uiState.value.profileSaveMessage,
+                    isSavingProfile = _uiState.value.isSavingProfile,
+                    isFirebaseAuthenticated = isGoogleSignedIn,
+                    isGoogleSignedIn = isGoogleSignedIn,
+                    firebaseEmail = firebaseAuthManager.userEmail ?: storedEmail ?: user?.email,
+                    isSigningInWithGoogle = _uiState.value.isSigningInWithGoogle,
+                    isSyncing = _uiState.value.isSyncing,
+                    lastSyncedAt = lastSynced ?: metadata?.lastSyncedAt,
+                    syncStatus = syncStatus,
+                    backupMessage = _uiState.value.backupMessage,
                 )
             }.collect { _uiState.value = it }
+        }
+        viewModelScope.launch {
+            firebaseAuthManager.refreshPersistedAuthState()
+        }
+    }
+
+    fun getGoogleSignInIntent(): android.content.Intent? {
+        googleSignInHelper.configurationIssue()?.let { issue ->
+            _uiState.update { it.copy(backupMessage = issue) }
+            return null
+        }
+        return googleSignInHelper.getSignInIntent()
+    }
+
+    fun handleGoogleSignInResult(data: android.content.Intent?) {
+        if (_uiState.value.isSigningInWithGoogle) return
+        _uiState.update { it.copy(isSigningInWithGoogle = true) }
+        viewModelScope.launch {
+            val tokenResult = googleSignInHelper.getIdTokenFromResult(data)
+            tokenResult.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isSigningInWithGoogle = false,
+                        backupMessage = error.message ?: "Google Sign-In cancelled",
+                    )
+                }
+                return@launch
+            }
+            val idToken = tokenResult.getOrThrow()
+            firebaseAuthManager.signInWithGoogle(idToken)
+                .onSuccess { outcome -> onGoogleSignInSuccess(outcome) }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            isSigningInWithGoogle = false,
+                            backupMessage = error.message ?: "Google Sign-In failed",
+                        )
+                    }
+                }
+        }
+    }
+
+    private suspend fun onGoogleSignInSuccess(outcome: com.edukasyon.studentai.core.firebase.GoogleSignInOutcome) {
+        val existing = userRepo.observeUser().first()
+        if (existing != null) {
+            val updated = existing.copy(
+                id = outcome.uid,
+                email = outcome.email ?: existing.email,
+                displayName = outcome.displayName?.takeIf { it.isNotBlank() } ?: existing.displayName,
+                isGuest = false,
+            )
+            saveUser.execute(updated)
+        }
+        _uiState.update { it.copy(isSigningInWithGoogle = false) }
+        when (val result = firestoreSyncService.syncAll()) {
+            is com.edukasyon.studentai.domain.model.SyncResult.Success -> {
+                _uiState.update {
+                    it.copy(
+                        backupMessage = if (outcome.linkedFromAnonymous) {
+                            "Google account linked — sync complete"
+                        } else if (outcome.mergedExistingAccount) {
+                            "Signed in — cloud data merged"
+                        } else {
+                            "Signed in with Google — sync complete"
+                        },
+                        lastSyncedAt = result.summary.syncedAt,
+                        syncStatus = SyncState.SYNCED,
+                    )
+                }
+            }
+            is com.edukasyon.studentai.domain.model.SyncResult.Offline -> {
+                _uiState.update {
+                    it.copy(backupMessage = "Signed in — sync when back online")
+                }
+            }
+            else -> {
+                _uiState.update {
+                    it.copy(backupMessage = "Signed in with Google")
+                }
+            }
+        }
+    }
+
+    fun signOutGoogle() {
+        viewModelScope.launch {
+            firebaseAuthManager.signOut()
+            _uiState.update {
+                it.copy(
+                    backupMessage = "Signed out — local data kept, cloud sync paused",
+                    isFirebaseAuthenticated = false,
+                    isGoogleSignedIn = false,
+                    firebaseEmail = null,
+                )
+            }
+        }
+    }
+
+    fun syncNow() {
+        if (_uiState.value.isSyncing) return
+        if (!_uiState.value.isGoogleSignedIn) {
+            _uiState.update { it.copy(backupMessage = "Sign in with Google to sync across devices") }
+            return
+        }
+        if (!_uiState.value.isOnline) {
+            _uiState.update { it.copy(backupMessage = "Offline — sync when back online") }
+            return
+        }
+        _uiState.update { it.copy(isSyncing = true) }
+        viewModelScope.launch {
+            when (val result = firestoreSyncService.syncAll()) {
+                is com.edukasyon.studentai.domain.model.SyncResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isSyncing = false,
+                            backupMessage = "Sync successful",
+                            lastSyncedAt = result.summary.syncedAt,
+                            syncStatus = SyncState.SYNCED,
+                        )
+                    }
+                }
+                is com.edukasyon.studentai.domain.model.SyncResult.Offline -> {
+                    _uiState.update {
+                        it.copy(isSyncing = false, backupMessage = "Offline — sync when back online")
+                    }
+                }
+                is com.edukasyon.studentai.domain.model.SyncResult.NotAuthenticated -> {
+                    _uiState.update {
+                        it.copy(isSyncing = false, backupMessage = "Sign in to sync across devices")
+                    }
+                }
+                is com.edukasyon.studentai.domain.model.SyncResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isSyncing = false,
+                            backupMessage = "Sync failed: ${result.message}",
+                            syncStatus = SyncState.FAILED,
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -1195,6 +2233,95 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun clearBackupMessage() { _uiState.update { it.copy(backupMessage = null) } }
+
+    fun openEditSheet() {
+        val user = _uiState.value.user ?: return
+        _uiState.update {
+            it.copy(
+                showEditSheet = true,
+                profileSaveMessage = null,
+                editDraft = ProfileEditDraft(
+                    displayName = user.displayName,
+                    school = user.school,
+                    preferredStatus = user.preferredStatus,
+                    bio = user.bio,
+                ),
+            )
+        }
+    }
+
+    fun dismissEditSheet() {
+        _uiState.update { it.copy(showEditSheet = false, profileSaveMessage = null) }
+    }
+
+    fun updateEditDisplayName(name: String) {
+        _uiState.update { it.copy(editDraft = it.editDraft.copy(displayName = name)) }
+    }
+
+    fun updateEditSchool(school: String) {
+        _uiState.update { it.copy(editDraft = it.editDraft.copy(school = school)) }
+    }
+
+    fun updateEditPreferredStatus(status: String) {
+        _uiState.update { it.copy(editDraft = it.editDraft.copy(preferredStatus = status)) }
+    }
+
+    fun updateEditBio(bio: String) {
+        val trimmed = bio.take(com.edukasyon.studentai.domain.model.ProfileEditPolicy.BIO_MAX_LENGTH)
+        _uiState.update { it.copy(editDraft = it.editDraft.copy(bio = trimmed)) }
+    }
+
+    fun saveProfile() {
+        if (_uiState.value.isSavingProfile) return
+        val draft = _uiState.value.editDraft
+        if (draft.displayName.isBlank()) {
+            _uiState.update { it.copy(profileSaveMessage = "Display name is required.") }
+            return
+        }
+        _uiState.update { it.copy(isSavingProfile = true, profileSaveMessage = null) }
+        viewModelScope.launch {
+            when (
+                val result = updateProfile.execute(
+                    com.edukasyon.studentai.domain.usecase.UpdateProfileParams(
+                        displayName = draft.displayName,
+                        school = draft.school,
+                        preferredStatus = draft.preferredStatus,
+                        bio = draft.bio,
+                    )
+                )
+            ) {
+                is com.edukasyon.studentai.domain.usecase.ProfileUpdateResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isSavingProfile = false,
+                            showEditSheet = false,
+                            backupMessage = "Profile updated",
+                        )
+                    }
+                }
+                is com.edukasyon.studentai.domain.usecase.ProfileUpdateResult.RateLimited -> {
+                    _uiState.update {
+                        it.copy(
+                            isSavingProfile = false,
+                            profileSaveMessage = "You can update your profile again in ${result.daysRemaining} day(s).",
+                        )
+                    }
+                }
+                is com.edukasyon.studentai.domain.usecase.ProfileUpdateResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isSavingProfile = false,
+                            profileSaveMessage = result.message,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun clearProfileSaveMessage() {
+        _uiState.update { it.copy(profileSaveMessage = null) }
+    }
 }
 
 data class NotificationSettingsUiState(
@@ -1682,64 +2809,79 @@ class AiConversationHistoryViewModel @Inject constructor(
     }
 }
 
-@HiltViewModel
-class ChatViewModel @Inject constructor(
-    private val chatRepo: com.edukasyon.studentai.domain.repository.ChatRepository
-) : ViewModel() {
-    val conversations = chatRepo.observeConversations()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    private var activeConversationId: String? = null
-
-    fun messages(conversationId: String) = chatRepo.observeMessages(conversationId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    fun setActiveConversation(id: String) { activeConversationId = id }
-
-    fun createConversation(title: String, onCreated: (String) -> Unit) {
-        viewModelScope.launch {
-            val conv = chatRepo.createConversation(title, isGroup = true)
-            onCreated(conv.id)
-        }
-    }
-
-    fun sendMessage(conversationId: String, content: String) {
-        viewModelScope.launch {
-            chatRepo.sendMessage(conversationId, "me", content)
-        }
-    }
-}
-
 data class FlashcardStudyUiState(
-    val dueCards: List<Flashcard> = emptyList(),
-    val currentIndex: Int = 0
+    val studyCards: List<Flashcard> = emptyList(),
+    val currentIndex: Int = 0,
+    val studyAll: Boolean = false,
+    val deck: JeviDeck? = null,
 ) {
-    val currentCard: Flashcard? get() = dueCards.getOrNull(currentIndex)
-    val remaining: Int get() = (dueCards.size - currentIndex).coerceAtLeast(0)
+    val currentCard: Flashcard? get() = studyCards.getOrNull(currentIndex)
+    val remaining: Int get() = (studyCards.size - currentIndex).coerceAtLeast(0)
 }
 
 @HiltViewModel
 class FlashcardStudyViewModel @Inject constructor(
-    private val flashcardRepo: FlashcardRepository,
-    private val updateFlashcard: UpdateFlashcardUseCase
+    savedStateHandle: SavedStateHandle,
+    private val getDueFlashcards: com.edukasyon.studentai.domain.usecase.GetDueFlashcardsUseCase,
+    private val getDeckFlashcards: com.edukasyon.studentai.domain.usecase.GetDeckFlashcardsUseCase,
+    private val getDeck: com.edukasyon.studentai.domain.usecase.GetJeviDeckUseCase,
+    private val updateFlashcard: UpdateFlashcardUseCase,
+    private val recordReview: com.edukasyon.studentai.domain.usecase.RecordJeviReviewUseCase,
+    private val gizmoManager: com.edukasyon.studentai.core.gamification.GizmoGamificationManager,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(FlashcardStudyUiState())
+    private val deckId: String? = savedStateHandle.get<String>("deckId")
+    private val studyAll: Boolean = savedStateHandle.get<Boolean>("studyAll") ?: false
+    private val _uiState = MutableStateFlow(FlashcardStudyUiState(studyAll = studyAll))
     val uiState: StateFlow<FlashcardStudyUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            flashcardRepo.observeDueFlashcards().collect { cards ->
-                _uiState.update { it.copy(dueCards = cards, currentIndex = 0) }
+            val cardsFlow = if (studyAll && deckId != null) {
+                getDeckFlashcards(deckId)
+            } else {
+                getDueFlashcards(deckId)
+            }
+            val deckFlow = deckId?.let { getDeck(it) } ?: kotlinx.coroutines.flow.flowOf(null)
+            kotlinx.coroutines.flow.combine(cardsFlow, deckFlow) { cards, deck ->
+                cards to deck
+            }.collect { (cards, deck) ->
+                _uiState.update {
+                    it.copy(
+                        studyCards = cards,
+                        currentIndex = 0,
+                        deck = deck,
+                        studyAll = studyAll,
+                    )
+                }
             }
         }
     }
 
     fun rate(card: Flashcard, quality: Int) {
         viewModelScope.launch {
+            val intervalBefore = card.intervalDays
             val updated = com.edukasyon.studentai.core.study.Sm2Algorithm.review(card, quality)
             updateFlashcard.execute(updated)
+            recordReview(
+                com.edukasyon.studentai.domain.model.JeviReviewRecord(
+                    id = java.util.UUID.randomUUID().toString(),
+                    flashcardId = card.id,
+                    deckId = card.deckId,
+                    quality = quality,
+                    reviewedAt = System.currentTimeMillis(),
+                    intervalBefore = intervalBefore,
+                    intervalAfter = updated.intervalDays,
+                    easeFactorAfter = updated.easeFactor,
+                )
+            )
+            gizmoManager.addXp(com.edukasyon.studentai.domain.model.JeviConstants.xpForRating(quality))
+            gizmoManager.recordActivity()
             _uiState.update { state ->
-                state.copy(currentIndex = (state.currentIndex + 1).coerceAtMost(state.dueCards.size))
+                val nextIndex = state.currentIndex + 1
+                if (nextIndex >= state.studyCards.size && state.studyCards.isNotEmpty()) {
+                    gizmoManager.addXp(com.edukasyon.studentai.domain.model.JeviConstants.XP_COMPLETE_SESSION)
+                }
+                state.copy(currentIndex = nextIndex.coerceAtMost(state.studyCards.size))
             }
         }
     }

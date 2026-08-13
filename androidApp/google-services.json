@@ -12,7 +12,20 @@
           "package_name": "com.edukasyon.studentai"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "246011040847-q8mmabei91quq929kg5mrfn15vete9di.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.edukasyon.studentai",
+            "certificate_hash": "88dba91eb4e5929d68bae71fac619b1d3c6b8e2d"
+          }
+        },
+        {
+          "client_id": "246011040847-g6pf7tr2o660226btb188frdagp1gi8c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBzeRpWdaHrIeKk5VrNcNyh_qr7DopG3NE"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "246011040847-g6pf7tr2o660226btb188frdagp1gi8c.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
@@ -31,7 +49,20 @@
           "package_name": "com.edukasyon.studentai.debug"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "246011040847-iobe3511o6nb6trgttk9mofl3c5block.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.edukasyon.studentai.debug",
+            "certificate_hash": "88dba91eb4e5929d68bae71fac619b1d3c6b8e2d"
+          }
+        },
+        {
+          "client_id": "246011040847-g6pf7tr2o660226btb188frdagp1gi8c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBzeRpWdaHrIeKk5VrNcNyh_qr7DopG3NE"
@@ -39,7 +70,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "246011040847-g6pf7tr2o660226btb188frdagp1gi8c.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -17,6 +17,9 @@ data class UserEntity(
     val semester: String,
     val isGuest: Boolean,
     val avatarUri: String?,
+    val bio: String = "",
+    val preferredStatus: String = "",
+    val lastProfileEditAt: Long? = null,
     val createdAt: Long,
     val updatedAt: Long,
     val syncState: String
@@ -123,6 +126,7 @@ data class ExamEntity(
     @PrimaryKey val id: String,
     val title: String,
     val subjectId: String?,
+    val linkedDeckId: String? = null,
     val examDate: Long,
     val examTime: String?,
     val location: String?,
@@ -167,12 +171,48 @@ data class NoteTagEntity(
     val tag: String
 )
 
-@Entity(tableName = "flashcards")
+@Entity(
+    tableName = "jevi_decks",
+    indices = [Index("subjectId"), Index("updatedAt")]
+)
+data class JeviDeckEntity(
+    @PrimaryKey val id: String,
+    val title: String,
+    val description: String?,
+    val subjectId: String?,
+    val sourceNoteId: String?,
+    val colorHex: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val deletedAt: Long?,
+    val syncState: String
+)
+
+@Entity(
+    tableName = "jevi_review_records",
+    indices = [Index("flashcardId"), Index("deckId"), Index("reviewedAt")]
+)
+data class JeviReviewRecordEntity(
+    @PrimaryKey val id: String,
+    val flashcardId: String,
+    val deckId: String?,
+    val quality: Int,
+    val reviewedAt: Long,
+    val intervalBefore: Int,
+    val intervalAfter: Int,
+    val easeFactorAfter: Double
+)
+
+@Entity(
+    tableName = "flashcards",
+    indices = [Index("deckId"), Index("nextReviewAt")]
+)
 data class FlashcardEntity(
     @PrimaryKey val id: String,
     val question: String,
     val answer: String,
     val subjectId: String?,
+    val deckId: String? = null,
     val topic: String?,
     val difficulty: String,
     val reviewCount: Int,

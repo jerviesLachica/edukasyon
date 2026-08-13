@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.edukasyon.studentai.domain.model.AiModel
@@ -44,10 +45,14 @@ class UserPreferences @Inject constructor(
         val NOTIFICATION_SOUND_ENABLED = booleanPreferencesKey("notification_sound_enabled")
         val ONBOARDING_WIDGETS_EXPLORED = booleanPreferencesKey("onboarding_widgets_explored")
         val WIFI_ONLY_SYNC = booleanPreferencesKey("wifi_only_sync")
+        val LAST_SYNCED_AT = longPreferencesKey("last_synced_at")
         val AI_CONTEXT_ENABLED = booleanPreferencesKey("ai_context_enabled")
         val USE_MOCK_AI = booleanPreferencesKey("use_mock_ai")
         val AI_MODEL = stringPreferencesKey("ai_model")
+        val STEP_MODEL_USAGE_TIMESTAMPS = stringPreferencesKey("step_model_usage_timestamps")
         val SCHEDULE_DAY_TEMPLATES = stringPreferencesKey("schedule_day_templates")
+        val FIREBASE_AUTH_EMAIL = stringPreferencesKey("firebase_auth_email")
+        val GOOGLE_ACCOUNT_LINKED = booleanPreferencesKey("google_account_linked")
     }
 
     private val templateJson = Json { ignoreUnknownKeys = true }
@@ -71,9 +76,20 @@ class UserPreferences @Inject constructor(
     val classReminder15MinBefore: Flow<Boolean> = context.dataStore.data.map { it[Keys.CLASS_REMINDER_15_MIN] ?: true }
     val notificationSoundEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.NOTIFICATION_SOUND_ENABLED] ?: true }
     val onboardingWidgetsExplored: Flow<Boolean> = context.dataStore.data.map { it[Keys.ONBOARDING_WIDGETS_EXPLORED] ?: false }
+    val lastSyncedAt: Flow<Long?> = context.dataStore.data.map { it[Keys.LAST_SYNCED_AT] }
+    val firebaseAuthEmail: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[Keys.FIREBASE_AUTH_EMAIL]?.takeIf { it.isNotBlank() }
+    }
+    val googleAccountLinked: Flow<Boolean> = context.dataStore.data.map {
+        it[Keys.GOOGLE_ACCOUNT_LINKED] ?: false
+    }
     val useMockAi: Flow<Boolean> = context.dataStore.data.map { it[Keys.USE_MOCK_AI] ?: false }
     val aiModel: Flow<AiModel> = context.dataStore.data.map { prefs ->
         AiModel.fromSlug(prefs[Keys.AI_MODEL] ?: AiModel.AUTO.slug)
+    }
+
+    val stepModelUsageTimestamps: Flow<List<Long>> = context.dataStore.data.map { prefs ->
+        decodeStepModelTimestamps(prefs[Keys.STEP_MODEL_USAGE_TIMESTAMPS])
     }
 
     val scheduleDayTemplates: Flow<ScheduleWeekTemplates> = context.dataStore.data.map { prefs ->
@@ -156,6 +172,31 @@ class UserPreferences @Inject constructor(
         context.dataStore.edit { it[Keys.ONBOARDING_WIDGETS_EXPLORED] = explored }
     }
 
+    suspend fun setLastSyncedAt(timestamp: Long) {
+        context.dataStore.edit { it[Keys.LAST_SYNCED_AT] = timestamp }
+    }
+
+    suspend fun setFirebaseAuthEmail(email: String?) {
+        context.dataStore.edit { prefs ->
+            if (email.isNullOrBlank()) {
+                prefs.remove(Keys.FIREBASE_AUTH_EMAIL)
+            } else {
+                prefs[Keys.FIREBASE_AUTH_EMAIL] = email.trim()
+            }
+        }
+    }
+
+    suspend fun setGoogleAccountLinked(linked: Boolean) {
+        context.dataStore.edit { it[Keys.GOOGLE_ACCOUNT_LINKED] = linked }
+    }
+
+    suspend fun clearFirebaseAuth() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(Keys.FIREBASE_AUTH_EMAIL)
+            prefs[Keys.GOOGLE_ACCOUNT_LINKED] = false
+        }
+    }
+
     suspend fun setUseMockAi(useMock: Boolean) {
         context.dataStore.edit { it[Keys.USE_MOCK_AI] = useMock }
     }
@@ -163,6 +204,21 @@ class UserPreferences @Inject constructor(
     suspend fun setAiModel(model: AiModel) {
         context.dataStore.edit { it[Keys.AI_MODEL] = model.slug }
     }
+
+    suspend fun setStepModelUsageTimestamps(timestamps: List<Long>) {
+        context.dataStore.edit {
+            it[Keys.STEP_MODEL_USAGE_TIMESTAMPS] = encodeStepModelTimestamps(timestamps)
+        }
+    }
+
+    private fun decodeStepModelTimestamps(raw: String?): List<Long> =
+        raw?.split(',')
+            ?.mapNotNull { it.trim().toLongOrNull() }
+            ?.sorted()
+            ?: emptyList()
+
+    private fun encodeStepModelTimestamps(timestamps: List<Long>): String =
+        timestamps.joinToString(",")
 
     suspend fun setScheduleDayTemplates(templates: ScheduleWeekTemplates) {
         context.dataStore.edit {

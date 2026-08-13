@@ -80,9 +80,10 @@ fun LectureFilesScreen(
             }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { filePickerLauncher.launch(arrayOf("application/pdf", "image/*")) }) {
-                Icon(Icons.Default.Add, contentDescription = "Add file")
-            }
+            StudentAiAddFab(
+                onClick = { filePickerLauncher.launch(arrayOf("application/pdf", "image/*")) },
+                contentDescription = "Add file",
+            )
         },
         bottomBar = {
             StudyMaterialsPillNav(

@@ -26,6 +26,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edukasyon.studentai.core.util.GradeCalculator
 import com.edukasyon.studentai.domain.model.GradeEntry
 import com.edukasyon.studentai.domain.model.Subject
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
+import com.edukasyon.studentai.ui.adaptive.isMediumOrExpandedWidth
+import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.components.*
 import com.edukasyon.studentai.ui.theme.parseHexColor
 import com.edukasyon.studentai.ui.viewmodel.GradesViewModel
@@ -46,6 +52,8 @@ private data class SubjectGradeGroup(
 @Composable
 fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val horizontalPadding = rememberAdaptiveHorizontalPadding()
+    val useGrid = isMediumOrExpandedWidth()
     var showAddSheet by remember { mutableStateOf(false) }
     var preselectedSubjectId by remember { mutableStateOf<String?>(null) }
 
@@ -74,37 +82,37 @@ fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
                     preselectedSubjectId = null
                     showAddSheet = true
                 },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                icon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(24.dp)) },
                 text = { Text("Add Grade") },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(bottom = 88.dp)
-        ) {
-            item {
-                GradientHeader(
-                    title = "Grades",
-                    subtitle = if (filteredEntries.isEmpty()) {
-                        "Track your academic progress"
-                    } else {
-                        "Overall weighted average · ${"%.1f".format(filteredWeighted)}%"
-                    }
-                )
-            }
+        AdaptiveContentContainer(Modifier.padding(padding)) { contentModifier ->
+            LazyColumn(
+                modifier = contentModifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 88.dp),
+            ) {
+                item {
+                    GradientHeader(
+                        title = "Grades",
+                        subtitle = if (filteredEntries.isEmpty()) {
+                            "Track your academic progress"
+                        } else {
+                            "Overall weighted average · ${"%.1f".format(filteredWeighted)}%"
+                        },
+                    )
+                }
 
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = horizontalPadding, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                     StatChip(
                         label = "Weighted avg",
                         value = "${"%.1f".format(filteredWeighted)}%",
@@ -131,8 +139,8 @@ fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(horizontal = horizontalPadding),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         FilterChip(
                             selected = state.selectedTerm == null,
@@ -166,17 +174,46 @@ fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
                         modifier = Modifier.padding(top = 24.dp)
                     )
                 }
-            } else {
-                item { SectionHeader("BY SUBJECT") }
-                items(subjectGroups, key = { it.subjectId }) { group ->
-                    SubjectGradeCard(
-                        group = group,
-                        onAddGrade = {
-                            preselectedSubjectId = group.subjectId
-                            showAddSheet = true
-                        },
-                        onDeleteEntry = viewModel::removeGrade
-                    )
+                } else {
+                    item { SectionHeader("BY SUBJECT", modifier = Modifier.padding(horizontal = horizontalPadding)) }
+                    if (useGrid) {
+                        item {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(2),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height((((subjectGroups.size + 1) / 2) * 220).dp)
+                                    .padding(horizontal = horizontalPadding),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                userScrollEnabled = false,
+                            ) {
+                                items(subjectGroups, key = { it.subjectId }) { group ->
+                                    SubjectGradeCard(
+                                        group = group,
+                                        horizontalPadding = 0.dp,
+                                        onAddGrade = {
+                                            preselectedSubjectId = group.subjectId
+                                            showAddSheet = true
+                                        },
+                                        onDeleteEntry = viewModel::removeGrade,
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        items(subjectGroups, key = { it.subjectId }) { group ->
+                            SubjectGradeCard(
+                                group = group,
+                                horizontalPadding = horizontalPadding,
+                                onAddGrade = {
+                                    preselectedSubjectId = group.subjectId
+                                    showAddSheet = true
+                                },
+                                onDeleteEntry = viewModel::removeGrade,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -198,13 +235,14 @@ fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
 @Composable
 private fun SubjectGradeCard(
     group: SubjectGradeGroup,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
     onAddGrade: () -> Unit,
-    onDeleteEntry: (String) -> Unit
+    onDeleteEntry: (String) -> Unit,
 ) {
     val accentColor = parseHexColor(group.colorHex) ?: MaterialTheme.colorScheme.primary
 
     ModernCard(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+        modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 6.dp),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Row(

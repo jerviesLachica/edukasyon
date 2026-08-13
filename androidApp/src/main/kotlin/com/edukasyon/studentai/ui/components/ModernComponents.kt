@@ -22,10 +22,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -36,13 +40,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.edukasyon.studentai.ui.navigation.MainTab
 import com.edukasyon.studentai.ui.navigation.routeToSelectedTab
 import com.edukasyon.studentai.ui.theme.StudentAiGradients
@@ -89,27 +93,28 @@ fun GradientHeader(
     modifier: Modifier = Modifier,
     trailing: @Composable (() -> Unit)? = null,
     bottomContent: @Composable (() -> Unit)? = null,
+    inlineSubtitle: Boolean = false,
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
             .clip(StudentAiShapes.hero)
             .background(StudentAiGradients.headerBrush())
-            .padding(horizontal = 24.dp, vertical = 28.dp)
+            .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .offset(x = 32.dp, y = (-16).dp)
-                .size(140.dp)
+                .offset(x = 24.dp, y = (-12).dp)
+                .size(80.dp)
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = 0.08f))
         )
         Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .offset(x = (-24).dp, y = 24.dp)
-                .size(96.dp)
+                .offset(x = (-16).dp, y = 16.dp)
+                .size(56.dp)
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = 0.05f))
         )
@@ -117,27 +122,55 @@ fun GradientHeader(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        lineHeight = MaterialTheme.typography.headlineMedium.lineHeight,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.88f),
-                    )
+                if (inlineSubtitle) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = " · $subtitle",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                } else {
+                    Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
                 trailing?.invoke()
             }
             bottomContent?.let {
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(10.dp))
                 it()
             }
         }
@@ -200,7 +233,7 @@ fun GlassStatCard(
         shadowElevation = 0.dp,
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
         ),
     ) {
         Column(
@@ -380,17 +413,10 @@ fun AiSuggestionCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.85f),
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
-                    )
-                )
-            )
+            .background(StudentAiGradients.headerBrush())
             .border(
                 1.dp,
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
                 shape,
             )
             .animatedPressScale(interactionSource, pressedScale = 0.98f)
@@ -405,28 +431,28 @@ fun AiSuggestionCard(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                    .background(Color.White.copy(alpha = 0.22f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Default.AutoAwesome,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = Color.White,
                     modifier = Modifier.size(24.dp),
                 )
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = "Gizmo suggests",
+                    text = "Jarvis suggests",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onPrimary,
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = suggestion,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.92f),
                 )
             }
         }
@@ -448,11 +474,11 @@ fun DashboardSectionHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-            letterSpacing = MaterialTheme.typography.labelLarge.letterSpacing,
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            letterSpacing = 0.8.sp,
         )
         if (actionLabel != null && onAction != null) {
             BouncyTextButton(onClick = onAction) {
@@ -520,7 +546,6 @@ fun DashboardEmptyState(
     title: String,
     message: String,
     icon: ImageVector = Icons.Default.Inbox,
-    emoji: String? = null,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -530,36 +555,31 @@ fun DashboardEmptyState(
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 4.dp),
         shape = StudentAiShapes.dashboard,
-        color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.7f),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
         ),
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (emoji != null) {
-                Text(text = emoji, style = MaterialTheme.typography.displaySmall)
-                Spacer(Modifier.height(8.dp))
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp),
-                    )
-                }
-                Spacer(Modifier.height(14.dp))
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(StudentAiGradients.accentChipBrush(0)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp),
+                )
             }
+            Spacer(Modifier.height(14.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
@@ -700,6 +720,69 @@ fun ModernLoadingState(
             )
         }
     }
+}
+
+@Composable
+fun StudentAiFab(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.primary,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimary,
+) {
+    FloatingActionButton(
+        onClick = onClick,
+        modifier = modifier,
+        shape = CircleShape,
+        containerColor = containerColor,
+        contentColor = contentColor,
+        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(24.dp),
+        )
+    }
+}
+
+@Composable
+fun StudentAiAddFab(
+    onClick: () -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+) {
+    StudentAiFab(
+        onClick = onClick,
+        icon = Icons.Default.Add,
+        contentDescription = contentDescription,
+        modifier = modifier,
+    )
+}
+
+@Composable
+fun StudentAiExtendedAddFab(
+    onClick: () -> Unit,
+    text: String,
+    modifier: Modifier = Modifier,
+    contentDescription: String = text,
+) {
+    ExtendedFloatingActionButton(
+        onClick = onClick,
+        modifier = modifier,
+        icon = {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+            )
+        },
+        text = { Text(text) },
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+    )
 }
 
 @Composable

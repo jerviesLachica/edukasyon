@@ -61,6 +61,12 @@
 -keep class androidx.camera.** { *; }
 -dontwarn androidx.camera.**
 
+# ML Kit
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+-keep class com.google.android.gms.internal.mlkit_** { *; }
+-dontwarn com.google.android.gms.internal.mlkit_**
+
 # WorkManager
 -keep class androidx.work.** { *; }
 -dontwarn androidx.work.**

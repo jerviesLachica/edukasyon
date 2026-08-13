@@ -35,7 +35,7 @@ enum class MainTab(val route: String, val label: String, val selectedIcon: Image
     HOME("home", "Home", Icons.Filled.Home, Icons.Outlined.Home),
     SCHEDULE("schedule", "Schedule", Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth),
     PLANNER("planner", "Planner", Icons.Filled.TaskAlt, Icons.Outlined.TaskAlt),
-    AI("ai", "AI", Icons.Filled.Psychology, Icons.Outlined.Psychology),
+    JEVI("jevi", "JEVI", Icons.Filled.Psychology, Icons.Outlined.Psychology),
     PROFILE("profile", "Profile", Icons.Filled.Person, Icons.Outlined.Person)
 }
 
@@ -48,12 +48,22 @@ object Routes {
     const val ADD_EXAM = "add_exam"
     const val ADD_ASSIGNMENT = "add_assignment"
     const val NOTE_DETAIL = "note_detail/{noteId}"
+    const val NOTE_EDITOR = "note_editor/{noteId}"
+    const val NEW_NOTE_ID = "new"
     const val AI_TUTOR = "ai_tutor"
     const val AI_SCANNER = "ai_scanner"
     const val SCHEDULE_SCANNER = "schedule_scanner"
-    const val CHAT_LIST = "chat_list"
-    const val CHAT_THREAD = "chat_thread/{conversationId}"
     const val FLASHCARD_STUDY = "flashcard_study"
+    const val JEVI_DECKS = "jevi_decks"
+    const val JEVI_CREATE = "jevi_create"
+    const val JEVI_TUTOR = "jevi_tutor"
+    const val JEVI_REVIEW = "jevi_review"
+    const val JEVI_QUIZ = "jevi_quiz"
+    const val JEVI_DECK_DETAIL = "jevi_deck/{deckId}"
+    const val JEVI_REVIEW_DECK = "jevi_review/{deckId}?studyAll={studyAll}"
+    fun jeviDeckDetail(deckId: String) = "jevi_deck/$deckId"
+    fun jeviReviewDeck(deckId: String, studyAll: Boolean = false) =
+        "jevi_review/$deckId?studyAll=$studyAll"
     const val AI_SUMMARIZER = "ai_summarizer"
     const val GRADES = "grades"
     const val CALENDAR = "calendar"
@@ -63,23 +73,30 @@ object Routes {
     const val NOTIFICATION_SETTINGS = "notification_settings"
     const val NOTIFICATION_SETTINGS_DETAIL = "notification_settings_detail"
     const val LECTURE_FILES = "lecture_files"
+    const val FOCUS = "focus"
+    const val ASSIGNMENT_INTELLIGENCE = "assignment_intelligence"
     const val AI_CONVERSATION_HISTORY = "ai_conversation_history/{filterScope}"
     fun aiConversationHistory(filterScope: String) = "ai_conversation_history/$filterScope"
     fun noteDetail(id: String) = "note_detail/$id"
-    fun chatThread(id: String) = "chat_thread/$id"
+    fun noteEditor(noteId: String) = "note_editor/$noteId"
 }
 
 fun routeToSelectedTab(route: String?): MainTab? {
     if (route == null) return null
     return when {
-        route == Routes.NOTES -> MainTab.HOME
-        route == Routes.GRADES || route == Routes.CALENDAR -> MainTab.PLANNER
+        route == Routes.NOTES || route.startsWith("note_editor/") -> MainTab.HOME
+        route == Routes.GRADES || route == Routes.CALENDAR || route == Routes.FOCUS -> MainTab.PLANNER
         route == Routes.SCHEDULE_SCANNER -> MainTab.SCHEDULE
-        route == Routes.FLASHCARD_STUDY -> MainTab.AI
-        route.startsWith("ai_conversation_history/") -> MainTab.AI
-        route == Routes.CHAT_LIST || route.startsWith("chat_thread/") || route == Routes.FEATURES_GUIDE -> MainTab.PROFILE
+        route == Routes.FLASHCARD_STUDY || route == Routes.JEVI_REVIEW ||
+            route.startsWith("jevi_review/") || route.startsWith("jevi_deck/") ||
+            route == Routes.JEVI_DECKS ||
+            route == Routes.JEVI_CREATE || route == Routes.JEVI_TUTOR ||
+            route == Routes.JEVI_QUIZ -> MainTab.JEVI
+        route.startsWith("ai_conversation_history/") -> MainTab.JEVI
+        route == Routes.FEATURES_GUIDE -> MainTab.PROFILE
         route == Routes.NOTIFICATION_SETTINGS || route == Routes.NOTIFICATION_SETTINGS_DETAIL -> MainTab.PROFILE
         route == Routes.LECTURE_FILES -> MainTab.HOME
+        route == Routes.ASSIGNMENT_INTELLIGENCE -> MainTab.PLANNER
         else -> MainTab.entries.find { it.route == route }
     }
 }

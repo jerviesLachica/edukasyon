@@ -42,6 +42,7 @@ interface ExamRepository {
 
 interface NoteRepository {
     fun observeNotes(): Flow<List<Note>>
+    suspend fun getNoteById(id: String): Note?
     suspend fun saveNote(note: Note)
     suspend fun deleteNote(id: String)
     fun search(query: String): Flow<List<Note>>
@@ -56,6 +57,7 @@ interface GradeRepository {
 
 interface SubjectRepository {
     fun observeSubjects(): Flow<List<Subject>>
+    suspend fun getById(id: String): Subject?
     suspend fun saveSubject(subject: Subject)
 }
 
@@ -72,6 +74,9 @@ interface FlashcardRepository {
 }
 
 interface QuizRepository {
+    fun observeAll(): kotlinx.coroutines.flow.Flow<List<Quiz>>
+    fun observeByDeck(deckId: String): kotlinx.coroutines.flow.Flow<List<Quiz>>
+    suspend fun getQuiz(quizId: String): Quiz?
     suspend fun saveQuiz(quiz: Quiz)
 }
 

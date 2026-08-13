@@ -48,8 +48,14 @@ fun isCompactWidth(): Boolean = rememberAdaptiveWidth() == AdaptiveWidth.Compact
 @Composable
 fun isMediumOrExpandedWidth(): Boolean = rememberAdaptiveWidth() != AdaptiveWidth.Compact
 
-fun AdaptiveWidth.columnCount(default: Int = 1, medium: Int = 2, expanded: Int = 2): Int = when (this) {
+fun AdaptiveWidth.columnCount(default: Int = 1, medium: Int = 2, expanded: Int = 3): Int = when (this) {
     AdaptiveWidth.Compact -> default
     AdaptiveWidth.Medium -> medium
     AdaptiveWidth.Expanded -> expanded
+}
+
+fun AdaptiveWidth.listPaneWeight(): Float = when (this) {
+    AdaptiveWidth.Compact -> 1f
+    AdaptiveWidth.Medium -> 0.42f
+    AdaptiveWidth.Expanded -> 0.38f
 }

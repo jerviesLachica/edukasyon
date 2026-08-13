@@ -10,14 +10,16 @@ private val json = Json { ignoreUnknownKeys = true }
 fun UserEntity.toDomain() = UserProfile(
     id = id, displayName = displayName, email = email, school = school,
     gradeLevel = gradeLevel, section = section, schoolYear = schoolYear,
-    semester = semester, isGuest = isGuest, avatarUri = avatarUri
+    semester = semester, isGuest = isGuest, avatarUri = avatarUri,
+    bio = bio, preferredStatus = preferredStatus, lastProfileEditAt = lastProfileEditAt,
 )
 
-fun UserProfile.toEntity(now: Long = System.currentTimeMillis()) = UserEntity(
+fun UserProfile.toEntity(existingCreatedAt: Long? = null, now: Long = System.currentTimeMillis()) = UserEntity(
     id = id, displayName = displayName, email = email, school = school,
     gradeLevel = gradeLevel, section = section, schoolYear = schoolYear,
     semester = semester, isGuest = isGuest, avatarUri = avatarUri,
-    createdAt = now, updatedAt = now, syncState = SyncState.LOCAL_ONLY.name
+    bio = bio, preferredStatus = preferredStatus, lastProfileEditAt = lastProfileEditAt,
+    createdAt = existingCreatedAt ?: now, updatedAt = now, syncState = SyncState.LOCAL_ONLY.name
 )
 
 fun SubjectEntity.toDomain() = Subject(
@@ -73,14 +75,14 @@ fun Assignment.toEntity(now: Long = System.currentTimeMillis()) = AssignmentEnti
 )
 
 fun ExamEntity.toDomain() = Exam(
-    id = id, title = title, subjectId = subjectId, examDate = examDate,
-    examTime = examTime, location = location, coverage = coverage,
+    id = id, title = title, subjectId = subjectId, linkedDeckId = linkedDeckId,
+    examDate = examDate, examTime = examTime, location = location, coverage = coverage,
     notes = notes, reminderAt = reminderAt
 )
 
 fun Exam.toEntity(now: Long = System.currentTimeMillis()) = ExamEntity(
-    id = id, title = title, subjectId = subjectId, examDate = examDate,
-    examTime = examTime, location = location, coverage = coverage,
+    id = id, title = title, subjectId = subjectId, linkedDeckId = linkedDeckId,
+    examDate = examDate, examTime = examTime, location = location, coverage = coverage,
     notes = notes, reminderAt = reminderAt,
     createdAt = now, updatedAt = now, deletedAt = null, syncState = SyncState.LOCAL_ONLY.name
 )
@@ -98,10 +100,63 @@ fun Note.toEntity(now: Long = System.currentTimeMillis()) = NoteEntity(
 
 fun FlashcardEntity.toDomain() = Flashcard(
     id = id, question = question, answer = answer, subjectId = subjectId,
-    topic = topic, difficulty = difficulty, reviewCount = reviewCount,
+    deckId = deckId, topic = topic, difficulty = difficulty, reviewCount = reviewCount,
     correctCount = correctCount, incorrectCount = incorrectCount,
     lastReviewedAt = lastReviewedAt, nextReviewAt = nextReviewAt,
     easeFactor = easeFactor, intervalDays = intervalDays
+)
+
+fun JeviDeckEntity.toDomain(
+    cardCount: Int = 0,
+    dueCount: Int = 0,
+    masteredCount: Int = 0,
+) = JeviDeck(
+    id = id,
+    title = title,
+    description = description,
+    subjectId = subjectId,
+    sourceNoteId = sourceNoteId,
+    colorHex = colorHex,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    cardCount = cardCount,
+    dueCount = dueCount,
+    masteredCount = masteredCount,
+)
+
+fun JeviDeck.toEntity(now: Long = System.currentTimeMillis()) = JeviDeckEntity(
+    id = id,
+    title = title,
+    description = description,
+    subjectId = subjectId,
+    sourceNoteId = sourceNoteId,
+    colorHex = colorHex,
+    createdAt = createdAt.takeIf { it > 0 } ?: now,
+    updatedAt = now,
+    deletedAt = null,
+    syncState = SyncState.LOCAL_ONLY.name,
+)
+
+fun JeviReviewRecordEntity.toDomain() = JeviReviewRecord(
+    id = id,
+    flashcardId = flashcardId,
+    deckId = deckId,
+    quality = quality,
+    reviewedAt = reviewedAt,
+    intervalBefore = intervalBefore,
+    intervalAfter = intervalAfter,
+    easeFactorAfter = easeFactorAfter,
+)
+
+fun JeviReviewRecord.toEntity() = JeviReviewRecordEntity(
+    id = id,
+    flashcardId = flashcardId,
+    deckId = deckId,
+    quality = quality,
+    reviewedAt = reviewedAt,
+    intervalBefore = intervalBefore,
+    intervalAfter = intervalAfter,
+    easeFactorAfter = easeFactorAfter,
 )
 
 fun GradeEntryEntity.toDomain() = GradeEntry(
@@ -130,6 +185,15 @@ fun QuizQuestionEntity.toDomain() = QuizQuestion(
     id = id, quizId = quizId, type = QuestionType.valueOf(type),
     question = question, options = json.decodeFromString<List<String>>(optionsJson),
     correctAnswer = correctAnswer
+)
+
+fun QuizEntity.toDomain(questions: List<QuizQuestion> = emptyList()) = Quiz(
+    id = id,
+    title = title,
+    subjectId = subjectId,
+    sourceNoteId = sourceNoteId,
+    questions = questions,
+    createdAt = createdAt,
 )
 
 fun Quiz.toEntity(now: Long = System.currentTimeMillis()) = QuizEntity(

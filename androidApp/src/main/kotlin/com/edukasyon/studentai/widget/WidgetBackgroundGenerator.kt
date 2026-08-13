@@ -23,16 +23,16 @@ object WidgetBackgroundGenerator {
         context: Context,
         preset: WidgetDesignPreset,
         colors: WidgetDesignColors,
-        widthDp: Int = 320,
-        heightDp: Int = 320
+        widthDp: Int = 160,
+        heightDp: Int = 160
     ): Bitmap {
         if (preset == WidgetDesignPreset.MINIMAL) {
-            return solidBitmap(
-                context,
-                parseAndroidColor(colors.color1, Color.parseColor("#F3F4F6")),
-                widthDp,
-                heightDp
-            )
+            val color = parseAndroidColor(colors.color1, Color.parseColor("#F3F4F6"))
+            val key = "minimal|$color|${widthDp}x$heightDp|${context.resources.displayMetrics.density}"
+            cache.get(key)?.let { return it }
+            val bitmap = solidBitmap(context, color, widthDp, heightDp)
+            cache.put(key, bitmap)
+            return bitmap
         }
 
         val key = "${preset.name}|${colors.cacheKey()}|${widthDp}x$heightDp|${context.resources.displayMetrics.density}"

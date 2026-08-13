@@ -198,4 +198,30 @@ object DateUtils {
     }
 
     fun tomorrowStartOfDay(): Long = startOfDay(System.currentTimeMillis() + 86_400_000L)
+
+    /** Parse YYYY-MM-DD to start-of-day millis, or null if invalid. */
+    fun parseIsoDate(isoDate: String): Long? {
+        val match = Regex("""^(\d{4})-(\d{2})-(\d{2})""").find(isoDate.trim()) ?: return null
+        val (year, month, day) = match.destructured
+        return runCatching {
+            val cal = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.YEAR, year.toInt())
+                set(java.util.Calendar.MONTH, month.toInt() - 1)
+                set(java.util.Calendar.DAY_OF_MONTH, day.toInt())
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+            cal.timeInMillis
+        }.getOrNull()
+    }
+
+    fun subtractDays(timestamp: Long, days: Int): Long {
+        val cal = java.util.Calendar.getInstance().apply {
+            timeInMillis = timestamp
+            add(java.util.Calendar.DAY_OF_MONTH, -days.coerceAtLeast(0))
+        }
+        return cal.timeInMillis
+    }
 }

@@ -21,7 +21,10 @@ import javax.inject.Singleton
 @Singleton
 class UserRepositoryImpl @Inject constructor(private val userDao: UserDao) : UserRepository {
     override fun observeUser(): Flow<UserProfile?> = userDao.observeUser().map { it?.toDomain() }
-    override suspend fun saveUser(user: UserProfile) = userDao.insert(user.toEntity())
+    override suspend fun saveUser(user: UserProfile) {
+        val existing = userDao.observeUser().first()
+        userDao.insert(user.toEntity(existingCreatedAt = existing?.createdAt))
+    }
 }
 
 @Singleton
@@ -163,6 +166,12 @@ class NoteRepositoryImpl @Inject constructor(
             }
         }
 
+    override suspend fun getNoteById(id: String): Note? {
+        val entity = noteDao.getById(id) ?: return null
+        val tags = noteTagDao.observeByNote(id).first().map { it.tag }
+        return entity.toDomain(tags)
+    }
+
     override suspend fun saveNote(note: Note) {
         noteDao.insert(note.toEntity())
         noteTagDao.deleteByNote(note.id)
@@ -205,6 +214,9 @@ class SubjectRepositoryImpl @Inject constructor(private val subjectDao: SubjectD
     override fun observeSubjects(): Flow<List<Subject>> =
         subjectDao.observeAll().map { it.map { e -> e.toDomain() } }
 
+    override suspend fun getById(id: String): Subject? =
+        subjectDao.getById(id)?.toDomain()
+
     override suspend fun saveSubject(subject: Subject) {
         val now = System.currentTimeMillis()
         subjectDao.insert(
@@ -234,7 +246,16 @@ class FlashcardRepositoryImpl @Inject constructor(private val flashcardDao: Flas
         flashcardDao.observeDue(System.currentTimeMillis()).map { it.map { e -> e.toDomain() } }
 
     override suspend fun saveFlashcards(cards: List<Flashcard>) {
-        cards.forEach { insertCard(it) }
+        val defaultDeckId = com.edukasyon.studentai.domain.model.JeviConstants.DEFAULT_DECK_ID
+        cards.forEach { card ->
+            insertCard(
+                if (card.deckId.isNullOrBlank()) {
+                    card.copy(deckId = defaultDeckId)
+                } else {
+                    card
+                },
+            )
+        }
     }
 
     override suspend fun updateFlashcard(card: Flashcard) {
@@ -246,7 +267,7 @@ class FlashcardRepositoryImpl @Inject constructor(private val flashcardDao: Flas
         flashcardDao.insert(
             com.edukasyon.studentai.data.local.entity.FlashcardEntity(
                 id = card.id, question = card.question, answer = card.answer,
-                subjectId = card.subjectId, topic = card.topic, difficulty = card.difficulty,
+                subjectId = card.subjectId, deckId = card.deckId, topic = card.topic, difficulty = card.difficulty,
                 reviewCount = card.reviewCount, correctCount = card.correctCount,
                 incorrectCount = card.incorrectCount, lastReviewedAt = card.lastReviewedAt,
                 nextReviewAt = card.nextReviewAt, easeFactor = card.easeFactor,
@@ -263,6 +284,25 @@ class QuizRepositoryImpl @Inject constructor(
     private val quizDao: QuizDao,
     private val quizQuestionDao: QuizQuestionDao
 ) : QuizRepository {
+    override fun observeAll(): Flow<List<Quiz>> =
+        quizDao.observeAll().mapLatest { entities ->
+            entities.map { entity ->
+                val questions = quizQuestionDao.getByQuiz(entity.id).map { it.toDomain() }
+                entity.toDomain(questions)
+            }
+        }
+
+    override fun observeByDeck(deckId: String): Flow<List<Quiz>> =
+        quizDao.observeByDeckSource(encodeQuizDeckId(deckId)).map { entities ->
+            entities.map { entity -> entity.toDomain(emptyList()) }
+        }
+
+    override suspend fun getQuiz(quizId: String): Quiz? {
+        val entity = quizDao.getById(quizId) ?: return null
+        val questions = quizQuestionDao.getByQuiz(quizId).map { it.toDomain() }
+        return entity.toDomain(questions)
+    }
+
     override suspend fun saveQuiz(quiz: Quiz) {
         quizDao.insert(quiz.toEntity())
         quiz.questions.forEach { quizQuestionDao.insert(it.toEntity()) }

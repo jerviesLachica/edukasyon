@@ -31,6 +31,9 @@ class StudentAiApplication : Application(), Configuration.Provider {
     @Inject lateinit var aiApi: AiApiService
     @Inject lateinit var reminderSyncService: com.edukasyon.studentai.core.notifications.ReminderSyncService
     @Inject lateinit var notificationHelper: com.edukasyon.studentai.core.notifications.NotificationHelper
+    @Inject lateinit var firestoreSyncService: com.edukasyon.studentai.core.firebase.FirestoreSyncService
+    @Inject lateinit var firebaseAuthManager: com.edukasyon.studentai.core.firebase.FirebaseAuthManager
+    @Inject lateinit var connectivityMonitor: com.edukasyon.studentai.core.network.ConnectivityMonitor
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -53,6 +56,15 @@ class StudentAiApplication : Application(), Configuration.Provider {
                 reminderSyncService.rescheduleAll()
                 WidgetUpdater.schedulePeriodicRefresh(this@StudentAiApplication)
                 WidgetUpdater.refreshAll(this@StudentAiApplication)
+                if (firebaseAuthManager.isGoogleSignedIn && connectivityMonitor.isCurrentlyOnline()) {
+                    when (firestoreSyncService.syncAll()) {
+                        is com.edukasyon.studentai.domain.model.SyncResult.Success ->
+                            Log.i("StudentAiApp", "Launch sync completed")
+                        is com.edukasyon.studentai.domain.model.SyncResult.Error ->
+                            Log.w("StudentAiApp", "Launch sync failed")
+                        else -> Unit
+                    }
+                }
             }.onFailure { Log.e("StudentAiApp", "Background init failed", it) }
             runCatching {
                 val health = aiApi.health()

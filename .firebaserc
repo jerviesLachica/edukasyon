@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "edukasyon-studentai"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }

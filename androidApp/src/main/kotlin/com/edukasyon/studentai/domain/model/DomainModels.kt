@@ -10,8 +10,28 @@ data class UserProfile(
     val schoolYear: String,
     val semester: String,
     val isGuest: Boolean,
-    val avatarUri: String? = null
+    val avatarUri: String? = null,
+    val bio: String = "",
+    val preferredStatus: String = "",
+    val lastProfileEditAt: Long? = null,
 )
+
+enum class PreferredStudentStatus(val displayName: String) {
+    STUDENT("Student"),
+    WORKING_STUDENT("Working student"),
+    GRADUATE("Graduate student"),
+    HIGH_SCHOOL("High school student"),
+    OTHER("Other");
+
+    companion object {
+        val options: List<PreferredStudentStatus> = entries
+
+        fun fromStored(value: String?): PreferredStudentStatus? {
+            if (value.isNullOrBlank()) return null
+            return entries.find { it.name == value || it.displayName.equals(value, ignoreCase = true) }
+        }
+    }
+}
 
 data class Subject(
     val id: String,
@@ -84,6 +104,7 @@ data class Exam(
     val id: String,
     val title: String,
     val subjectId: String?,
+    val linkedDeckId: String? = null,
     val examDate: Long,
     val examTime: String?,
     val location: String?,
@@ -109,6 +130,7 @@ data class Flashcard(
     val question: String,
     val answer: String,
     val subjectId: String?,
+    val deckId: String? = null,
     val topic: String?,
     val difficulty: String,
     val reviewCount: Int,
@@ -136,7 +158,20 @@ data class QuizQuestion(
     val question: String,
     val options: List<String>,
     val correctAnswer: String
-)
+) {
+    fun isAnswerCorrect(selected: String): Boolean {
+        val normalizedSelected = selected.trim()
+        val normalizedCorrect = correctAnswer.trim()
+        if (normalizedSelected.equals(normalizedCorrect, ignoreCase = true)) return true
+        val letterIndex = normalizedCorrect.uppercase().singleOrNull()?.let { letter ->
+            if (letter in 'A'..'Z') letter - 'A' else null
+        }
+        if (letterIndex != null && letterIndex in options.indices) {
+            return normalizedSelected.equals(options[letterIndex].trim(), ignoreCase = true)
+        }
+        return false
+    }
+}
 
 data class StudyPlanItem(
     val id: String,

@@ -1,5 +1,6 @@
 package com.edukasyon.studentai.domain.usecase
 
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import com.edukasyon.studentai.core.ai.AiService
 import com.edukasyon.studentai.domain.model.CalendarEvent
@@ -84,6 +85,18 @@ class SaveQuizUseCase @Inject constructor(
     override suspend fun execute(params: Quiz): Unit = quizRepository.saveQuiz(params)
 }
 
+class ObserveQuizzesUseCase @Inject constructor(
+    private val quizRepository: QuizRepository
+) {
+    operator fun invoke(): Flow<List<Quiz>> = quizRepository.observeAll()
+}
+
+class GetQuizUseCase @Inject constructor(
+    private val quizRepository: QuizRepository
+) : UseCase<String, Quiz?> {
+    override suspend fun execute(params: String): Quiz? = quizRepository.getQuiz(params)
+}
+
 class UpdateFlashcardUseCase @Inject constructor(
     private val flashcardRepository: FlashcardRepository
 ) : UseCase<Flashcard, Unit> {
@@ -122,8 +135,9 @@ class AiGenerateStudyPlanUseCase @Inject constructor(
 
 class AiAnalyzeScheduleUseCase @Inject constructor(
     private val aiService: AiService
-) : UseCase<ByteArray, com.edukasyon.studentai.core.ai.ScheduleAnalysisResult> {
-    override suspend fun execute(params: ByteArray): com.edukasyon.studentai.core.ai.ScheduleAnalysisResult = aiService.analyzeSchedule(params)
+) : UseCase<com.edukasyon.studentai.core.ai.ScheduleScanInput, com.edukasyon.studentai.core.ai.ScheduleAnalysisResult> {
+    override suspend fun execute(params: com.edukasyon.studentai.core.ai.ScheduleScanInput): com.edukasyon.studentai.core.ai.ScheduleAnalysisResult =
+        aiService.analyzeSchedule(params)
 }
 
 class GlobalSearchUseCase @Inject constructor(

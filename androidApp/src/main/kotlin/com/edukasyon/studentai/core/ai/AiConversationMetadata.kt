@@ -12,6 +12,7 @@ import kotlinx.serialization.json.Json
 data class AiToolMetadataDto(
     val kind: String,
     val summary: String? = null,
+    val reasoning: String? = null,
     val flashcards: List<FlashcardDto>? = null,
     val quiz: QuizDto? = null,
 )
@@ -47,6 +48,14 @@ object AiConversationMetadata {
 
     fun encodeSummary(summary: String): String =
         json.encodeToString(AiToolMetadataDto(kind = "SUMMARY", summary = summary))
+
+    fun encodeTutorReasoning(reasoning: String?): String? =
+        reasoning?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            json.encodeToString(AiToolMetadataDto(kind = "TUTOR", reasoning = it))
+        }
+
+    fun decodeTutorReasoning(raw: String?): String? =
+        decode(raw)?.takeIf { it.kind == "TUTOR" }?.reasoning?.trim()?.takeIf { it.isNotEmpty() }
 
     fun encodeFlashcards(cards: List<Flashcard>): String =
         json.encodeToString(

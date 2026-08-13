@@ -8,7 +8,11 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -25,6 +29,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edukasyon.studentai.core.util.DateUtils
 import com.edukasyon.studentai.domain.model.*
+import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
+import com.edukasyon.studentai.ui.adaptive.AdaptiveWidth
+import com.edukasyon.studentai.ui.adaptive.isMediumOrExpandedWidth
+import com.edukasyon.studentai.ui.adaptive.listPaneWeight
+import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
+import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveWidth
 import com.edukasyon.studentai.ui.components.*
 import com.edukasyon.studentai.ui.viewmodel.PlannerViewModel
 import java.util.UUID
@@ -34,73 +44,140 @@ import java.util.UUID
 fun PlannerScreen(
     onNavigateGrades: () -> Unit = {},
     onNavigateCalendar: () -> Unit = {},
+    onOpenAssignmentIntelligence: () -> Unit = {},
+    onNavigateFocus: () -> Unit = {},
     viewModel: PlannerViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val adaptiveWidth = rememberAdaptiveWidth()
+    val horizontalPadding = rememberAdaptiveHorizontalPadding()
+    val twoPane = isMediumOrExpandedWidth()
+    var selectedTaskId by remember { mutableStateOf<String?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<Task?>(null) }
     var editingAssignment by remember { mutableStateOf<Assignment?>(null) }
+    var editingExam by remember { mutableStateOf<Exam?>(null) }
+    var linkingExam by remember { mutableStateOf<Exam?>(null) }
 
-    Column(Modifier.fillMaxSize()) {
-        GradientHeader(
-            title = "Planner",
-            subtitle = when (state.selectedTab) {
-                1 -> "Assignments"
-                2 -> "Exams"
-                else -> "Tasks"
-            },
-            trailing = {
-                Row {
-                    BouncyIconButton(onClick = onNavigateCalendar) {
-                        Icon(Icons.Default.CalendarMonth, "Calendar", tint = MaterialTheme.colorScheme.onPrimary)
+    AdaptiveContentContainer {
+        contentModifier ->
+        Column(contentModifier.fillMaxSize()) {
+            GradientHeader(
+                title = "Planner",
+                subtitle = when (state.selectedTab) {
+                    1 -> "Assignments"
+                    2 -> "Exams"
+                    else -> "Tasks"
+                },
+                inlineSubtitle = true,
+                trailing = {
+                    Row {
+                        BouncyIconButton(
+                            onClick = onNavigateFocus,
+                            modifier = Modifier.size(40.dp),
+                        ) {
+                            Icon(
+                                Icons.Default.Timer,
+                                "Focus",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                        BouncyIconButton(
+                            onClick = onNavigateCalendar,
+                            modifier = Modifier.size(40.dp),
+                        ) {
+                            Icon(
+                                Icons.Default.CalendarMonth,
+                                "Calendar",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                        BouncyIconButton(
+                            onClick = onNavigateGrades,
+                            modifier = Modifier.size(40.dp),
+                        ) {
+                            Icon(
+                                Icons.Default.Grade,
+                                "Grades",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
                     }
-                    BouncyIconButton(onClick = onNavigateGrades) {
-                        Icon(Icons.Default.Grade, "Grades", tint = MaterialTheme.colorScheme.onPrimary)
-                    }
+                },
+            )
+            TabRow(
+                selectedTabIndex = state.selectedTab,
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.height(44.dp),
+            ) {
+                Tab(selected = state.selectedTab == 0, onClick = { viewModel.selectTab(0) }, text = { Text("Tasks") })
+                Tab(selected = state.selectedTab == 1, onClick = { viewModel.selectTab(1) }, text = { Text("Assignments") })
+                Tab(selected = state.selectedTab == 2, onClick = { viewModel.selectTab(2) }, text = { Text("Exams") })
+            }
+            AnimatedContent(
+                targetState = state.selectedTab,
+                modifier = Modifier.weight(1f),
+                transitionSpec = {
+                    fadeIn(tween(220)) togetherWith fadeOut(tween(180))
+                },
+                label = "plannerTabs",
+            ) { tab ->
+                when (tab) {
+                    0 -> TaskList(
+                        tasks = state.tasks,
+                        twoPane = twoPane,
+                        listPaneWeight = adaptiveWidth.listPaneWeight(),
+                        horizontalPadding = horizontalPadding,
+                        selectedTaskId = selectedTaskId,
+                        onSelectTask = { selectedTaskId = it },
+                        onToggle = viewModel::toggleTask,
+                        onDelete = viewModel::deleteTask,
+                        onEdit = { editingTask = it },
+                        viewModel = viewModel,
+                    )
+                    1 -> AssignmentList(
+                        assignments = state.assignments,
+                        twoPane = twoPane,
+                        horizontalPadding = horizontalPadding,
+                        onComplete = viewModel::completeAssignment,
+                        onEdit = { editingAssignment = it },
+                        onDelete = viewModel::deleteAssignment,
+                    )
+                    2 -> ExamList(
+                        exams = state.exams,
+                        examReadiness = state.examReadiness,
+                        expandedExamId = state.expandedExamId,
+                        horizontalPadding = horizontalPadding,
+                        onEdit = { editingExam = it },
+                        onToggleExpanded = viewModel::toggleExamExpanded,
+                        onLinkStudy = { linkingExam = it },
+                    )
                 }
             }
-        )
-        TabRow(
-            selectedTabIndex = state.selectedTab,
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        ) {
-            Tab(selected = state.selectedTab == 0, onClick = { viewModel.selectTab(0) }, text = { Text("Tasks") })
-            Tab(selected = state.selectedTab == 1, onClick = { viewModel.selectTab(1) }, text = { Text("Assignments") })
-            Tab(selected = state.selectedTab == 2, onClick = { viewModel.selectTab(2) }, text = { Text("Exams") })
-        }
-        AnimatedContent(
-            targetState = state.selectedTab,
-            modifier = Modifier.weight(1f),
-            transitionSpec = {
-                fadeIn(tween(220)) togetherWith fadeOut(tween(180))
-            },
-            label = "plannerTabs",
-        ) { tab ->
-            when (tab) {
-                0 -> TaskList(
-                    tasks = state.tasks,
-                    onToggle = viewModel::toggleTask,
-                    onDelete = viewModel::deleteTask,
-                    onEdit = { editingTask = it },
-                    viewModel = viewModel
-                )
-                1 -> AssignmentList(
-                    assignments = state.assignments,
-                    onComplete = viewModel::completeAssignment,
-                    onEdit = { editingAssignment = it },
-                    onDelete = viewModel::deleteAssignment
-                )
-                2 -> ExamList(state.exams)
-            }
-        }
-        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) {
-            BouncyButton(
-                onClick = { showAddDialog = true },
-                shape = com.edukasyon.studentai.ui.theme.StudentAiShapes.button
+            Row(
+                Modifier.fillMaxWidth().padding(horizontalPadding, vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Default.Add, null)
-                Spacer(Modifier.width(4.dp))
-                Text("Add")
+                FilterChip(
+                    selected = false,
+                    onClick = onOpenAssignmentIntelligence,
+                    label = { Text("Analyze Assignment") },
+                    leadingIcon = {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                    },
+                )
+                BouncyButton(
+                    onClick = { showAddDialog = true },
+                    shape = com.edukasyon.studentai.ui.theme.StudentAiShapes.button,
+                ) {
+                    Icon(Icons.Default.Add, null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Add")
+                }
             }
         }
     }
@@ -139,57 +216,176 @@ fun PlannerScreen(
             onSaveExam = {}
         )
     }
+    editingExam?.let { exam ->
+        PlannerItemDialog(
+            tab = 2,
+            existingExam = exam,
+            onDismiss = { editingExam = null },
+            onSaveTask = {},
+            onSaveAssignment = {},
+            onSaveExam = { updated ->
+                viewModel.updateExam(updated)
+                editingExam = null
+            }
+        )
+    }
+    linkingExam?.let { exam ->
+        ExamLinkStudyDialog(
+            exam = exam,
+            subjects = state.subjects,
+            decks = state.jeviDecks,
+            onDismiss = { linkingExam = null },
+            onConfirm = { subjectId, deckId, newDeckTitle ->
+                viewModel.linkExamStudy(exam, subjectId, deckId, newDeckTitle)
+                linkingExam = null
+            },
+        )
+    }
 }
 
 @Composable
-private fun DueDateLabel(dueDate: Long?, dueTime: String?, reminderAt: Long?) {
-    dueDate?.let {
-        Text(
-            DateUtils.formatDueDateTime(it, dueTime) ?: DateUtils.formatFullDate(it),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(DateUtils.formatCountdown(it), style = MaterialTheme.typography.labelSmall)
-    } ?: Text("No due date", style = MaterialTheme.typography.labelSmall)
-    when (reminderAt) {
-        0L -> Text("Reminders off", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        null -> {
-            dueDate?.let { date ->
-                DateUtils.effectiveDueMillis(date, dueTime)?.let { dueMillis ->
-                    Text(
-                        "Reminder: ${DateUtils.formatReminderAt(DateUtils.defaultReminderAt(dueMillis))}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+private fun DueDateLabel(
+    dueDate: Long?,
+    dueTime: String?,
+    reminderAt: Long?,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        if (dueDate != null) {
+            val dueLine = buildString {
+                append("Due ")
+                append(DateUtils.formatFullDate(dueDate))
+                dueTime?.let { append(" · ${DateUtils.formatTime12h(it)}") }
+            }
+            Text(
+                text = dueLine,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = DateUtils.formatCountdown(dueDate),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            Text(
+                text = "No due date",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        when (reminderAt) {
+            0L -> Text(
+                text = "Reminders off",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            null -> {
+                dueDate?.let { date ->
+                    DateUtils.effectiveDueMillis(date, dueTime)?.let { dueMillis ->
+                        Text(
+                            text = "Reminder: ${DateUtils.formatReminderAt(DateUtils.defaultReminderAt(dueMillis))}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
+            else -> Text(
+                text = "Reminder: ${DateUtils.formatReminderAt(reminderAt)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-        else -> Text(
-            "Reminder: ${DateUtils.formatReminderAt(reminderAt)}",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
 @Composable
 private fun TaskList(
     tasks: List<Task>,
+    twoPane: Boolean,
+    listPaneWeight: Float,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
+    selectedTaskId: String?,
+    onSelectTask: (String?) -> Unit,
     onToggle: (String) -> Unit,
     onDelete: (String) -> Unit,
     onEdit: (Task) -> Unit,
-    viewModel: PlannerViewModel
+    viewModel: PlannerViewModel,
 ) {
-    if (tasks.isEmpty()) EmptyState("No tasks", "You're all caught up.")
-    else LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
-        items(tasks, key = { it.id }) { task ->
-            TaskCard(
-                task = task,
-                onToggle = onToggle,
-                onDelete = onDelete,
-                onEdit = onEdit,
-                viewModel = viewModel
-            )
+    if (tasks.isEmpty()) {
+        EmptyState("No tasks", "You're all caught up.")
+        return
+    }
+
+    val selectedTask = tasks.find { it.id == selectedTaskId }
+
+    if (twoPane) {
+        Row(Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(listPaneWeight)
+                    .fillMaxHeight(),
+                contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 8.dp),
+            ) {
+                items(tasks, key = { it.id }) { task ->
+                    val selected = task.id == selectedTaskId
+                    Surface(
+                        onClick = { onSelectTask(task.id) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        shape = MaterialTheme.shapes.medium,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerLow
+                        },
+                    ) {
+                        Text(
+                            task.title,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                    }
+                }
+            }
+            Box(
+                Modifier
+                    .weight(1f - listPaneWeight)
+                    .fillMaxHeight()
+                    .padding(end = horizontalPadding, top = 8.dp, bottom = 8.dp),
+            ) {
+                if (selectedTask != null) {
+                    TaskCard(
+                        task = selectedTask,
+                        onToggle = onToggle,
+                        onDelete = onDelete,
+                        onEdit = onEdit,
+                        viewModel = viewModel,
+                    )
+                } else {
+                    EmptyState(
+                        title = "Select a task",
+                        message = "Choose a task from the list to view details and subtasks.",
+                    )
+                }
+            }
+        }
+    } else {
+        LazyColumn(contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 8.dp)) {
+            items(tasks, key = { it.id }) { task ->
+                TaskCard(
+                    task = task,
+                    onToggle = onToggle,
+                    onDelete = onDelete,
+                    onEdit = onEdit,
+                    viewModel = viewModel,
+                )
+            }
         }
     }
 }
@@ -311,19 +507,24 @@ private fun TaskCard(
                     }
                 )
             )
-            BouncyIconButton(
+            FilledIconButton(
                 onClick = {
                     if (newSubtask.isNotBlank()) {
                         viewModel.addSubtask(task.id, newSubtask.trim())
                         newSubtask = ""
                     }
                 },
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
             ) {
                 Icon(
                     Icons.Default.Add,
                     contentDescription = "Add subtask",
-                    tint = MaterialTheme.colorScheme.primary
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
@@ -343,9 +544,12 @@ private fun TaskTimestampLabel(task: Task, modifier: Modifier = Modifier) {
             )
         }
         task.dueDate != null -> {
-            Box(modifier) {
-                DueDateLabel(task.dueDate, task.dueTime, task.reminderAt)
-            }
+            DueDateLabel(
+                dueDate = task.dueDate,
+                dueTime = task.dueTime,
+                reminderAt = task.reminderAt,
+                modifier = modifier,
+            )
         }
         else -> {
             Text(
@@ -361,54 +565,102 @@ private fun TaskTimestampLabel(task: Task, modifier: Modifier = Modifier) {
 @Composable
 private fun AssignmentList(
     assignments: List<Assignment>,
+    twoPane: Boolean,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
     onComplete: (String) -> Unit,
     onEdit: (Assignment) -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
 ) {
-    if (assignments.isEmpty()) EmptyState("No assignments", "Add your first assignment.")
-    else LazyColumn(contentPadding = PaddingValues(8.dp)) {
-        items(assignments, key = { it.id }) { assignment ->
-            StudentAiCard {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f)) {
-                        AnimatedTaskCheckboxRow(
-                            checked = assignment.status == TaskStatus.COMPLETED,
-                            onCheckedChange = { if (it) onComplete(assignment.id) },
-                            label = assignment.title,
-                            textStyle = MaterialTheme.typography.titleSmall,
-                            enabled = assignment.status != TaskStatus.COMPLETED
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(assignment.status.label, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(start = 34.dp))
-                        Box(Modifier.padding(start = 34.dp)) {
-                            DueDateLabel(assignment.dueDate, assignment.dueTime, assignment.reminderAt)
-                        }
+    if (assignments.isEmpty()) {
+        EmptyState("No assignments", "Add your first assignment.")
+        return
+    }
+
+    val contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 8.dp)
+    val cardContent: @Composable (Assignment) -> Unit = { assignment ->
+        StudentAiCard {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    AnimatedTaskCheckboxRow(
+                        checked = assignment.status == TaskStatus.COMPLETED,
+                        onCheckedChange = { if (it) onComplete(assignment.id) },
+                        label = assignment.title,
+                        textStyle = MaterialTheme.typography.titleSmall,
+                        enabled = assignment.status != TaskStatus.COMPLETED,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(assignment.status.label, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(start = 34.dp))
+                    DueDateLabel(
+                        dueDate = assignment.dueDate,
+                        dueTime = assignment.dueTime,
+                        reminderAt = assignment.reminderAt,
+                        modifier = Modifier.padding(start = 34.dp),
+                    )
+                }
+                Row {
+                    BouncyIconButton(onClick = { onEdit(assignment) }) {
+                        Icon(Icons.Default.Edit, "Edit")
                     }
-                    Row {
-                        BouncyIconButton(onClick = { onEdit(assignment) }) {
-                            Icon(Icons.Default.Edit, "Edit")
-                        }
-                        BouncyIconButton(onClick = { onDelete(assignment.id) }) {
-                            Icon(Icons.Default.Delete, "Delete")
-                        }
+                    BouncyIconButton(onClick = { onDelete(assignment.id) }) {
+                        Icon(Icons.Default.Delete, "Delete")
                     }
                 }
             }
         }
     }
+
+    if (twoPane) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            contentPadding = contentPadding,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(assignments, key = { it.id }) { assignment -> cardContent(assignment) }
+        }
+    } else {
+        LazyColumn(contentPadding = contentPadding) {
+            items(assignments, key = { it.id }) { assignment -> cardContent(assignment) }
+        }
+    }
 }
 
 @Composable
-private fun ExamList(exams: List<Exam>) {
+private fun ExamList(
+    exams: List<Exam>,
+    examReadiness: Map<String, com.edukasyon.studentai.domain.model.ExamReadiness>,
+    expandedExamId: String?,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
+    onEdit: (Exam) -> Unit,
+    onToggleExpanded: (String) -> Unit,
+    onLinkStudy: (Exam) -> Unit,
+) {
     if (exams.isEmpty()) EmptyState("No exams", "Track your upcoming exams here.")
-    else LazyColumn(contentPadding = PaddingValues(8.dp)) {
+    else LazyColumn(contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 8.dp)) {
         items(exams, key = { it.id }) { exam ->
-            StudentAiCard {
-                Text(exam.title, style = MaterialTheme.typography.titleSmall)
-                Text(DateUtils.formatCountdown(exam.examDate))
-                Text(DateUtils.formatFullDate(exam.examDate), style = MaterialTheme.typography.bodySmall)
-                exam.examTime?.let { Text(DateUtils.formatTime12h(it), style = MaterialTheme.typography.labelSmall) }
-                exam.location?.let { Text(it) }
+            val readiness = examReadiness[exam.id]
+            val expanded = expandedExamId == exam.id
+            StudentAiCard(onClick = { onToggleExpanded(exam.id) }) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                        Column(Modifier.weight(1f)) {
+                            Text(exam.title, style = MaterialTheme.typography.titleSmall)
+                            exam.examTime?.let { Text(DateUtils.formatTime12h(it), style = MaterialTheme.typography.labelSmall) }
+                            exam.location?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                        }
+                        BouncyIconButton(onClick = { onEdit(exam) }) {
+                            Icon(Icons.Default.Edit, "Edit exam")
+                        }
+                    }
+                    ExamReadinessCard(
+                        exam = exam,
+                        readiness = readiness,
+                        compact = true,
+                        expanded = expanded,
+                        onLinkStudy = { onLinkStudy(exam) },
+                        modifier = Modifier.padding(0.dp),
+                    )
+                }
             }
         }
     }
@@ -419,16 +671,17 @@ private fun PlannerItemDialog(
     tab: Int,
     existingTask: Task? = null,
     existingAssignment: Assignment? = null,
+    existingExam: Exam? = null,
     onDismiss: () -> Unit,
     onSaveTask: (Task) -> Unit,
     onSaveAssignment: (Assignment) -> Unit,
     onSaveExam: (Exam) -> Unit
 ) {
-    val isEditing = existingTask != null || existingAssignment != null
-    var title by remember(existingTask, existingAssignment) {
-        mutableStateOf(existingTask?.title ?: existingAssignment?.title ?: "")
+    val isEditing = existingTask != null || existingAssignment != null || existingExam != null
+    var title by remember(existingTask, existingAssignment, existingExam) {
+        mutableStateOf(existingTask?.title ?: existingAssignment?.title ?: existingExam?.title ?: "")
     }
-    var schedule by remember(existingTask, existingAssignment) {
+    var schedule by remember(existingTask, existingAssignment, existingExam) {
         mutableStateOf(
             when {
                 existingTask != null -> PlannerScheduleInput.fromDue(
@@ -441,6 +694,11 @@ private fun PlannerItemDialog(
                     existingAssignment.dueTime,
                     existingAssignment.reminderAt
                 )
+                existingExam != null -> PlannerScheduleInput.fromDue(
+                    existingExam.examDate,
+                    existingExam.examTime,
+                    existingExam.reminderAt
+                )
                 else -> PlannerScheduleInput.default()
             }
         )
@@ -451,6 +709,7 @@ private fun PlannerItemDialog(
         title = {
             Text(
                 when {
+                    isEditing && tab == 2 -> "Edit Exam"
                     isEditing && tab == 1 -> "Edit Assignment"
                     isEditing -> "Edit Task"
                     tab == 1 -> "Add Assignment"
@@ -473,12 +732,10 @@ private fun PlannerItemDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-                if (tab != 2) {
-                    PlannerScheduleFields(
-                        schedule = schedule,
-                        onScheduleChange = { schedule = it }
-                    )
-                }
+                PlannerScheduleFields(
+                    schedule = schedule,
+                    onScheduleChange = { schedule = it }
+                )
             }
         },
         confirmButton = {
@@ -532,8 +789,13 @@ private fun PlannerItemDialog(
                         )
                         onSaveAssignment(assignment)
                     }
-                    2 -> onSaveExam(
-                        Exam(
+                    2 -> {
+                        val exam = existingExam?.copy(
+                            title = title,
+                            examDate = schedule.dueDateForSave() ?: existingExam.examDate,
+                            examTime = schedule.dueTimeForSave(),
+                            reminderAt = schedule.reminderAtForSave()
+                        ) ?: Exam(
                             id = UUID.randomUUID().toString(),
                             title = title,
                             subjectId = null,
@@ -544,7 +806,8 @@ private fun PlannerItemDialog(
                             notes = null,
                             reminderAt = schedule.reminderAtForSave()
                         )
-                    )
+                        onSaveExam(exam)
+                    }
                 }
                 onDismiss()
             }) { Text(if (isEditing) "Save" else "Add") }
