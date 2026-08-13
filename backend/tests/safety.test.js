@@ -11,6 +11,7 @@ const { InputModerator } = require('../safety/InputModerator');
 const { PromptInjectionDetector } = require('../safety/PromptInjectionDetector');
 const { QuizValidator, AssignmentBreakdownValidator } = require('../validation/AiResponseValidator');
 const { sanitizeErrorForClient, containsSecret } = require('../util/safeErrors');
+const { VISION_CAPABLE_MODELS } = require('../ai/AiProvider');
 const { AiSafetyGateway } = require('../ai/AiSafetyGateway');
 const { loadSafetyPolicy } = require('../safety/SafetyPolicy');
 
@@ -28,6 +29,21 @@ describe('RateLimiter', () => {
     assert.equal(r2.allowed, true);
     assert.equal(r3.allowed, false);
     assert.ok(r3.retryAfterMs >= 0);
+    limiter.destroy();
+  });
+
+  it('blocks step model chat beyond 5 per 10 minutes', () => {
+    const limiter = new RateLimiter();
+    const identity = { userId: 'dev:step-user', clientIp: '127.0.0.1' };
+    const policy = { limit: 5, windowMs: 10 * 60 * 1000 };
+
+    for (let i = 0; i < 5; i += 1) {
+      const result = limiter.checkModel(identity, 'step-3.7-flash', policy);
+      assert.equal(result.allowed, true, `request ${i + 1} should be allowed`);
+    }
+    const blocked = limiter.checkModel(identity, 'step-3.7-flash', policy);
+    assert.equal(blocked.allowed, false);
+    assert.ok(blocked.retryAfterMs >= 0);
     limiter.destroy();
   });
 });
@@ -92,6 +108,13 @@ describe('QuizValidator', () => {
     });
     assert.equal(result.valid, true);
     assert.equal(result.data.questions.length, 1);
+  });
+});
+
+describe('AiProvider vision routing', () => {
+  it('treats auto as vision-capable for proxy fallback', () => {
+    assert.ok(VISION_CAPABLE_MODELS.includes('step-3.7-flash'));
+    assert.ok(VISION_CAPABLE_MODELS.includes('auto'));
   });
 });
 

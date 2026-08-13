@@ -303,7 +303,7 @@ async function handleScheduleAnalysis({ body, provider: ai, maxTokens, signal })
         role: 'user',
         content: [
           { type: 'text', text: SCHEDULE_SCANNER_USER_MESSAGE },
-          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+          buildVisionImagePart(imageBase64, detectImageMimeFromBase64(imageBase64)),
         ],
       },
     ],
@@ -392,6 +392,51 @@ Topics: ${(topics || []).join(', ')}`,
   return { title: parsed.title || 'Study Plan', items: parsed.items || [] };
 }
 
+function buildVisionImagePart(imageBase64, mimeType = 'image/jpeg') {
+  return {
+    type: 'image_url',
+    image_url: {
+      url: `data:${mimeType};base64,${imageBase64}`,
+      detail: 'auto',
+    },
+  };
+}
+
+async function extractTextFromAssignmentImage({
+  imageBase64,
+  imageMime,
+  provider: ai,
+  maxTokens,
+  signal,
+  requestedModel,
+}) {
+  const visionModel = ai.resolveVisionModel(requestedModel);
+  return ai.chatCompletionText(
+    [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text:
+              'Extract all assignment instructions visible in this image (syllabus page, handout, LMS screenshot, or photo). ' +
+              'Return plain text only — preserve due dates, requirements, deliverables, and rubric bullets. ' +
+              'If no assignment text is readable, respond with exactly: NO_TEXT_FOUND',
+          },
+          buildVisionImagePart(imageBase64, imageMime),
+        ],
+      },
+    ],
+    {
+      temperature: 0.1,
+      maxTokens: Math.min(maxTokens, 2048),
+      model: visionModel,
+      isVision: true,
+      signal,
+    }
+  );
+}
+
 function detectImageMimeFromBase64(imageBase64) {
   if (!imageBase64 || typeof imageBase64 !== 'string') return 'image/jpeg';
   try {
@@ -467,43 +512,47 @@ async function handleAssignmentBreakdown({ body, provider: ai, maxTokens, signal
     console.warn('[assignment-breakdown] Ignoring client-supplied systemPrompt.');
   }
 
-  const documentText = [text, attachmentText].filter(Boolean).join('\n\n').trim();
+  let documentText = [text, attachmentText].filter(Boolean).join('\n\n').trim();
   const hasImage = Boolean(imageBase64);
 
   if (!documentText && !hasImage) {
     throw new Error('text or imageBase64 is required');
   }
 
-  const model = hasImage
-    ? ai.resolveVisionModel(requestedModel)
-    : ai.resolveTextModel(requestedModel);
-
   const imageMime = hasImage ? detectImageMimeFromBase64(imageBase64) : null;
 
-  let userContent;
-  if (hasImage) {
-    userContent = [
-      {
-        type: 'text',
-        text: documentText
-          ? `${ASSIGNMENT_BREAKDOWN_USER_IMAGE_PREFIX}\n\n${wrapUntrustedDocument(documentText, 'Assignment text')}`
-          : ASSIGNMENT_BREAKDOWN_USER_IMAGE_PREFIX,
-      },
-      {
-        type: 'image_url',
-        image_url: { url: `data:${imageMime};base64,${imageBase64}` },
-      },
-    ];
-  } else {
-    userContent = `${ASSIGNMENT_BREAKDOWN_USER_TEXT_PREFIX}\n\n${wrapUntrustedDocument(documentText, 'Assignment instructions')}`;
+  // Vision + JSON in one call fails on some providers for image-only requests.
+  // Route: image-only → vision OCR (step-3.7-flash), then text model (auto) for JSON breakdown.
+  if (hasImage && !documentText) {
+    const extracted = await extractTextFromAssignmentImage({
+      imageBase64,
+      imageMime,
+      provider: ai,
+      maxTokens,
+      signal,
+      requestedModel,
+    });
+    const trimmed = (extracted || '').trim();
+    if (!trimmed || /^NO_TEXT_FOUND$/i.test(trimmed)) {
+      throw new Error(
+        'Could not extract assignment details from the image. Try a clearer photo, paste the text, or upload a PDF.'
+      );
+    }
+    documentText = trimmed;
   }
+
+  const model = ai.resolveTextModel(requestedModel);
+  const userContent = `${ASSIGNMENT_BREAKDOWN_USER_TEXT_PREFIX}\n\n${wrapUntrustedDocument(
+    documentText,
+    hasImage ? 'Assignment from image' : 'Assignment instructions'
+  )}`;
 
   const content = await ai.chatCompletionText(
     [
       { role: 'system', content: ASSIGNMENT_BREAKDOWN_SYSTEM_PROMPT },
       { role: 'user', content: userContent },
     ],
-    { temperature: 0.2, maxTokens, model, isVision: hasImage, signal }
+    { temperature: 0.2, maxTokens, model, isVision: false, signal }
   );
 
   const parsed = ai.extractJson(content);
@@ -704,7 +753,7 @@ app.get('/health', (_, res) =>
     safetyEnabled: true,
     usage: usageTracker.snapshot(),
     routingPolicy:
-      'Text-only chat and study tools → auto. Image/PDF vision (chat attachments, schedule scanner, assignment breakdown) → step-3.7-flash.',
+      'Jarvis chat: user-selected auto → auto (text and vision). User-selected step-3.7-flash → step (5 req / 10 min). Other vision tools (schedule scanner, assignment OCR) may still use step by default.',
   })
 );
 

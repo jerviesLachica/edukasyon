@@ -52,6 +52,16 @@ class RateLimiter {
     return { allowed: true, remaining: userResult.remaining };
   }
 
+  /**
+   * Model-specific sliding window (e.g. step-3.7-flash chat quota).
+   * @returns {{ allowed: boolean, retryAfterMs?: number, remaining?: number }}
+   */
+  checkModel(identity, model, { limit, windowMs = 600_000 }) {
+    const userKey = `user:${identity.userId}:model:${model}`;
+    const result = this.check(userKey, { limit, windowMs });
+    return { ...result, scope: 'model' };
+  }
+
   cleanup() {
     const cutoff = Date.now() - 2 * 60 * 60 * 1000;
     for (const [key, hits] of this.windows.entries()) {

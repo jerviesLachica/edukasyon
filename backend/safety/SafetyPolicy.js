@@ -62,6 +62,12 @@ const ENDPOINT_DEFAULTS = {
   },
 };
 
+/** Premium step model chat quota (when client sends model=step-3.7-flash). */
+const STEP_MODEL_CHAT_DEFAULTS = {
+  limit: 5,
+  windowMs: 10 * 60 * 1000,
+};
+
 function envInt(name, fallback) {
   const raw = process.env[name];
   if (raw == null || raw === '') return fallback;
@@ -101,6 +107,10 @@ function loadSafetyPolicy() {
     globalDailyQuota: globalDaily,
     globalHourlyQuota: globalHourly,
     endpoints,
+    stepModelChat: {
+      limit: envInt('SAFETY_STEP_MODEL_CHAT_LIMIT', STEP_MODEL_CHAT_DEFAULTS.limit),
+      windowMs: envInt('SAFETY_STEP_MODEL_CHAT_WINDOW_MS', STEP_MODEL_CHAT_DEFAULTS.windowMs),
+    },
     requireDeviceId: envBool('SAFETY_REQUIRE_DEVICE_ID', false),
     requireFirebaseAuth: envBool('SAFETY_REQUIRE_FIREBASE_AUTH', false),
     logAbuseEvents: envBool('SAFETY_LOG_ABUSE_EVENTS', true),
@@ -109,4 +119,4 @@ function loadSafetyPolicy() {
   };
 }
 
-module.exports = { loadSafetyPolicy, ENDPOINT_DEFAULTS };
+module.exports = { loadSafetyPolicy, ENDPOINT_DEFAULTS, STEP_MODEL_CHAT_DEFAULTS };

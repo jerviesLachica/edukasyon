@@ -4,7 +4,7 @@
  */
 
 const ALLOWED_MODELS = ['auto', 'step-3.7-flash'];
-const VISION_CAPABLE_MODELS = ['step-3.7-flash'];
+const VISION_CAPABLE_MODELS = ['step-3.7-flash', 'auto'];
 const DEFAULT_TEXT_MODEL = 'auto';
 const DEFAULT_VISION_MODEL = 'step-3.7-flash';
 
@@ -53,7 +53,12 @@ function createAiProvider(config = {}) {
   }
 
   function resolveChatModel(requestedModel, hasVisionAttachment) {
-    return hasVisionAttachment ? resolveVisionModel(requestedModel) : resolveTextModel(requestedModel);
+    if (hasVisionAttachment) {
+      // Honor explicit user choice: auto stays auto for vision; step uses step (quota applies).
+      if (requestedModel === 'step-3.7-flash') return 'step-3.7-flash';
+      return 'auto';
+    }
+    return resolveTextModel(requestedModel);
   }
 
   function providerHeaders(apiKey) {
@@ -73,6 +78,8 @@ function createAiProvider(config = {}) {
       for (const candidate of VISION_CAPABLE_MODELS) {
         if (candidate !== primaryModel && !chain.includes(candidate)) chain.push(candidate);
       }
+      // hcnsec.cn proxy: auto may route to an available vision backend when step-3.7-flash is unavailable
+      if (!chain.includes('auto')) chain.push('auto');
       return chain;
     }
     if (primaryModel !== TEXT_MODEL && !chain.includes(TEXT_MODEL)) chain.push(TEXT_MODEL);
