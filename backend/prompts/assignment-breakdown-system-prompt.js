@@ -33,6 +33,7 @@ Respond with JSON ONLY (no markdown fences, no commentary). Shape:
 - estimatedEffortHours: realistic total hours (0.5–40).
 - notes: mention ambiguities (e.g. "Deadline inferred from syllabus footer").
 - Do not invent a deadline if none is visible — use null.
+- For image inputs: always provide a non-empty title (infer from visible headings) and at least 3 subtasks when any assignment text is visible.
 - Do not include harmful, off-topic, or non-educational content.`;
 
 const ASSIGNMENT_BREAKDOWN_USER_TEXT_PREFIX =

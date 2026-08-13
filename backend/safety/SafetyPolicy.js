@@ -51,7 +51,7 @@ const ENDPOINT_DEFAULTS = {
     burstPerMin: 5,
     dailyQuota: 25,
     hourlyQuota: 12,
-    maxOutputTokens: 2048,
+    maxOutputTokens: 4096,
   },
   'focus-plan': {
     rateLimitPerMin: 3,

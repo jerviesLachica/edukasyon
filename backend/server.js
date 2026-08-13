@@ -392,6 +392,75 @@ Topics: ${(topics || []).join(', ')}`,
   return { title: parsed.title || 'Study Plan', items: parsed.items || [] };
 }
 
+function detectImageMimeFromBase64(imageBase64) {
+  if (!imageBase64 || typeof imageBase64 !== 'string') return 'image/jpeg';
+  try {
+    const buf = Buffer.from(imageBase64.slice(0, 24), 'base64');
+    if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xd8) return 'image/jpeg';
+    if (buf.length >= 4 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+      return 'image/png';
+    }
+    if (buf.length >= 4 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif';
+    if (
+      buf.length >= 12 &&
+      buf[0] === 0x52 &&
+      buf[1] === 0x49 &&
+      buf[2] === 0x46 &&
+      buf[3] === 0x46 &&
+      buf[8] === 0x57 &&
+      buf[9] === 0x45 &&
+      buf[10] === 0x42 &&
+      buf[11] === 0x50
+    ) {
+      return 'image/webp';
+    }
+  } catch (_) {
+    /* ignore decode errors */
+  }
+  return 'image/jpeg';
+}
+
+function normalizeAssignmentBreakdown(parsed, { hasImage }) {
+  const requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
+  const deliverables = Array.isArray(parsed.deliverables) ? parsed.deliverables : [];
+  const rubric = Array.isArray(parsed.rubric) ? parsed.rubric : [];
+  const hasExtractedContent =
+    Boolean(String(parsed.title || '').trim()) ||
+    requirements.length > 0 ||
+    deliverables.length > 0 ||
+    rubric.length > 0 ||
+    Boolean(parsed.deadline);
+
+  if (hasImage && !hasExtractedContent) {
+    throw new Error(
+      'Could not extract assignment details from the image. Try a clearer photo, paste the text, or upload a PDF.'
+    );
+  }
+
+  let title = typeof parsed.title === 'string' ? parsed.title.trim() : '';
+  if (!title) title = hasImage ? 'Assignment from image' : 'Assignment';
+
+  let subtasks = Array.isArray(parsed.subtasks) ? parsed.subtasks.filter((item) => item && item.title) : [];
+  if (subtasks.length === 0) {
+    subtasks = [
+      { title: 'Review assignment requirements', estimatedMinutes: 30, dueOffsetDays: 4 },
+      { title: 'Complete assignment work', estimatedMinutes: 90, dueOffsetDays: 2 },
+      { title: 'Review and submit', estimatedMinutes: 30, dueOffsetDays: 0 },
+    ];
+  }
+
+  return {
+    title,
+    deadline: parsed.deadline ?? null,
+    requirements,
+    deliverables,
+    rubric,
+    subtasks,
+    estimatedEffortHours: parsed.estimatedEffortHours ?? 1,
+    notes: typeof parsed.notes === 'string' ? parsed.notes : '',
+  };
+}
+
 async function handleAssignmentBreakdown({ body, provider: ai, maxTokens, signal }) {
   const { text, attachmentText, imageBase64, model: requestedModel, systemPrompt: clientSystemPrompt } = body;
   if (clientSystemPrompt) {
@@ -409,6 +478,8 @@ async function handleAssignmentBreakdown({ body, provider: ai, maxTokens, signal
     ? ai.resolveVisionModel(requestedModel)
     : ai.resolveTextModel(requestedModel);
 
+  const imageMime = hasImage ? detectImageMimeFromBase64(imageBase64) : null;
+
   let userContent;
   if (hasImage) {
     userContent = [
@@ -418,7 +489,10 @@ async function handleAssignmentBreakdown({ body, provider: ai, maxTokens, signal
           ? `${ASSIGNMENT_BREAKDOWN_USER_IMAGE_PREFIX}\n\n${wrapUntrustedDocument(documentText, 'Assignment text')}`
           : ASSIGNMENT_BREAKDOWN_USER_IMAGE_PREFIX,
       },
-      { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+      {
+        type: 'image_url',
+        image_url: { url: `data:${imageMime};base64,${imageBase64}` },
+      },
     ];
   } else {
     userContent = `${ASSIGNMENT_BREAKDOWN_USER_TEXT_PREFIX}\n\n${wrapUntrustedDocument(documentText, 'Assignment instructions')}`;
@@ -433,16 +507,7 @@ async function handleAssignmentBreakdown({ body, provider: ai, maxTokens, signal
   );
 
   const parsed = ai.extractJson(content);
-  return {
-    title: parsed.title || 'Assignment',
-    deadline: parsed.deadline ?? null,
-    requirements: parsed.requirements || [],
-    deliverables: parsed.deliverables || [],
-    rubric: parsed.rubric || [],
-    subtasks: parsed.subtasks || [],
-    estimatedEffortHours: parsed.estimatedEffortHours ?? 1,
-    notes: parsed.notes || '',
-  };
+  return normalizeAssignmentBreakdown(parsed, { hasImage });
 }
 
 async function handleFocusPlan({ body, provider: ai, maxTokens, signal }) {
@@ -639,7 +704,7 @@ app.get('/health', (_, res) =>
     safetyEnabled: true,
     usage: usageTracker.snapshot(),
     routingPolicy:
-      'Text-only chat and study tools → auto. Image/PDF vision (chat attachments, schedule scanner) → step-3.7-flash.',
+      'Text-only chat and study tools → auto. Image/PDF vision (chat attachments, schedule scanner, assignment breakdown) → step-3.7-flash.',
   })
 );
 

@@ -27,6 +27,16 @@ function sanitizeErrorForClient(err) {
   if (/Output blocked|Invalid AI output|blocked for safety/i.test(raw)) {
     return { status: 422, code: 'OUTPUT_BLOCKED', message: 'The AI response could not be delivered safely.' };
   }
+  if (/Could not extract assignment details from the image/i.test(raw)) {
+    return { status: 422, code: 'INVALID_AI_OUTPUT', message: raw };
+  }
+  if (/Missing assignment|No valid subtasks|Invalid assignment breakdown/i.test(raw)) {
+    return {
+      status: 422,
+      code: 'INVALID_AI_OUTPUT',
+      message: 'Could not parse assignment details. Try a clearer photo or paste the text.',
+    };
+  }
   if (/JSON|parse/i.test(raw)) {
     return { status: 422, code: 'INVALID_AI_OUTPUT', message: 'AI returned an invalid response. Please try again.' };
   }
