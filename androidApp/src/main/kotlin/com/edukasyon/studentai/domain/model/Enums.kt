@@ -96,8 +96,8 @@ enum class QuestionType {
 }
 
 enum class AiModel(val slug: String, val displayName: String) {
-    STANDARD("claude-opus-4-8", "Opus 4.8"),
-    PRO("claude-opus-5", "Opus 5");
+    STANDARD("mimo-v2.5", "Mimo v2.5"),
+    PRO("mimo-v2.5-pro", "Mimo v2.5 Pro");
 
     companion object {
         fun fromSlug(slug: String): AiModel =

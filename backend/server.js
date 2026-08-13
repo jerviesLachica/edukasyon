@@ -35,24 +35,24 @@ app.use(express.json({ limit: '10mb' }));
 const PORT = process.env.PORT || 8080;
 const AI_API_KEY = process.env.AI_API_KEY;
 // Vision-capable models for image/PDF chat attachments and schedule analysis.
-// agentrouter.org slugs (GET /v1/models): claude-opus-4-8, claude-opus-5.
-const VISION_MODELS = ['claude-opus-4-8', 'claude-opus-5'];
-const ALLOWED_MODELS = [...new Set([...VISION_MODELS, 'gpt-5.6-sol'])];
+// freetokenfaucet.com slugs: mimo-v2.5 (Standard), mimo-v2.5-pro (Pro).
+const VISION_MODELS = ['mimo-v2.5', 'mimo-v2.5-pro'];
+const ALLOWED_MODELS = [...new Set([...VISION_MODELS, 'auto'])];
 const AI_MODEL = VISION_MODELS.includes(process.env.AI_MODEL)
   ? process.env.AI_MODEL
-  : 'claude-opus-4-8';
+  : 'mimo-v2.5';
 // Text-only chat and study tools (summarize, flashcards, quiz, study-plan).
-const TEXT_MODEL = process.env.TEXT_MODEL || 'claude-opus-4-8';
-const AI_BASE_URL = (process.env.AI_BASE_URL || 'https://agentrouter.org/v1').replace(/\/$/, '');
-// agentrouter.org rejects unknown clients; QwenCode UA is known-good for server-side proxy calls.
-const AI_USER_AGENT = process.env.AI_USER_AGENT || 'QwenCode/0.2.0 (linux; x64)';
+const TEXT_MODEL = process.env.TEXT_MODEL || 'auto';
+const AI_BASE_URL = (process.env.AI_BASE_URL || 'https://freetokenfaucet.com/v1').replace(/\/$/, '');
+// Optional User-Agent (only some providers require it, e.g. agentrouter.org).
+const AI_USER_AGENT = process.env.AI_USER_AGENT || '';
 
 const hasAiKey = Boolean(AI_API_KEY);
 
 /**
  * Smart model routing:
  * - imageBase64 present → vision model (client slug or server AI_MODEL default)
- * - text-only (incl. attachmentText) → TEXT_MODEL (claude-opus-4-8 by default)
+ * - text-only (incl. attachmentText) → TEXT_MODEL (auto by default)
  */
 function resolveModel({ requestedModel, hasVisionAttachment }) {
   if (hasVisionAttachment) {
@@ -183,11 +183,12 @@ function modelFallbackChain(primaryModel) {
 }
 
 function aiProviderHeaders() {
-  return {
+  const headers = {
     Authorization: `Bearer ${AI_API_KEY}`,
     'Content-Type': 'application/json',
-    'User-Agent': AI_USER_AGENT,
   };
+  if (AI_USER_AGENT) headers['User-Agent'] = AI_USER_AGENT;
+  return headers;
 }
 
 async function chatCompletionOnce(messages, { temperature = 0.7, maxTokens = 2048, model } = {}) {
@@ -274,7 +275,7 @@ const mock = {
     }
     if (imageBase64) {
       return {
-        reply: `[Mock Gizmo — set AI_API_KEY for real vision] I received your image${attachmentName ? ` (${attachmentName})` : ''}. In mock mode I can't analyze pixels, but your message was: "${message}". Deploy with a vision-capable AI_MODEL (e.g. claude-opus-4-8) for image analysis.`,
+        reply: `[Mock Gizmo — set AI_API_KEY for real vision] I received your image${attachmentName ? ` (${attachmentName})` : ''}. In mock mode I can't analyze pixels, but your message was: "${message}". Deploy with a vision-capable AI_MODEL (e.g. mimo-v2.5) for image analysis.`,
         conversationId: conversationId || crypto.randomUUID(),
       };
     }
@@ -532,7 +533,7 @@ app.get('/health', (_, res) =>
     availableModels: VISION_MODELS,
     allowedModels: ALLOWED_MODELS,
     routingPolicy:
-      'Chat with imageBase64 uses vision model (client may request claude-opus-4-8 or claude-opus-5; server default AI_MODEL otherwise). Text-only chat and study tools use TEXT_MODEL (claude-opus-4-8 by default). Schedule analysis always uses vision model.',
+      'Chat with imageBase64 uses vision model (client may request mimo-v2.5 or mimo-v2.5-pro; server default AI_MODEL otherwise). Text-only chat and study tools use TEXT_MODEL (auto by default). Schedule analysis always uses vision model.',
   })
 );
 

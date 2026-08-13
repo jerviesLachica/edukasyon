@@ -99,6 +99,6 @@ class AiServiceProvider @Inject constructor(
     }
 
     companion object {
-        private const val VISION_FALLBACK_MODEL = "claude-opus-4-8"
+        private const val VISION_FALLBACK_MODEL = "mimo-v2.5"
     }
 }

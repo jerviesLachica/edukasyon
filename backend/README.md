@@ -13,21 +13,31 @@ Secure proxy between the StudentAI Android app and OpenAI-compatible AI provider
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `AI_API_KEY` | No* | — | API key for [agentrouter.org](https://agentrouter.org) |
-| `AI_MODEL` | No | `claude-opus-4-8` | Default **vision** model for image chat attachments and schedule analysis (`claude-opus-4-8` or `claude-opus-5`). Client may override vision model via optional `model` field (allowlisted). |
-| `TEXT_MODEL` | No | `claude-opus-4-8` | Model for **text-only** chat and study tools (summarize, flashcards, quiz, study-plan). |
-| `AI_BASE_URL` | No | `https://agentrouter.org/v1` | OpenAI-compatible provider base URL (must include `/v1`) |
-| `AI_USER_AGENT` | No | `QwenCode/0.2.0 (linux; x64)` | User-Agent sent to agentrouter.org (required — generic clients are rejected) |
+| `AI_API_KEY` | No* | — | API key for the OpenAI-compatible provider |
+| `AI_MODEL` | No | `mimo-v2.5` | Default **vision** model for image chat attachments and schedule analysis (`mimo-v2.5` or `mimo-v2.5-pro`). Client may override vision model via optional `model` field (allowlisted). |
+| `TEXT_MODEL` | No | `auto` | Model for **text-only** chat and study tools (summarize, flashcards, quiz, study-plan). |
+| `AI_BASE_URL` | No | `https://freetokenfaucet.com/v1` | OpenAI-compatible provider base URL |
+| `AI_USER_AGENT` | No | — | Optional User-Agent header (only required by some providers) |
 | `PORT` | No | `8080` | HTTP port |
 
 ### Smart model routing
 
 | Request type | Model used |
 |--------------|------------|
-| Chat with `imageBase64` | Client-requested `claude-opus-4-8` / `claude-opus-5`, or server `AI_MODEL` |
-| Chat text-only (incl. `attachmentText`) | `TEXT_MODEL` (`claude-opus-4-8`) |
+| Chat with `imageBase64` | Client-requested `mimo-v2.5` / `mimo-v2.5-pro`, or server `AI_MODEL` |
+| Chat text-only (incl. `attachmentText`) | `TEXT_MODEL` (`auto`) |
 | Schedule analysis | `AI_MODEL` (vision) |
-| Summarize / flashcards / quiz / study-plan | `TEXT_MODEL` (`claude-opus-4-8`) |
+| Summarize / flashcards / quiz / study-plan | `TEXT_MODEL` (`auto`) |
+
+### Available models (freetokenfaucet.com account)
+
+Query `GET https://freetokenfaucet.com/v1/models` with your API key. Typical slugs:
+
+| Slug | Use |
+|------|-----|
+| `mimo-v2.5` | Vision + chat (Standard) |
+| `mimo-v2.5-pro` | Vision + chat (Pro) |
+| `auto` | Text-only chat and study tools (provider picks best model) |
 
 \* Without `AI_API_KEY`, the server runs in **mock mode** and returns sample responses (no crash).
 
@@ -65,7 +75,7 @@ curl -X POST http://localhost:8080/api/ai/chat \
 
 ## Deploy to Render (production)
 
-The Android app points at the Render backend URL via `BuildConfig.AI_BACKEND_URL` (see `androidApp/build.gradle.kts`, currently `https://studentai-backend-ha0z.onrender.com/`). The app never calls agentrouter.org directly — only this backend proxy does.
+The Android app points at the Render backend URL via `BuildConfig.AI_BACKEND_URL` (see `androidApp/build.gradle.kts`, currently `https://studentai-backend-ha0z.onrender.com/`). The app never calls freetokenfaucet.com directly — only this backend proxy does.
 
 1. Push this repo to GitHub/GitLab/Bitbucket.
 2. Open [Render Blueprint](https://dashboard.render.com/blueprint/new) and connect the repo (uses root `render.yaml`).
@@ -77,11 +87,10 @@ The Android app points at the Render backend URL via `BuildConfig.AI_BACKEND_URL
 
 | Key | Value |
 |-----|-------|
-| `AI_API_KEY` | Your agentrouter.org key (mark as Secret in Dashboard) |
-| `AI_MODEL` | `claude-opus-4-8` or `claude-opus-5` (vision default) |
-| `TEXT_MODEL` | `claude-opus-4-8` (text-only chat and study tools) |
-| `AI_BASE_URL` | `https://agentrouter.org/v1` |
-| `AI_USER_AGENT` | `QwenCode/0.2.0 (linux; x64)` |
+| `AI_API_KEY` | Your freetokenfaucet.com key (mark as Secret in Dashboard) |
+| `AI_MODEL` | `mimo-v2.5` or `mimo-v2.5-pro` (vision default) |
+| `TEXT_MODEL` | `auto` (text-only chat and study tools) |
+| `AI_BASE_URL` | `https://freetokenfaucet.com/v1` |
 
 `PORT` is set automatically by Render.
 

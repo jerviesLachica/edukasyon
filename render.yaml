@@ -15,10 +15,8 @@ services:
       - key: AI_API_KEY
         sync: false
       - key: AI_MODEL
-        value: claude-opus-4-8
+        value: mimo-v2.5
       - key: TEXT_MODEL
-        value: claude-opus-4-8
+        value: auto
       - key: AI_BASE_URL
-        value: https://agentrouter.org/v1
-      - key: AI_USER_AGENT
-        value: QwenCode/0.2.0 (linux; x64)
+        value: https://freetokenfaucet.com/v1

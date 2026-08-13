@@ -43,7 +43,7 @@ gradlew.bat :androidApp:assembleDebug
 
 - No API keys in the Android app
 - Backend URL via `BuildConfig.AI_BACKEND_URL`
-- Run `backend/` with `AI_API_KEY` in `backend/.env` (see `backend/.env.example`) for production AI via [agentrouter.org](https://agentrouter.org)
+- Run `backend/` with `AI_API_KEY` in `backend/.env` (see `backend/.env.example`) for production AI via [freetokenfaucet.com](https://freetokenfaucet.com)
 
 ## Application ID
 
