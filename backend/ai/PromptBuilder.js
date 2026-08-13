@@ -125,9 +125,37 @@ function wrapUntrustedDocument(text, label = 'Student notes') {
   return `[UNTRUSTED USER CONTENT — ${label}]\n${String(text).trim()}\n[END UNTRUSTED CONTENT]`;
 }
 
+const MAX_HISTORY_MESSAGES = 40;
+const MAX_HISTORY_CHARS = 24_000;
+
+/** Normalize client-supplied OpenAI-style history for Jarvis chat. */
+function normalizeHistoryMessages(raw) {
+  if (!Array.isArray(raw)) return [];
+  const valid = raw
+    .filter(
+      (entry) =>
+        entry &&
+        (entry.role === 'user' || entry.role === 'assistant') &&
+        String(entry.content || '').trim()
+    )
+    .map((entry) => ({
+      role: entry.role,
+      content: String(entry.content).trim().slice(0, 12_000),
+    }));
+
+  const history = valid.slice(-MAX_HISTORY_MESSAGES);
+  let totalChars = history.reduce((sum, entry) => sum + entry.content.length, 0);
+  while (totalChars > MAX_HISTORY_CHARS && history.length > 2) {
+    const removed = history.shift();
+    totalChars -= removed.content.length;
+  }
+  return history;
+}
+
 module.exports = {
   JARVIS_SYSTEM_PROMPT,
   buildJarvisSystemMessage,
   buildChatUserContent,
   wrapUntrustedDocument,
+  normalizeHistoryMessages,
 };

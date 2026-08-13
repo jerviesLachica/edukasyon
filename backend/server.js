@@ -27,6 +27,7 @@ const {
   buildJarvisSystemMessage,
   buildChatUserContent,
   wrapUntrustedDocument,
+  normalizeHistoryMessages,
 } = require('./ai/PromptBuilder');
 const { loadSafetyPolicy } = require('./safety/SafetyPolicy');
 const { AuthenticationService } = require('./auth/AuthenticationService');
@@ -106,8 +107,9 @@ const usageTracker = gateway.usageTracker;
 
 const mockHandlers = {
   chat(body) {
-    const { message, subject, conversationId, attachmentName, imageBase64, attachmentText } = body;
+    const { message, subject, conversationId, attachmentName, imageBase64, attachmentText, historyMessages } = body;
     const lower = (message || '').toLowerCase();
+    const history = normalizeHistoryMessages(historyMessages);
     const attachmentNote = attachmentName
       ? ` I received your attachment${imageBase64 ? ' (image)' : attachmentText ? ' (text)' : ''}: ${attachmentName}.`
       : '';
@@ -134,8 +136,22 @@ const mockHandlers = {
       };
     }
 
+    if (/where('s| is) (the )?(answer|essay|response)/.test(lower) && history.length > 0) {
+      const priorUser = [...history].reverse().find((m) => m.role === 'user')?.content;
+      const priorAssistant = [...history].reverse().find((m) => m.role === 'assistant')?.content;
+      if (priorUser) {
+        return {
+          reply: priorAssistant?.trim()
+            ? `[Mock Jarvis] You're following up on: "${priorUser}". My previous reply was: "${priorAssistant.slice(0, 200)}${priorAssistant.length > 200 ? '…' : ''}". If the answer bubble was empty, expand the Reasoning section above or ask me to resend it.`
+            : `[Mock Jarvis] You're following up on: "${priorUser}". My previous response may not have displayed correctly — ask me to resend the full answer.`,
+          conversationId: conversationId || crypto.randomUUID(),
+          model: 'mock',
+        };
+      }
+    }
+
     return {
-      reply: `[Mock Jarvis — set AI_API_KEY in backend/.env] Hi! I'm Jarvis.${attachmentNote} ${subject ? `Subject: ${subject}. ` : ''}You asked: "${message}".`,
+      reply: `[Mock Jarvis — set AI_API_KEY in backend/.env] Hi! I'm Jarvis.${attachmentNote} ${subject ? `Subject: ${subject}. ` : ''}${history.length ? `Continuing our chat (${history.length} prior messages). ` : ''}You asked: "${message}".`,
       conversationId: conversationId || crypto.randomUUID(),
       model: 'mock',
     };
@@ -247,6 +263,8 @@ async function handleChat({ body, provider: ai, maxTokens, signal }) {
     model: requestedModel,
     systemPrompt: clientSystemPrompt,
     system: clientSystemAlias,
+    historyMessages,
+    messages: clientMessagesAlias,
   } = body;
 
   const hasVisionAttachment = Boolean(imageBase64) || ai.requestHasVisionContent(body);
@@ -268,8 +286,10 @@ async function handleChat({ body, provider: ai, maxTokens, signal }) {
     attachmentText,
   });
 
+  const history = normalizeHistoryMessages(historyMessages || clientMessagesAlias);
   const messages = [
     { role: 'system', content: systemContent },
+    ...history,
     { role: 'user', content: userContent },
   ];
 
@@ -289,20 +309,24 @@ async function handleChat({ body, provider: ai, maxTokens, signal }) {
 }
 
 async function handleScheduleAnalysis({ body, provider: ai, maxTokens, signal }) {
-  const { imageBase64, model: requestedModel, systemPrompt: clientSystemPrompt } = body;
+  const { imageBase64, extractedText, model: requestedModel, systemPrompt: clientSystemPrompt } = body;
   if (clientSystemPrompt) {
     console.warn('[schedule-analysis] Ignoring client-supplied systemPrompt.');
   }
   if (!imageBase64) throw new Error('imageBase64 is required');
 
   const model = ai.resolveVisionModel(requestedModel);
+  const ocrContext = extractedText?.trim()
+    ? `\n\nOn-device OCR extracted this text from the schedule image (may contain errors — use the image as source of truth):\n${wrapUntrustedDocument(extractedText, 'OCR text')}`
+    : '';
+  const userText = `${SCHEDULE_SCANNER_USER_MESSAGE}${ocrContext}`;
   const content = await ai.chatCompletionText(
     [
       { role: 'system', content: SCHEDULE_SCANNER_SYSTEM_PROMPT },
       {
         role: 'user',
         content: [
-          { type: 'text', text: SCHEDULE_SCANNER_USER_MESSAGE },
+          { type: 'text', text: userText },
           buildVisionImagePart(imageBase64, detectImageMimeFromBase64(imageBase64)),
         ],
       },
