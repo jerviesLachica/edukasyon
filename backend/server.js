@@ -5,7 +5,7 @@
  * API keys MUST be stored in backend/.env (never in source or the Android app).
  *
  * Provider: AI_BASE_URL (default https://api.hcnsec.cn/v1)
- * Models: auto (default), step-3.7-flash (optional client override)
+ * Models: auto (text default), step-3.7-flash (vision default + optional reasoning override)
  *
  * Endpoints:
  *   POST /api/ai/chat
@@ -55,21 +55,23 @@ const AI_API_KEY =
   process.env.VISION_AI_API_KEY;
 
 const ALLOWED_MODELS = ['auto', 'step-3.7-flash'];
-const DEFAULT_MODEL = ALLOWED_MODELS.includes(process.env.AI_MODEL)
-  ? process.env.AI_MODEL
-  : ALLOWED_MODELS.includes(process.env.DEFAULT_MODEL)
-    ? process.env.DEFAULT_MODEL
-    : ALLOWED_MODELS.includes(process.env.TEXT_MODEL)
-      ? process.env.TEXT_MODEL
-      : 'auto';
+const VISION_CAPABLE_MODELS = ['step-3.7-flash'];
+const DEFAULT_TEXT_MODEL = 'auto';
+const DEFAULT_VISION_MODEL = 'step-3.7-flash';
 
-const TEXT_MODEL = ALLOWED_MODELS.includes(process.env.TEXT_MODEL)
-  ? process.env.TEXT_MODEL
-  : DEFAULT_MODEL;
+function envModel(name, fallback) {
+  const value = process.env[name];
+  return ALLOWED_MODELS.includes(value) ? value : fallback;
+}
 
-const VISION_MODEL = ALLOWED_MODELS.includes(process.env.VISION_MODEL)
-  ? process.env.VISION_MODEL
-  : DEFAULT_MODEL;
+const DEFAULT_MODEL = envModel('AI_MODEL', DEFAULT_TEXT_MODEL);
+
+// Aliases: AI_TEXT_MODEL / AI_VISION_MODEL mirror TEXT_MODEL / VISION_MODEL.
+const TEXT_MODEL = envModel('TEXT_MODEL', envModel('AI_TEXT_MODEL', DEFAULT_TEXT_MODEL));
+const VISION_MODEL = envModel(
+  'VISION_MODEL',
+  envModel('AI_VISION_MODEL', DEFAULT_VISION_MODEL)
+);
 
 const hasAiKey = Boolean(AI_API_KEY);
 
@@ -81,6 +83,49 @@ function resolveModel(requestedModel, defaultModel = DEFAULT_MODEL) {
     console.warn(`Ignoring invalid model override: ${requestedModel}`);
   }
   return defaultModel;
+}
+
+/** Vision endpoints must not honor client `auto` — only vision-capable models apply. */
+function resolveVisionModel(requestedModel) {
+  if (requestedModel && VISION_CAPABLE_MODELS.includes(requestedModel)) {
+    return requestedModel;
+  }
+  if (requestedModel && requestedModel !== TEXT_MODEL && requestedModel !== 'auto') {
+    console.warn(`Ignoring non-vision model override for vision request: ${requestedModel}`);
+  }
+  return VISION_MODEL;
+}
+
+function resolveTextModel(requestedModel) {
+  return resolveModel(requestedModel, TEXT_MODEL);
+}
+
+function requestHasVisionContent(body = {}) {
+  if (body.imageBase64) return true;
+  const messages = body.messages;
+  if (!Array.isArray(messages)) return false;
+  return messages.some((msg) => messageContentHasVision(msg?.content));
+}
+
+function messageContentHasVision(content) {
+  if (!content) return false;
+  if (typeof content === 'string') {
+    return /data:image\/[^;]+;base64,/i.test(content);
+  }
+  if (!Array.isArray(content)) return false;
+  return content.some((part) => {
+    if (!part || typeof part !== 'object') return false;
+    if (part.type === 'image_url' && part.image_url) return true;
+    if (part.type === 'image' && part.image) return true;
+    if (typeof part.text === 'string' && /data:image\/[^;]+;base64,/i.test(part.text)) return true;
+    return false;
+  });
+}
+
+function resolveChatModel(requestedModel, hasVisionAttachment) {
+  return hasVisionAttachment
+    ? resolveVisionModel(requestedModel)
+    : resolveTextModel(requestedModel);
 }
 
 // ── Jarvis system prompt (server-controlled; never trust client overrides) ───
@@ -182,8 +227,19 @@ function isRetryableModelError(message) {
   return /503|502|429|NO_UPSTREAM|empty response|timeout|rate limit/i.test(String(message || ''));
 }
 
-function modelFallbackChain(primaryModel) {
+function modelFallbackChain(primaryModel, { isVision = false } = {}) {
   const chain = [primaryModel];
+  if (isVision) {
+    for (const candidate of VISION_CAPABLE_MODELS) {
+      if (candidate !== primaryModel && !chain.includes(candidate)) {
+        chain.push(candidate);
+      }
+    }
+    return chain;
+  }
+  if (primaryModel !== TEXT_MODEL && !chain.includes(TEXT_MODEL)) {
+    chain.push(TEXT_MODEL);
+  }
   if (primaryModel !== DEFAULT_MODEL && !chain.includes(DEFAULT_MODEL)) {
     chain.push(DEFAULT_MODEL);
   }
@@ -286,10 +342,10 @@ async function chatCompletionOnce(baseUrl, apiKey, messages, { temperature = 0.7
   return parseChatCompletionResult(data);
 }
 
-async function aiChatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model } = {}) {
+async function aiChatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false } = {}) {
   if (!hasAiKey) throw new Error('AI provider not configured (set AI_API_KEY)');
 
-  const models = modelFallbackChain(model || DEFAULT_MODEL);
+  const models = modelFallbackChain(model || (isVision ? VISION_MODEL : TEXT_MODEL), { isVision });
   let lastError;
 
   for (let i = 0; i < models.length; i += 1) {
@@ -453,8 +509,8 @@ app.post('/api/ai/chat', (req, res) => {
         system: clientSystemAlias,
       } = req.body;
 
-      const hasVisionAttachment = Boolean(imageBase64);
-      const model = resolveModel(requestedModel, hasVisionAttachment ? VISION_MODEL : TEXT_MODEL);
+      const hasVisionAttachment = Boolean(imageBase64) || requestHasVisionContent(req.body);
+      const model = resolveChatModel(requestedModel, hasVisionAttachment);
 
       const systemContent = buildJarvisSystemMessage({
         subject,
@@ -489,7 +545,10 @@ app.post('/api/ai/chat', (req, res) => {
         { role: 'user', content: userContent },
       ];
 
-      const { reply, reasoning, model: usedModel } = await aiChatCompletion(messages, { model });
+      const { reply, reasoning, model: usedModel } = await aiChatCompletion(messages, {
+        model,
+        isVision: hasVisionAttachment,
+      });
 
       return {
         reply,
@@ -511,9 +570,9 @@ app.post('/api/ai/schedule-analysis', (req, res) => {
       if (clientSystemPrompt) {
         console.warn('[schedule-analysis] Ignoring client-supplied systemPrompt; using server-controlled schedule scanner prompt.');
       }
-      const model = resolveModel(requestedModel, VISION_MODEL);
+      const model = resolveVisionModel(requestedModel);
 
-      console.log(`[schedule-analysis] ${AI_BASE_URL} model=${model}`);
+      console.log(`[schedule-analysis] ${AI_BASE_URL} vision model=${model}`);
 
       const content = await aiChatCompletionText(
         [
@@ -526,7 +585,7 @@ app.post('/api/ai/schedule-analysis', (req, res) => {
             ],
           },
         ],
-        { temperature: 0.2, maxTokens: 4096, model }
+        { temperature: 0.2, maxTokens: 4096, model, isVision: true }
       );
 
       const parsed = extractJson(content);
@@ -545,7 +604,7 @@ app.post('/api/ai/summarize', (req, res) => {
     () => hasAiKey,
     async () => {
       const text = req.body.text || '';
-      const model = resolveModel(req.body.model, TEXT_MODEL);
+      const model = resolveTextModel(req.body.model);
       const result = await aiChatCompletionText([
         { role: 'system', content: 'Summarize study notes concisely. Preserve key facts and terminology. Use plain text, no bullet markdown unless helpful.' },
         { role: 'user', content: `Summarize these notes:\n\n${text}` },
@@ -562,7 +621,7 @@ app.post('/api/ai/flashcards', (req, res) => {
     () => hasAiKey,
     async () => {
       const text = req.body.text || '';
-      const model = resolveModel(req.body.model, TEXT_MODEL);
+      const model = resolveTextModel(req.body.model);
       const content = await aiChatCompletionText([
         { role: 'system', content: 'Generate study flashcards from notes. Respond with JSON only.' },
         {
@@ -585,7 +644,7 @@ app.post('/api/ai/quiz', (req, res) => {
     () => hasAiKey,
     async () => {
       const text = req.body.text || '';
-      const model = resolveModel(req.body.model, TEXT_MODEL);
+      const model = resolveTextModel(req.body.model);
       const content = await aiChatCompletionText([
         { role: 'system', content: 'Generate quizzes from study material. Respond with JSON only.' },
         {
@@ -609,7 +668,7 @@ app.post('/api/ai/study-plan', (req, res) => {
     () => hasAiKey,
     async () => {
       const { examDate, availableHours, subjects, topics } = req.body;
-      const model = resolveModel(req.body.model, TEXT_MODEL);
+      const model = resolveTextModel(req.body.model);
       const exam = examDate ? new Date(examDate).toISOString().slice(0, 10) : 'unknown';
       const content = await aiChatCompletionText([
         { role: 'system', content: 'Create realistic weekly study plans for students. Respond with JSON only.' },
@@ -642,7 +701,7 @@ app.get('/health', (_, res) =>
     visionModel: VISION_MODEL,
     allowedModels: ALLOWED_MODELS,
     routingPolicy:
-      'Single provider (hcnsec.cn). Default auto for chat, vision, schedule, and study tools. Optional step-3.7-flash via client model field.',
+      'Text-only chat and study tools → auto. Image/PDF vision (chat attachments, schedule scanner) → step-3.7-flash. Client may override text chat to step-3.7-flash for reasoning.',
   })
 );
 

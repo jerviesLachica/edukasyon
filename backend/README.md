@@ -13,11 +13,12 @@ Secure proxy between the StudentAI Android app and the hcnsec.cn OpenAI-compatib
 
 | Use case | Provider | Default base URL | Model |
 |----------|----------|------------------|-------|
-| Chat (text, images, attachments) | hcnsec.cn | `https://api.hcnsec.cn/v1` | `auto` |
-| Schedule image analysis | hcnsec.cn | `https://api.hcnsec.cn/v1` | `auto` |
+| Chat (text-only) | hcnsec.cn | `https://api.hcnsec.cn/v1` | `auto` |
+| Chat (image attachments) | hcnsec.cn | `https://api.hcnsec.cn/v1` | `step-3.7-flash` (auto-routed) |
+| Schedule image analysis | hcnsec.cn | `https://api.hcnsec.cn/v1` | `step-3.7-flash` (auto-routed) |
 | Study tools (summarize, flashcards, quiz, study-plan) | hcnsec.cn | `https://api.hcnsec.cn/v1` | `auto` |
 
-Optional client override: `step-3.7-flash` (Profile → AI Settings → Step 3.7 Flash).
+Optional client override for **text-only** chat: `step-3.7-flash` (Profile → AI Settings → Step 3.7 Flash). Vision requests always route to `step-3.7-flash` on the server — the client does not need to set a vision model.
 
 The Android app never calls hcnsec.cn directly — only this backend proxy does.
 
@@ -27,25 +28,26 @@ The Android app never calls hcnsec.cn directly — only this backend proxy does.
 |----------|----------|---------|-------------|
 | `AI_API_KEY` | No* | — | API key for hcnsec.cn. Legacy `TEXT_AI_API_KEY` / `VISION_AI_API_KEY` also accepted. |
 | `AI_BASE_URL` | No | `https://api.hcnsec.cn/v1` | OpenAI-compatible base URL |
-| `AI_MODEL` | No | `auto` | Default model for all requests |
-| `TEXT_MODEL` | No | `auto` | Model for text chat and study tools |
-| `VISION_MODEL` | No | `auto` | Model for image chat and schedule analysis |
+| `AI_MODEL` | No | `auto` | Legacy default (text routing uses `TEXT_MODEL`) |
+| `TEXT_MODEL` / `AI_TEXT_MODEL` | No | `auto` | Model for text chat and study tools |
+| `VISION_MODEL` / `AI_VISION_MODEL` | No | `step-3.7-flash` | Model for image chat and schedule analysis |
 | `PORT` | No | `8080` | HTTP port |
 
 ### Allowed models
 
 | Slug | Use |
 |------|-----|
-| `auto` | Default — text, vision, tools, files |
-| `step-3.7-flash` | Reasoning — optional client override via Profile |
+| `auto` | Default for text chat and study tools |
+| `step-3.7-flash` | Vision (images, schedule scanner, PDF OCR) + optional text reasoning override |
 
-### Model routing
+### Model routing (automatic)
 
 | Request type | Model used |
 |--------------|------------|
-| Chat (any attachment type) | Client `step-3.7-flash` if set, else `TEXT_MODEL` / `VISION_MODEL` (`auto`) |
-| Schedule analysis | `VISION_MODEL` (`auto`), or client override |
-| Summarize / flashcards / quiz / study-plan | `TEXT_MODEL` (`auto`), or client override |
+| Chat (text-only) | `TEXT_MODEL` (`auto`), or client `step-3.7-flash` for reasoning |
+| Chat (image in `imageBase64` or message content) | `VISION_MODEL` (`step-3.7-flash`) — client `auto` is ignored |
+| Schedule analysis | `VISION_MODEL` (`step-3.7-flash`) — always vision |
+| Summarize / flashcards / quiz / study-plan | `TEXT_MODEL` (`auto`), or client `step-3.7-flash` override |
 
 \* Without `AI_API_KEY`, the server runs in **mock mode** (no crash).
 
@@ -99,7 +101,7 @@ The Android app points at the Render backend URL via `BuildConfig.AI_BACKEND_URL
 | `AI_BASE_URL` | `https://api.hcnsec.cn/v1` |
 | `AI_MODEL` | `auto` |
 | `TEXT_MODEL` | `auto` |
-| `VISION_MODEL` | `auto` |
+| `VISION_MODEL` | `step-3.7-flash` |
 
 `PORT` is set automatically by Render.
 

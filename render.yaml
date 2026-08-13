@@ -21,4 +21,4 @@ services:
       - key: TEXT_MODEL
         value: auto
       - key: VISION_MODEL
-        value: auto
+        value: step-3.7-flash
