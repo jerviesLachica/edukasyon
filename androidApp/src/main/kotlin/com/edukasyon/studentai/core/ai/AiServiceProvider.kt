@@ -5,7 +5,6 @@ import kotlinx.coroutines.flow.first
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
-import retrofit2.HttpException
 
 @Singleton
 class AiServiceProvider @Inject constructor(
@@ -46,13 +45,6 @@ class AiServiceProvider @Inject constructor(
         return try {
             remote.chat(request)
         } catch (first: AiException) {
-            if (request.model == null && isRetryableProviderFailure(first)) {
-                try {
-                    return remote.chat(request.copy(model = VISION_FALLBACK_MODEL))
-                } catch (retry: AiException) {
-                    throw retry
-                }
-            }
             if (first.cause is IOException) {
                 mock.chat(request)
             } else {
@@ -84,21 +76,4 @@ class AiServiceProvider @Inject constructor(
     override suspend fun generateQuiz(text: String) = execute { it.generateQuiz(text) }
     override suspend fun generateStudyPlan(context: StudyPlanContext) = execute { it.generateStudyPlan(context) }
 
-    private fun isRetryableProviderFailure(error: AiException): Boolean {
-        val httpCode = (error.cause as? HttpException)?.code()
-        if (httpCode == 502 || httpCode == 503 || httpCode == 429) return true
-        val detail = buildString {
-            append(error.message.orEmpty())
-            error.cause?.message?.let { append(' ').append(it) }
-        }
-        return detail.contains("503", ignoreCase = true) ||
-            detail.contains("502", ignoreCase = true) ||
-            detail.contains("NO_UPSTREAM", ignoreCase = true) ||
-            detail.contains("temporarily unavailable", ignoreCase = true) ||
-            detail.contains("busy", ignoreCase = true)
-    }
-
-    companion object {
-        private const val VISION_FALLBACK_MODEL = "mimo-v2.5"
-    }
 }

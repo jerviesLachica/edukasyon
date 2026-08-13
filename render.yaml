@@ -11,12 +11,16 @@ services:
     startCommand: npm start
     healthCheckPath: /health
     envVars:
-      # Set AI_API_KEY in Render Dashboard (Secret) — never commit the real key to git.
-      - key: AI_API_KEY
+      # Set API keys in Render Dashboard (Secret) — never commit real keys to git.
+      - key: TEXT_AI_API_KEY
         sync: false
-      - key: AI_MODEL
-        value: mimo-v2.5
+      - key: VISION_AI_API_KEY
+        sync: false
+      - key: TEXT_AI_BASE_URL
+        value: https://api.hcnsec.cn/v1
       - key: TEXT_MODEL
         value: auto
-      - key: AI_BASE_URL
+      - key: VISION_AI_BASE_URL
         value: https://freetokenfaucet.com/v1
+      - key: VISION_MODEL
+        value: mimo-v2.5-pro

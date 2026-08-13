@@ -43,7 +43,7 @@ gradlew.bat :androidApp:assembleDebug
 
 - No API keys in the Android app
 - Backend URL via `BuildConfig.AI_BACKEND_URL`
-- Run `backend/` with `AI_API_KEY` in `backend/.env` (see `backend/.env.example`) for production AI via [freetokenfaucet.com](https://freetokenfaucet.com)
+- Run `backend/` with provider keys in `backend/.env` (see `backend/.env.example`): text via [hcnsec.cn](https://api.hcnsec.cn/v1) (`auto`), vision via [freetokenfaucet.com](https://freetokenfaucet.com) (`mimo-v2.5-pro`)
 
 ## Application ID
 
