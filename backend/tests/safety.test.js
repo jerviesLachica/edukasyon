@@ -9,7 +9,7 @@ const assert = require('node:assert/strict');
 const { RateLimiter } = require('../abuse/RateLimiter');
 const { InputModerator } = require('../safety/InputModerator');
 const { PromptInjectionDetector } = require('../safety/PromptInjectionDetector');
-const { QuizValidator } = require('../validation/AiResponseValidator');
+const { QuizValidator, AssignmentBreakdownValidator } = require('../validation/AiResponseValidator');
 const { sanitizeErrorForClient, containsSecret } = require('../util/safeErrors');
 const { AiSafetyGateway } = require('../ai/AiSafetyGateway');
 const { loadSafetyPolicy } = require('../safety/SafetyPolicy');
@@ -107,6 +107,49 @@ describe('safeErrors', () => {
   it('maps timeout errors safely', () => {
     const safe = sanitizeErrorForClient(new Error('Request timeout after 90000ms'));
     assert.equal(safe.code, 'REQUEST_TIMEOUT');
+  });
+});
+
+describe('AssignmentBreakdownValidator', () => {
+  const validator = new AssignmentBreakdownValidator();
+
+  it('rejects breakdown without title or subtasks', () => {
+    const result = validator.validate({
+      title: '',
+      subtasks: [],
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it('accepts valid assignment breakdown structure', () => {
+    const result = validator.validate({
+      title: 'Research Paper',
+      deadline: '2026-03-15',
+      requirements: ['APA format', '5 pages minimum'],
+      deliverables: ['PDF submission'],
+      rubric: ['Thesis clarity', 'Evidence quality'],
+      subtasks: [
+        { title: 'Choose topic', estimatedMinutes: 30, dueOffsetDays: 10 },
+        { title: 'Write draft', estimatedMinutes: 120, dueOffsetDays: 2 },
+      ],
+      estimatedEffortHours: 8,
+      notes: 'Deadline from syllabus',
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.data.title, 'Research Paper');
+    assert.equal(result.data.deadline, '2026-03-15');
+    assert.equal(result.data.subtasks.length, 2);
+  });
+
+  it('normalizes ISO datetime deadlines to date-only', () => {
+    const result = validator.validate({
+      title: 'Lab Report',
+      deadline: '2026-04-01T23:59:00Z',
+      subtasks: [{ title: 'Complete lab', estimatedMinutes: 60, dueOffsetDays: 1 }],
+      estimatedEffortHours: 2,
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.data.deadline, '2026-04-01');
   });
 });
 

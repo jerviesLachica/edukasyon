@@ -46,6 +46,20 @@ const ENDPOINT_DEFAULTS = {
     hourlyQuota: 10,
     maxOutputTokens: 2048,
   },
+  'assignment-breakdown': {
+    rateLimitPerMin: 3,
+    burstPerMin: 5,
+    dailyQuota: 25,
+    hourlyQuota: 12,
+    maxOutputTokens: 2048,
+  },
+  'focus-plan': {
+    rateLimitPerMin: 3,
+    burstPerMin: 5,
+    dailyQuota: 25,
+    hourlyQuota: 12,
+    maxOutputTokens: 2048,
+  },
 };
 
 function envInt(name, fallback) {
