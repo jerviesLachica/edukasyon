@@ -96,11 +96,13 @@ enum class QuestionType {
 }
 
 enum class AiModel(val slug: String, val displayName: String) {
-    STANDARD("mimo-v2.5", "Mimo v2.5"),
-    PRO("mimo-v2.5-pro", "Mimo v2.5 Pro");
+    AUTO("auto", "Auto"),
+    REASONING("step-3.7-flash", "Step 3.7 Flash");
 
     companion object {
-        fun fromSlug(slug: String): AiModel =
-            entries.find { it.slug == slug } ?: STANDARD
+        fun fromSlug(slug: String): AiModel = when (slug) {
+            "mimo-v2.5", "mimo-v2.5-pro" -> AUTO
+            else -> entries.find { it.slug == slug } ?: AUTO
+        }
     }
 }

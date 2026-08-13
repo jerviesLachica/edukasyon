@@ -26,32 +26,7 @@ class AiServiceProvider @Inject constructor(
         }
     }
 
-    override suspend fun chat(request: AiChatRequest): AiChatResponse {
-        if (request.imageBase64 != null) {
-            if (!connectivity.isCurrentlyOnline()) {
-                return mock.chat(request)
-            }
-            return try {
-                remote.chat(request)
-            } catch (e: AiException) {
-                throw e
-            }
-        }
-
-        if (!connectivity.isCurrentlyOnline()) {
-            return mock.chat(request)
-        }
-
-        return try {
-            remote.chat(request)
-        } catch (first: AiException) {
-            if (first.cause is IOException) {
-                mock.chat(request)
-            } else {
-                throw first
-            }
-        }
-    }
+    override suspend fun chat(request: AiChatRequest): AiChatResponse = execute { it.chat(request) }
 
     override suspend fun analyzeSchedule(imageData: ByteArray): ScheduleAnalysisResult {
         if (!connectivity.isCurrentlyOnline()) {
@@ -75,5 +50,4 @@ class AiServiceProvider @Inject constructor(
     override suspend fun generateFlashcards(text: String) = execute { it.generateFlashcards(text) }
     override suspend fun generateQuiz(text: String) = execute { it.generateQuiz(text) }
     override suspend fun generateStudyPlan(context: StudyPlanContext) = execute { it.generateStudyPlan(context) }
-
 }

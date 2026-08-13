@@ -263,12 +263,12 @@ fun ProfileScreen(
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Vision model (image chats)",
+                    "AI model",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "Text-only chat uses the auto model. Standard/Pro applies when you attach photos or images (e.g. homework, schedule screenshots).",
+                    "Auto is the default for chat, images, schedule scanning, and study tools. Step 3.7 Flash adds stronger reasoning for harder questions and the Tools tab.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

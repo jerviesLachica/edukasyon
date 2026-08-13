@@ -1,12 +1,11 @@
 /**
  * StudentAI Backend API
  *
- * Secure proxy between Android app and OpenAI-compatible AI providers.
+ * Secure proxy between Android app and OpenAI-compatible AI provider (hcnsec.cn).
  * API keys MUST be stored in backend/.env (never in source or the Android app).
  *
- * Providers (split):
- *   Text (auto)  → TEXT_AI_BASE_URL (default https://api.hcnsec.cn/v1)
- *   Vision       → VISION_AI_BASE_URL (default https://freetokenfaucet.com/v1)
+ * Provider: AI_BASE_URL (default https://api.hcnsec.cn/v1)
+ * Models: auto (default), step-3.7-flash (optional client override)
  *
  * Endpoints:
  *   POST /api/ai/chat
@@ -38,44 +37,46 @@ app.use(express.json({ limit: '10mb' }));
 
 const PORT = process.env.PORT || 8080;
 
-// ── Text provider (hcnsec.cn — text-only chat + study tools) ────────────────
-const TEXT_AI_BASE_URL = (process.env.TEXT_AI_BASE_URL || 'https://api.hcnsec.cn/v1').replace(/\/$/, '');
-const TEXT_AI_API_KEY = process.env.TEXT_AI_API_KEY || process.env.AI_API_KEY;
-const TEXT_MODEL = process.env.TEXT_MODEL || 'auto';
+// ── Single AI provider (hcnsec.cn) ──────────────────────────────────────────
+const AI_BASE_URL = (
+  process.env.AI_BASE_URL ||
+  process.env.TEXT_AI_BASE_URL ||
+  process.env.VISION_AI_BASE_URL ||
+  'https://api.hcnsec.cn/v1'
+).replace(/\/$/, '');
 
-// ── Vision provider (freetokenfaucet.com — image chat + schedule analysis) ──
-const VISION_AI_BASE_URL = (process.env.VISION_AI_BASE_URL || 'https://freetokenfaucet.com/v1').replace(/\/$/, '');
-const VISION_AI_API_KEY = process.env.VISION_AI_API_KEY || process.env.AI_API_KEY;
-const VISION_MODELS = ['mimo-v2.5', 'mimo-v2.5-pro'];
-const VISION_MODEL = VISION_MODELS.includes(process.env.VISION_MODEL)
+const AI_API_KEY =
+  process.env.AI_API_KEY ||
+  process.env.TEXT_AI_API_KEY ||
+  process.env.VISION_AI_API_KEY;
+
+const ALLOWED_MODELS = ['auto', 'step-3.7-flash'];
+const DEFAULT_MODEL = ALLOWED_MODELS.includes(process.env.AI_MODEL)
+  ? process.env.AI_MODEL
+  : ALLOWED_MODELS.includes(process.env.DEFAULT_MODEL)
+    ? process.env.DEFAULT_MODEL
+    : ALLOWED_MODELS.includes(process.env.TEXT_MODEL)
+      ? process.env.TEXT_MODEL
+      : 'auto';
+
+const TEXT_MODEL = ALLOWED_MODELS.includes(process.env.TEXT_MODEL)
+  ? process.env.TEXT_MODEL
+  : DEFAULT_MODEL;
+
+const VISION_MODEL = ALLOWED_MODELS.includes(process.env.VISION_MODEL)
   ? process.env.VISION_MODEL
-  : VISION_MODELS.includes(process.env.AI_MODEL)
-    ? process.env.AI_MODEL
-    : 'mimo-v2.5-pro';
+  : DEFAULT_MODEL;
 
-const hasTextKey = Boolean(TEXT_AI_API_KEY);
-const hasVisionKey = Boolean(VISION_AI_API_KEY);
-const hasAiKey = hasTextKey || hasVisionKey;
+const hasAiKey = Boolean(AI_API_KEY);
 
-/**
- * Smart model routing:
- * - imageBase64 present → vision model on VISION provider
- * - text-only (incl. attachmentText) → TEXT_MODEL on TEXT provider
- */
-function resolveModel({ requestedModel, hasVisionAttachment }) {
-  if (hasVisionAttachment) {
-    if (requestedModel && VISION_MODELS.includes(requestedModel)) {
-      return requestedModel;
-    }
-    if (requestedModel) {
-      console.warn(`Ignoring invalid vision model override: ${requestedModel}`);
-    }
-    return VISION_MODEL;
+function resolveModel(requestedModel, defaultModel = DEFAULT_MODEL) {
+  if (requestedModel && ALLOWED_MODELS.includes(requestedModel)) {
+    return requestedModel;
   }
-  if (requestedModel && requestedModel !== TEXT_MODEL) {
-    console.log(`[chat] Ignoring model override "${requestedModel}" for text-only request; using ${TEXT_MODEL}`);
+  if (requestedModel) {
+    console.warn(`Ignoring invalid model override: ${requestedModel}`);
   }
-  return TEXT_MODEL;
+  return defaultModel;
 }
 
 // ── Gizmo system prompt (server-controlled; never trust client overrides) ───
@@ -177,15 +178,10 @@ function isRetryableModelError(message) {
   return /503|502|429|NO_UPSTREAM|empty response|timeout|rate limit/i.test(String(message || ''));
 }
 
-function textModelFallbackChain(primaryModel) {
+function modelFallbackChain(primaryModel) {
   const chain = [primaryModel];
-  return chain;
-}
-
-function visionModelFallbackChain(primaryModel) {
-  const chain = [primaryModel];
-  for (const visionModel of VISION_MODELS) {
-    if (!chain.includes(visionModel)) chain.push(visionModel);
+  if (primaryModel !== DEFAULT_MODEL && !chain.includes(DEFAULT_MODEL)) {
+    chain.push(DEFAULT_MODEL);
   }
   return chain;
 }
@@ -220,67 +216,34 @@ async function chatCompletionOnce(baseUrl, apiKey, messages, { temperature = 0.7
   return content.trim();
 }
 
-async function chatCompletionWithProvider(
-  provider,
-  messages,
-  { temperature = 0.7, maxTokens = 2048, model } = {}
-) {
-  const { baseUrl, apiKey, label, fallbackChain } = provider;
-  const models = fallbackChain(model);
+async function aiChatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model } = {}) {
+  if (!hasAiKey) throw new Error('AI provider not configured (set AI_API_KEY)');
+
+  const models = modelFallbackChain(model || DEFAULT_MODEL);
   let lastError;
 
   for (let i = 0; i < models.length; i += 1) {
     const candidate = models[i];
     try {
       if (i > 0) {
-        console.warn(`[${label}] Retrying with fallback model=${candidate}`);
+        console.warn(`[ai] Retrying with fallback model=${candidate}`);
       }
-      return await chatCompletionOnce(baseUrl, apiKey, messages, { temperature, maxTokens, model: candidate });
+      return await chatCompletionOnce(AI_BASE_URL, AI_API_KEY, messages, {
+        temperature,
+        maxTokens,
+        model: candidate,
+      });
     } catch (err) {
       lastError = err;
       const hasNext = i < models.length - 1;
       if (!hasNext || !isRetryableModelError(err.message)) {
         throw err;
       }
-      console.warn(`[${label}] Model ${candidate} failed: ${String(err.message || err).slice(0, 160)}`);
+      console.warn(`[ai] Model ${candidate} failed: ${String(err.message || err).slice(0, 160)}`);
     }
   }
 
   throw lastError || new Error('AI API request failed');
-}
-
-function textProvider() {
-  if (!hasTextKey) throw new Error('Text AI provider not configured (set TEXT_AI_API_KEY)');
-  return {
-    baseUrl: TEXT_AI_BASE_URL,
-    apiKey: TEXT_AI_API_KEY,
-    label: 'text',
-    fallbackChain: textModelFallbackChain,
-  };
-}
-
-function visionProvider() {
-  if (!hasVisionKey) throw new Error('Vision AI provider not configured (set VISION_AI_API_KEY)');
-  return {
-    baseUrl: VISION_AI_BASE_URL,
-    apiKey: VISION_AI_API_KEY,
-    label: 'vision',
-    fallbackChain: visionModelFallbackChain,
-  };
-}
-
-async function textChatCompletion(messages, options = {}) {
-  return chatCompletionWithProvider(textProvider(), messages, {
-    ...options,
-    model: options.model || TEXT_MODEL,
-  });
-}
-
-async function visionChatCompletion(messages, options = {}) {
-  return chatCompletionWithProvider(visionProvider(), messages, {
-    ...options,
-    model: options.model || VISION_MODEL,
-  });
 }
 
 function extractJson(text) {
@@ -302,7 +265,7 @@ async function callAiOrMock(hasKeyFn, aiFn, mockFn, res) {
   }
 }
 
-// ── Mock fallbacks (used when provider keys are not set) ────────────────────
+// ── Mock fallbacks (used when AI_API_KEY is not set) ────────────────────────
 
 const mock = {
   chat(body) {
@@ -320,7 +283,7 @@ const mock = {
     }
     if (imageBase64) {
       return {
-        reply: `[Mock Gizmo — set VISION_AI_API_KEY for real vision] I received your image${attachmentName ? ` (${attachmentName})` : ''}. In mock mode I can't analyze pixels, but your message was: "${message}". Deploy with a vision-capable VISION_MODEL (e.g. mimo-v2.5-pro) for image analysis.`,
+        reply: `[Mock Gizmo — set AI_API_KEY for real vision] I received your image${attachmentName ? ` (${attachmentName})` : ''}. In mock mode I can't analyze pixels, but your message was: "${message}". Deploy with AI_MODEL=auto for image analysis.`,
         conversationId: conversationId || crypto.randomUUID(),
       };
     }
@@ -332,7 +295,7 @@ const mock = {
     }
 
     return {
-      reply: `[Mock Gizmo — set TEXT_AI_API_KEY in backend/.env for full tutoring] Hi! I'm Gizmo.${attachmentNote} ${subject ? `Subject: ${subject}. ` : ''}You asked: "${message}". I explain concepts accurately, suggest trusted sources like Khan Academy or Wikipedia when helpful, and never make up links.`,
+      reply: `[Mock Gizmo — set AI_API_KEY in backend/.env for full tutoring] Hi! I'm Gizmo.${attachmentNote} ${subject ? `Subject: ${subject}. ` : ''}You asked: "${message}". I explain concepts accurately, suggest trusted sources like Khan Academy or Wikipedia when helpful, and never make up links.`,
       conversationId: conversationId || crypto.randomUUID(),
     };
   },
@@ -405,7 +368,7 @@ app.post('/api/ai/chat', (req, res) => {
       } = req.body;
 
       const hasVisionAttachment = Boolean(imageBase64);
-      const model = resolveModel({ requestedModel, hasVisionAttachment });
+      const model = resolveModel(requestedModel, hasVisionAttachment ? VISION_MODEL : TEXT_MODEL);
 
       const systemContent = buildGizmoSystemMessage({
         subject,
@@ -419,12 +382,12 @@ app.post('/api/ai/chat', (req, res) => {
         const mime = attachmentMimeType || 'image/jpeg';
         const approxKb = Math.round((imageBase64.length * 3) / 4 / 1024);
         console.log(
-          `[chat] Vision → ${VISION_AI_BASE_URL} payload: ${attachmentName || 'unnamed'} (${mime}, ~${approxKb} KB base64) model=${model}`
+          `[chat] ${AI_BASE_URL} vision payload: ${attachmentName || 'unnamed'} (${mime}, ~${approxKb} KB base64) model=${model}`
         );
       } else if (attachmentText) {
-        console.log(`[chat] Text → ${TEXT_AI_BASE_URL} attachment: ${attachmentName || 'unnamed'} (${attachmentText.length} chars) model=${model}`);
+        console.log(`[chat] ${AI_BASE_URL} attachment: ${attachmentName || 'unnamed'} (${attachmentText.length} chars) model=${model}`);
       } else {
-        console.log(`[chat] Text → ${TEXT_AI_BASE_URL} text-only model=${model}`);
+        console.log(`[chat] ${AI_BASE_URL} text-only model=${model}`);
       }
 
       const userContent = buildChatUserContent({
@@ -440,9 +403,7 @@ app.post('/api/ai/chat', (req, res) => {
         { role: 'user', content: userContent },
       ];
 
-      const reply = hasVisionAttachment
-        ? await visionChatCompletion(messages, { model })
-        : await textChatCompletion(messages, { model });
+      const reply = await aiChatCompletion(messages, { model });
 
       return { reply, conversationId: conversationId || crypto.randomUUID(), model };
     },
@@ -453,16 +414,17 @@ app.post('/api/ai/chat', (req, res) => {
 
 app.post('/api/ai/schedule-analysis', (req, res) => {
   callAiOrMock(
-    () => hasVisionKey,
+    () => hasAiKey,
     async () => {
-      const { imageBase64 } = req.body;
+      const { imageBase64, model: requestedModel } = req.body;
+      const model = resolveModel(requestedModel, VISION_MODEL);
       const prompt = `Analyze this class schedule image. Extract every class as JSON with this exact shape:
 {"classes":[{"subject":"...","teacher":"... or null","room":"... or null","day":"MONDAY|TUESDAY|...","startTime":"HH:MM","endTime":"HH:MM"}],"uncertainFields":["field names you could not read clearly"]}
 Return ONLY valid JSON, no markdown.`;
 
-      console.log(`[schedule-analysis] Vision → ${VISION_AI_BASE_URL} model=${VISION_MODEL}`);
+      console.log(`[schedule-analysis] ${AI_BASE_URL} model=${model}`);
 
-      const content = await visionChatCompletion(
+      const content = await aiChatCompletion(
         [
           { role: 'system', content: 'You extract structured schedule data from images. Respond with JSON only.' },
           {
@@ -473,7 +435,7 @@ Return ONLY valid JSON, no markdown.`;
             ],
           },
         ],
-        { temperature: 0.2, maxTokens: 4096, model: VISION_MODEL }
+        { temperature: 0.2, maxTokens: 4096, model }
       );
 
       const parsed = extractJson(content);
@@ -489,13 +451,14 @@ Return ONLY valid JSON, no markdown.`;
 
 app.post('/api/ai/summarize', (req, res) => {
   callAiOrMock(
-    () => hasTextKey,
+    () => hasAiKey,
     async () => {
       const text = req.body.text || '';
-      const result = await textChatCompletion([
+      const model = resolveModel(req.body.model, TEXT_MODEL);
+      const result = await aiChatCompletion([
         { role: 'system', content: 'Summarize study notes concisely. Preserve key facts and terminology. Use plain text, no bullet markdown unless helpful.' },
         { role: 'user', content: `Summarize these notes:\n\n${text}` },
-      ], { temperature: 0.3 });
+      ], { temperature: 0.3, model });
       return { result };
     },
     () => mock.summarize(req.body),
@@ -505,10 +468,11 @@ app.post('/api/ai/summarize', (req, res) => {
 
 app.post('/api/ai/flashcards', (req, res) => {
   callAiOrMock(
-    () => hasTextKey,
+    () => hasAiKey,
     async () => {
       const text = req.body.text || '';
-      const content = await textChatCompletion([
+      const model = resolveModel(req.body.model, TEXT_MODEL);
+      const content = await aiChatCompletion([
         { role: 'system', content: 'Generate study flashcards from notes. Respond with JSON only.' },
         {
           role: 'user',
@@ -516,7 +480,7 @@ app.post('/api/ai/flashcards', (req, res) => {
 {"cards":[{"question":"...","answer":"...","topic":"optional topic"}]}
 Notes:\n${text}`,
         },
-      ], { temperature: 0.5 });
+      ], { temperature: 0.5, model });
       const parsed = extractJson(content);
       return { cards: parsed.cards || [] };
     },
@@ -527,10 +491,11 @@ Notes:\n${text}`,
 
 app.post('/api/ai/quiz', (req, res) => {
   callAiOrMock(
-    () => hasTextKey,
+    () => hasAiKey,
     async () => {
       const text = req.body.text || '';
-      const content = await textChatCompletion([
+      const model = resolveModel(req.body.model, TEXT_MODEL);
+      const content = await aiChatCompletion([
         { role: 'system', content: 'Generate quizzes from study material. Respond with JSON only.' },
         {
           role: 'user',
@@ -539,7 +504,7 @@ app.post('/api/ai/quiz', (req, res) => {
 Use MULTIPLE_CHOICE with 3-4 options, or TRUE_FALSE with options ["True","False"].
 Notes:\n${text}`,
         },
-      ], { temperature: 0.5 });
+      ], { temperature: 0.5, model });
       const parsed = extractJson(content);
       return { title: parsed.title || 'Generated Quiz', questions: parsed.questions || [] };
     },
@@ -550,11 +515,12 @@ Notes:\n${text}`,
 
 app.post('/api/ai/study-plan', (req, res) => {
   callAiOrMock(
-    () => hasTextKey,
+    () => hasAiKey,
     async () => {
       const { examDate, availableHours, subjects, topics } = req.body;
+      const model = resolveModel(req.body.model, TEXT_MODEL);
       const exam = examDate ? new Date(examDate).toISOString().slice(0, 10) : 'unknown';
-      const content = await textChatCompletion([
+      const content = await aiChatCompletion([
         { role: 'system', content: 'Create realistic weekly study plans for students. Respond with JSON only.' },
         {
           role: 'user',
@@ -565,7 +531,7 @@ Available hours per week: ${availableHours}
 Subjects: ${(subjects || []).join(', ')}
 Topics: ${(topics || []).join(', ')}`,
         },
-      ], { temperature: 0.4 });
+      ], { temperature: 0.4, model });
       const parsed = extractJson(content);
       return { title: parsed.title || 'Study Plan', items: parsed.items || [] };
     },
@@ -578,24 +544,22 @@ app.get('/health', (_, res) =>
   res.json({
     status: 'ok',
     aiConfigured: hasAiKey,
-    textConfigured: hasTextKey,
-    visionConfigured: hasVisionKey,
-    textProvider: TEXT_AI_BASE_URL,
-    visionProvider: VISION_AI_BASE_URL,
-    visionModel: VISION_MODEL,
+    provider: AI_BASE_URL,
+    model: DEFAULT_MODEL,
+    defaultModel: DEFAULT_MODEL,
     textModel: TEXT_MODEL,
-    availableVisionModels: VISION_MODELS,
+    visionModel: VISION_MODEL,
+    allowedModels: ALLOWED_MODELS,
     routingPolicy:
-      'Text-only chat and study tools → TEXT provider (auto). Chat with imageBase64 and schedule analysis → VISION provider (mimo-v2.5 / mimo-v2.5-pro).',
+      'Single provider (hcnsec.cn). Default auto for chat, vision, schedule, and study tools. Optional step-3.7-flash via client model field.',
   })
 );
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`StudentAI backend listening on :${PORT}`);
   if (hasAiKey) {
-    console.log(`Text AI:   ${TEXT_AI_BASE_URL} (model: ${TEXT_MODEL}, configured: ${hasTextKey})`);
-    console.log(`Vision AI: ${VISION_AI_BASE_URL} (model: ${VISION_MODEL}, configured: ${hasVisionKey})`);
+    console.log(`AI provider: ${AI_BASE_URL} (default model: ${DEFAULT_MODEL}, text: ${TEXT_MODEL}, vision: ${VISION_MODEL})`);
   } else {
-    console.log('AI providers: mock mode (set TEXT_AI_API_KEY and/or VISION_AI_API_KEY in backend/.env)');
+    console.log('AI provider: mock mode (set AI_API_KEY in backend/.env)');
   }
 });

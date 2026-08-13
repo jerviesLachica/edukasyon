@@ -1,6 +1,6 @@
 # StudentAI Backend
 
-Secure proxy between the StudentAI Android app and OpenAI-compatible AI providers.
+Secure proxy between the StudentAI Android app and the hcnsec.cn OpenAI-compatible AI provider.
 
 ## Security
 
@@ -9,48 +9,45 @@ Secure proxy between the StudentAI Android app and OpenAI-compatible AI provider
 - The Android app only knows the backend URL via `BuildConfig.AI_BACKEND_URL`
 - Use `backend/.env.example` as a template — placeholders only
 
-## Dual-provider architecture
+## Single-provider architecture
 
 | Use case | Provider | Default base URL | Model |
 |----------|----------|------------------|-------|
-| Text-only chat | hcnsec.cn | `https://api.hcnsec.cn/v1` | `auto` |
+| Chat (text, images, attachments) | hcnsec.cn | `https://api.hcnsec.cn/v1` | `auto` |
+| Schedule image analysis | hcnsec.cn | `https://api.hcnsec.cn/v1` | `auto` |
 | Study tools (summarize, flashcards, quiz, study-plan) | hcnsec.cn | `https://api.hcnsec.cn/v1` | `auto` |
-| Chat with image attachment | freetokenfaucet.com | `https://freetokenfaucet.com/v1` | `mimo-v2.5-pro` (or client Standard `mimo-v2.5`) |
-| Schedule image analysis | freetokenfaucet.com | `https://freetokenfaucet.com/v1` | `mimo-v2.5-pro` |
 
-The Android app never calls hcnsec.cn or freetokenfaucet.com directly — only this backend proxy does.
+Optional client override: `step-3.7-flash` (Profile → AI Settings → Step 3.7 Flash).
+
+The Android app never calls hcnsec.cn directly — only this backend proxy does.
 
 ## Environment variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `TEXT_AI_API_KEY` | No* | — | API key for the text provider (hcnsec.cn). Falls back to legacy `AI_API_KEY` if unset. |
-| `TEXT_AI_BASE_URL` | No | `https://api.hcnsec.cn/v1` | OpenAI-compatible base URL for text |
-| `TEXT_MODEL` | No | `auto` | Model for text-only chat and study tools |
-| `VISION_AI_API_KEY` | No* | — | API key for the vision provider (freetokenfaucet.com). Falls back to legacy `AI_API_KEY` if unset. |
-| `VISION_AI_BASE_URL` | No | `https://freetokenfaucet.com/v1` | OpenAI-compatible base URL for vision |
-| `VISION_MODEL` | No | `mimo-v2.5-pro` | Default vision model for image chat and schedule analysis (`mimo-v2.5` or `mimo-v2.5-pro`). Client may override via optional `model` field (allowlisted). |
+| `AI_API_KEY` | No* | — | API key for hcnsec.cn. Legacy `TEXT_AI_API_KEY` / `VISION_AI_API_KEY` also accepted. |
+| `AI_BASE_URL` | No | `https://api.hcnsec.cn/v1` | OpenAI-compatible base URL |
+| `AI_MODEL` | No | `auto` | Default model for all requests |
+| `TEXT_MODEL` | No | `auto` | Model for text chat and study tools |
+| `VISION_MODEL` | No | `auto` | Model for image chat and schedule analysis |
 | `PORT` | No | `8080` | HTTP port |
 
-### Smart model routing
-
-| Request type | Provider | Model used |
-|--------------|----------|------------|
-| Chat with `imageBase64` | Vision | Client-requested `mimo-v2.5` / `mimo-v2.5-pro`, or server `VISION_MODEL` |
-| Chat text-only (incl. `attachmentText`) | Text | `TEXT_MODEL` (`auto`) — client model overrides ignored |
-| Schedule analysis | Vision | `VISION_MODEL` |
-| Summarize / flashcards / quiz / study-plan | Text | `TEXT_MODEL` (`auto`) |
-
-### Vision models (freetokenfaucet.com)
-
-Query `GET https://freetokenfaucet.com/v1/models` with your vision API key. Typical slugs:
+### Allowed models
 
 | Slug | Use |
 |------|-----|
-| `mimo-v2.5` | Vision + chat (Standard) |
-| `mimo-v2.5-pro` | Vision + chat (Pro) |
+| `auto` | Default — text, vision, tools, files |
+| `step-3.7-flash` | Reasoning — optional client override via Profile |
 
-\* Without both provider keys, the server runs in **mock mode** for missing providers (no crash).
+### Model routing
+
+| Request type | Model used |
+|--------------|------------|
+| Chat (any attachment type) | Client `step-3.7-flash` if set, else `TEXT_MODEL` / `VISION_MODEL` (`auto`) |
+| Schedule analysis | `VISION_MODEL` (`auto`), or client override |
+| Summarize / flashcards / quiz / study-plan | `TEXT_MODEL` (`auto`), or client override |
+
+\* Without `AI_API_KEY`, the server runs in **mock mode** (no crash).
 
 ## API Endpoints
 
@@ -62,14 +59,14 @@ Query `GET https://freetokenfaucet.com/v1/models` with your vision API key. Typi
 | POST | `/api/ai/flashcards` | Flashcard generation |
 | POST | `/api/ai/quiz` | Quiz generation |
 | POST | `/api/ai/study-plan` | Study plan generation |
-| GET | `/health` | Health check (`textConfigured`, `visionConfigured`, providers, models, `routingPolicy`) |
+| GET | `/health` | Health check (provider, models, `allowedModels`, `routingPolicy`) |
 
 ## Run locally
 
 ```bash
 cd backend
 npm install
-cp .env.example .env   # then edit .env with your real keys
+cp .env.example .env   # then edit .env with your real key
 npm start
 ```
 
@@ -90,7 +87,7 @@ The Android app points at the Render backend URL via `BuildConfig.AI_BACKEND_URL
 
 1. Push this repo to GitHub/GitLab/Bitbucket.
 2. Open [Render Blueprint](https://dashboard.render.com/blueprint/new) and connect the repo (uses root `render.yaml`).
-3. Set **TEXT_AI_API_KEY** and **VISION_AI_API_KEY** in the Render Dashboard (mark as Secret).
+3. Set **AI_API_KEY** in the Render Dashboard (mark as Secret).
 4. After deploy, verify: `curl https://studentai-backend-ha0z.onrender.com/health`
 5. If Render assigns a different URL, update `AI_BACKEND_URL` in `androidApp/build.gradle.kts`.
 
@@ -98,12 +95,11 @@ The Android app points at the Render backend URL via `BuildConfig.AI_BACKEND_URL
 
 | Key | Value |
 |-----|-------|
-| `TEXT_AI_API_KEY` | Your hcnsec.cn key (Secret) |
-| `TEXT_AI_BASE_URL` | `https://api.hcnsec.cn/v1` |
+| `AI_API_KEY` | Your hcnsec.cn key (Secret) |
+| `AI_BASE_URL` | `https://api.hcnsec.cn/v1` |
+| `AI_MODEL` | `auto` |
 | `TEXT_MODEL` | `auto` |
-| `VISION_AI_API_KEY` | Your freetokenfaucet.com key (Secret) |
-| `VISION_AI_BASE_URL` | `https://freetokenfaucet.com/v1` |
-| `VISION_MODEL` | `mimo-v2.5-pro` |
+| `VISION_MODEL` | `auto` |
 
 `PORT` is set automatically by Render.
 
@@ -111,7 +107,7 @@ The Android app points at the Render backend URL via `BuildConfig.AI_BACKEND_URL
 
 Debug and release builds use the cloud backend URL — no local `npm start` required.
 
-Profile → **AI Settings**: Standard/Pro selects the vision model (`mimo-v2.5` / `mimo-v2.5-pro`) for image chats only. Text-only chat always uses `auto` via the backend.
+Profile → **AI Settings**: Auto (default) or Step 3.7 Flash (`step-3.7-flash`) for stronger reasoning.
 
 For local backend development only:
 

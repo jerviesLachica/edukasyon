@@ -73,7 +73,7 @@ class UserPreferences @Inject constructor(
     val onboardingWidgetsExplored: Flow<Boolean> = context.dataStore.data.map { it[Keys.ONBOARDING_WIDGETS_EXPLORED] ?: false }
     val useMockAi: Flow<Boolean> = context.dataStore.data.map { it[Keys.USE_MOCK_AI] ?: false }
     val aiModel: Flow<AiModel> = context.dataStore.data.map { prefs ->
-        AiModel.fromSlug(prefs[Keys.AI_MODEL] ?: AiModel.STANDARD.slug)
+        AiModel.fromSlug(prefs[Keys.AI_MODEL] ?: AiModel.AUTO.slug)
     }
 
     val scheduleDayTemplates: Flow<ScheduleWeekTemplates> = context.dataStore.data.map { prefs ->

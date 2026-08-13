@@ -651,9 +651,10 @@ class AiViewModel @Inject constructor(
                     android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
                 }
                 val attachmentText = attachment?.takeIf { !it.isImage }?.textContent
-                val visionModel = imageBase64?.let {
-                    preferences.aiModel.first().slug
-                }
+                val selectedModel = preferences.aiModel.first()
+                val modelOverride = selectedModel
+                    .takeIf { it == AiModel.REASONING }
+                    ?.slug
                 val response = aiChat.execute(
                     com.edukasyon.studentai.core.ai.AiChatRequest(
                         message = displayMessage,
@@ -664,7 +665,7 @@ class AiViewModel @Inject constructor(
                         attachmentMimeType = attachmentMimeOverride ?: attachment?.mimeType,
                         imageBase64 = imageBase64,
                         attachmentText = attachmentText,
-                        model = visionModel,
+                        model = modelOverride,
                     )
                 )
                 val reply = response.reply.trim()
@@ -1098,7 +1099,7 @@ data class ProfileUiState(
     val taskReminders: Boolean = true,
     val examReminders: Boolean = true,
     val isOnline: Boolean = true,
-    val aiModel: AiModel = AiModel.STANDARD,
+    val aiModel: AiModel = AiModel.AUTO,
     val backupMessage: String? = null
 )
 
