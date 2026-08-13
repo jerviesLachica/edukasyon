@@ -112,4 +112,90 @@ object DateUtils {
 
     fun formatTimeRange(startTime: String, endTime: String): String =
         "${formatTime12h(startTime)} - ${formatTime12h(endTime)}"
+
+    fun startOfDay(timestamp: Long): Long {
+        val cal = java.util.Calendar.getInstance().apply {
+            timeInMillis = timestamp
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        return cal.timeInMillis
+    }
+
+    fun combineDateAndTime(dateMillis: Long, time: String): Long {
+        val parts = time.split(":")
+        val hour = parts.getOrNull(0)?.toIntOrNull() ?: 23
+        val minute = parts.getOrNull(1)?.toIntOrNull() ?: 59
+        val cal = java.util.Calendar.getInstance().apply {
+            timeInMillis = dateMillis
+            set(java.util.Calendar.HOUR_OF_DAY, hour)
+            set(java.util.Calendar.MINUTE, minute)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        return cal.timeInMillis
+    }
+
+    fun effectiveDueMillis(dueDate: Long?, dueTime: String?): Long? {
+        if (dueDate == null) return null
+        return if (dueTime != null) combineDateAndTime(dueDate, dueTime) else dueDate
+    }
+
+    fun toTimeString(hour: Int, minute: Int): String =
+        String.format(java.util.Locale.US, "%02d:%02d", hour, minute)
+
+    fun toTimeString(timestamp: Long): String {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
+        return toTimeString(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
+    }
+
+    fun formatFullDate(timestamp: Long): String {
+        val formatter = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault())
+        return formatter.format(java.util.Date(timestamp))
+    }
+
+    fun formatDateTime(timestamp: Long): String {
+        val formatter = java.text.SimpleDateFormat("MMM d, yyyy h:mm a", java.util.Locale.getDefault())
+        return formatter.format(java.util.Date(timestamp))
+    }
+
+    fun formatDueDateTime(dueDate: Long?, dueTime: String?): String? {
+        if (dueDate == null) return null
+        val datePart = formatFullDate(dueDate)
+        val timePart = dueTime?.let { formatTime12h(it) }
+        return if (timePart != null) "$datePart at $timePart" else datePart
+    }
+
+    fun formatReminderAt(timestamp: Long): String =
+        "${formatFullDate(timestamp)} at ${formatTime12h(toTimeString(timestamp))}"
+
+    /** Default reminder: one day before due at 9:00 AM, or same-day morning / 1 hour before if sooner. */
+    fun defaultReminderAt(dueMillis: Long): Long {
+        val dayBeforeMorning = java.util.Calendar.getInstance().apply {
+            timeInMillis = dueMillis
+            add(java.util.Calendar.DAY_OF_MONTH, -1)
+            set(java.util.Calendar.HOUR_OF_DAY, 9)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        if (dayBeforeMorning.timeInMillis > System.currentTimeMillis()) {
+            return dayBeforeMorning.timeInMillis
+        }
+        val sameDayMorning = java.util.Calendar.getInstance().apply {
+            timeInMillis = dueMillis
+            set(java.util.Calendar.HOUR_OF_DAY, 8)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        if (sameDayMorning.timeInMillis > System.currentTimeMillis()) {
+            return sameDayMorning.timeInMillis
+        }
+        return (dueMillis - 60 * 60 * 1000L).coerceAtLeast(System.currentTimeMillis() + 1000)
+    }
+
+    fun tomorrowStartOfDay(): Long = startOfDay(System.currentTimeMillis() + 86_400_000L)
 }

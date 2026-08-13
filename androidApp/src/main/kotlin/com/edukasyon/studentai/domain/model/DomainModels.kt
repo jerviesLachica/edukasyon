@@ -71,11 +71,13 @@ data class Assignment(
     val subjectId: String?,
     val description: String?,
     val dueDate: Long?,
+    val dueTime: String?,
     val attachmentUri: String?,
     val priority: Priority,
     val status: TaskStatus,
     val grade: String?,
-    val notes: String?
+    val notes: String?,
+    val reminderAt: Long?
 )
 
 data class Exam(
@@ -189,4 +191,13 @@ data class StudentContext(
     val upcomingTasks: List<Task>,
     val upcomingExams: List<Exam>,
     val relevantNotes: List<Note>
+)
+
+data class LectureFile(
+    val id: String,
+    val subjectId: String?,
+    val title: String,
+    val fileUri: String,
+    val mimeType: String,
+    val createdAt: Long
 )

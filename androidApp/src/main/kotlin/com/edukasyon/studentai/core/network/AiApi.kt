@@ -3,6 +3,7 @@ package com.edukasyon.studentai.core.network
 import com.edukasyon.studentai.domain.model.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNames
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -30,11 +31,36 @@ interface AiApiService {
     suspend fun generateStudyPlan(@Body request: StudyPlanRequest): StudyPlanResponseDto
 }
 
-@Serializable data class HealthResponseDto(val status: String, val aiConfigured: Boolean, val model: String)
-@Serializable data class ChatRequest(val message: String, val subject: String? = null, val contextSummary: String? = null, val conversationId: String? = null)
+@Serializable data class HealthResponseDto(
+    val status: String,
+    val aiConfigured: Boolean,
+    val model: String,
+    val availableModels: List<String> = emptyList(),
+    val visionModel: String? = null,
+    val textModel: String? = null,
+    val routingPolicy: String? = null,
+)
+@Serializable data class ChatRequest(
+    val message: String,
+    val subject: String? = null,
+    val contextSummary: String? = null,
+    val conversationId: String? = null,
+    val attachmentName: String? = null,
+    val attachmentMimeType: String? = null,
+    val imageBase64: String? = null,
+    val attachmentText: String? = null,
+    val model: String? = null,
+)
 @Serializable data class ChatResponseDto(val reply: String, val conversationId: String)
 @Serializable data class ScheduleAnalysisRequest(val imageBase64: String)
-@Serializable data class ExtractedClassDto(val subject: String, val teacher: String? = null, val room: String? = null, val day: String, val startTime: String, val endTime: String)
+@Serializable data class ExtractedClassDto(
+    val subject: String,
+    val teacher: String? = null,
+    val room: String? = null,
+    @JsonNames("day", "dayOfWeek", "day_of_week") val day: String,
+    val startTime: String,
+    val endTime: String,
+)
 @Serializable data class ScheduleAnalysisResponseDto(val classes: List<ExtractedClassDto>, val uncertainFields: List<String> = emptyList())
 @Serializable data class TextRequest(val text: String)
 @Serializable data class TextResponseDto(val result: String)
@@ -88,12 +114,15 @@ fun StudyPlanResponseDto.toDomain(): StudyPlan {
 
 object AiJsonParser {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
-    private val fenceRegex = Regex("```(?:json)?\\s*([\\s\\S]*?)```", RegexOption.IGNORE_CASE)
 
     fun stripMarkdownFences(raw: String): String {
         val trimmed = raw.trim()
-        val match = fenceRegex.find(trimmed)
-        return (match?.groupValues?.getOrNull(1) ?: trimmed).trim()
+        if (!trimmed.startsWith("```")) return trimmed
+        val firstNewline = trimmed.indexOf('\n')
+        val contentStart = if (firstNewline >= 0) firstNewline + 1 else 3
+        val endFence = trimmed.lastIndexOf("```")
+        if (endFence <= contentStart) return trimmed
+        return trimmed.substring(contentStart, endFence).trim()
     }
 
     fun normalizeQuestionType(type: String): QuestionType {

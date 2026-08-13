@@ -78,3 +78,10 @@ interface QuizRepository {
 interface SearchRepository {
     fun globalSearch(query: String): Flow<Map<String, List<String>>>
 }
+
+interface LectureFileRepository {
+    fun observeFiles(): Flow<List<LectureFile>>
+    fun observeFilesBySubject(subjectId: String): Flow<List<LectureFile>>
+    suspend fun saveFile(file: LectureFile)
+    suspend fun deleteFile(id: String)
+}

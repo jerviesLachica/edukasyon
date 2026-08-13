@@ -9,7 +9,12 @@ data class AiChatRequest(
     val message: String,
     val subject: String? = null,
     val contextSummary: String? = null,
-    val conversationId: String? = null
+    val conversationId: String? = null,
+    val attachmentName: String? = null,
+    val attachmentMimeType: String? = null,
+    val imageBase64: String? = null,
+    val attachmentText: String? = null,
+    val model: String? = null,
 )
 
 data class AiChatResponse(

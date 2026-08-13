@@ -2,6 +2,7 @@ package com.edukasyon.studentai.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -16,20 +17,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.edukasyon.studentai.domain.model.GradeEntry
 import com.edukasyon.studentai.domain.model.Note
+import com.edukasyon.studentai.domain.model.AiModel
 import com.edukasyon.studentai.domain.model.ThemeMode
+import com.edukasyon.studentai.R
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveWidth
 import com.edukasyon.studentai.ui.adaptive.AdaptiveWidth
 import com.edukasyon.studentai.ui.components.*
 import com.edukasyon.studentai.ui.theme.StudentAiGradients
 import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import com.edukasyon.studentai.ui.viewmodel.CalendarViewModel
-import com.edukasyon.studentai.ui.viewmodel.GradesViewModel
 import com.edukasyon.studentai.ui.viewmodel.NotesViewModel
 import com.edukasyon.studentai.ui.viewmodel.ProfileViewModel
 import java.util.UUID
@@ -39,6 +41,7 @@ import java.util.UUID
 fun ProfileScreen(
     onNavigateChat: () -> Unit = {},
     onNavigateFeaturesGuide: () -> Unit = {},
+    onNavigateNotificationSettings: () -> Unit = {},
     onRequestNotificationPermission: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
@@ -174,6 +177,15 @@ fun ProfileScreen(
         item {
             SettingsGroup(title = "Notifications") {
                 SettingsRow(
+                    title = "Notification settings",
+                    subtitle = "Class alerts, DND bypass, battery optimization",
+                    trailing = {
+                        TextButton(onClick = onNavigateNotificationSettings) {
+                            Text("Open")
+                        }
+                    }
+                )
+                SettingsRow(
                     title = "Enable notifications",
                     subtitle = "Master toggle for all reminders",
                     trailing = {
@@ -249,6 +261,32 @@ fun ProfileScreen(
                         )
                     }
                 )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Vision model (image chats)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "Text-only chat uses the auto model. Standard/Pro applies when you attach photos or images (e.g. homework, schedule screenshots).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AiModel.entries.forEach { model ->
+                        FilterChip(
+                            selected = state.aiModel == model,
+                            onClick = { viewModel.setAiModel(model) },
+                            label = {
+                                Text("${model.displayName} (${model.slug})")
+                            },
+                            leadingIcon = if (state.aiModel == model) {
+                                { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                            } else null
+                        )
+                    }
+                }
             }
         }
 
@@ -292,42 +330,6 @@ fun NotesScreen(viewModel: NotesViewModel = hiltViewModel()) {
         AlertDialog(onDismissRequest = { showAdd = false }, title = { Text("New Note") },
             text = { Column { OutlinedTextField(title, { title = it }, label = { Text("Title") }); OutlinedTextField(content, { content = it }, label = { Text("Content") }, minLines = 4) } },
             confirmButton = { TextButton(onClick = { val now = System.currentTimeMillis(); viewModel.saveNote(Note(UUID.randomUUID().toString(), title, content, null, emptyList(), now, now, false, false)); showAdd = false }) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { showAdd = false }) { Text("Cancel") } })
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var showAdd by remember { mutableStateOf(false) }
-
-    Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text("Grades") })
-        Card(Modifier.fillMaxWidth().padding(16.dp)) {
-            Column(Modifier.padding(16.dp)) {
-                Text("Weighted Grade", style = MaterialTheme.typography.titleSmall)
-                Text("%.1f%%".format(state.weightedGrade), style = MaterialTheme.typography.headlineMedium)
-            }
-        }
-        if (state.entries.isEmpty()) EmptyState("No grades", "Add your first grade entry.", actionLabel = "Add Grade", onAction = { showAdd = true })
-        else LazyColumn {
-            items(state.entries) { entry ->
-                StudentAiCard {
-                    Text(entry.assessment, style = MaterialTheme.typography.titleSmall)
-                    Text("${entry.score}/${entry.maxScore} (${entry.category}, weight ${entry.weight})")
-                }
-            }
-        }
-        FloatingActionButton(onClick = { showAdd = true }, modifier = Modifier.padding(16.dp)) { Icon(Icons.Default.Add, null) }
-    }
-    if (showAdd) {
-        var assessment by remember { mutableStateOf("") }
-        var score by remember { mutableStateOf("") }
-        var maxScore by remember { mutableStateOf("100") }
-        AlertDialog(onDismissRequest = { showAdd = false }, title = { Text("Add Grade") },
-            text = { Column { OutlinedTextField(assessment, { assessment = it }, label = { Text("Assessment") }); OutlinedTextField(score, { score = it }, label = { Text("Score") }); OutlinedTextField(maxScore, { maxScore = it }, label = { Text("Max Score") }) } },
-            confirmButton = { TextButton(onClick = { viewModel.addGrade(GradeEntry(UUID.randomUUID().toString(), "default", assessment, "General", score.toDoubleOrNull() ?: 0.0, maxScore.toDoubleOrNull() ?: 100.0, 1.0, "1st")); showAdd = false }) { Text("Add") } },
             dismissButton = { TextButton(onClick = { showAdd = false }) { Text("Cancel") } })
     }
 }
@@ -399,6 +401,14 @@ fun OnboardingScreen(
     val scrollState = rememberScrollState()
     val adaptiveWidth = rememberAdaptiveWidth()
 
+    val notificationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { _ -> viewModel.refreshPermissionState() }
+
+    LaunchedEffect(state.step) {
+        viewModel.refreshPermissionState()
+    }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -407,18 +417,32 @@ fun OnboardingScreen(
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (state.step > 0) {
+                IconButton(onClick = viewModel::previousStep) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                }
+            } else {
+                Spacer(Modifier.size(48.dp))
+            }
+            LinearProgressIndicator(
+                progress = { state.progress },
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp)
+                    .clip(StudentAiShapes.chip)
+            )
+        }
+
+        Spacer(Modifier.height(24.dp))
+        OnboardingIllustration(step = state.step)
         Spacer(Modifier.height(24.dp))
 
-        OnboardingIllustration(step = state.step)
-
-        Spacer(Modifier.height(32.dp))
-
         Box(
-            modifier = if (adaptiveWidth == AdaptiveWidth.Expanded) {
-                Modifier.width(560.dp)
-            } else {
-                Modifier.fillMaxWidth()
-            }
+            modifier = if (adaptiveWidth == AdaptiveWidth.Expanded) Modifier.width(560.dp) else Modifier.fillMaxWidth()
         ) {
             AnimatedContent(
                 targetState = state.step,
@@ -433,115 +457,231 @@ fun OnboardingScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     when (step) {
-                        0 -> {
-                            Text(
-                                "Welcome to StudentAI",
-                                style = MaterialTheme.typography.headlineMedium,
-                                textAlign = TextAlign.Center
-                            )
-                            Text(
-                                "Your intelligent student companion for schedules, tasks, notes, and AI-powered study tools.",
-                                textAlign = TextAlign.Center,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Button(
-                                onClick = viewModel::nextStep,
-                                enabled = !state.isSaving,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = StudentAiShapes.button
-                            ) {
-                                Text("Get Started")
-                            }
-                            OutlinedButton(
-                                onClick = { viewModel.completeGuestOnboarding(onFinished = onComplete) },
-                                enabled = !state.isSaving,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = StudentAiShapes.button
-                            ) {
-                                Text("Continue Offline as Guest")
-                            }
-                        }
-
-                        1 -> {
-                            Text("School Setup", style = MaterialTheme.typography.headlineMedium)
-                            Text(
-                                "Tell us about your school so we can personalize your experience.",
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            OutlinedTextField(
-                                state.school,
-                                { viewModel.updateSchool(it) },
-                                label = { Text("School Name") },
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !state.isSaving,
-                                shape = StudentAiShapes.chip
-                            )
-                            OutlinedTextField(
-                                state.gradeLevel,
-                                { viewModel.updateGradeLevel(it) },
-                                label = { Text("Grade Level") },
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !state.isSaving,
-                                shape = StudentAiShapes.chip
-                            )
-                            OutlinedTextField(
-                                state.section,
-                                { viewModel.updateSection(it) },
-                                label = { Text("Section") },
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !state.isSaving,
-                                shape = StudentAiShapes.chip
-                            )
-                            Button(
-                                onClick = viewModel::nextStep,
-                                enabled = !state.isSaving,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = StudentAiShapes.button
-                            ) {
-                                Text("Continue")
-                            }
-                        }
-
-                        else -> {
-                            Text("You're all set!", style = MaterialTheme.typography.headlineMedium)
-                            Text(
-                                "Start by adding your schedule or scanning it with AI.",
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Button(
-                                onClick = { viewModel.completeGuestOnboarding(onFinished = onComplete) },
-                                enabled = !state.isSaving,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = StudentAiShapes.button
-                            ) {
-                                Icon(Icons.Default.RocketLaunch, null, Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(if (state.isSaving) "Saving…" else "Enter StudentAI")
-                            }
-                        }
+                        0 -> OnboardingWelcomeStep(state, viewModel)
+                        1 -> OnboardingSchoolStep(state, viewModel)
+                        2 -> OnboardingAppearanceStep(state, viewModel)
+                        3 -> OnboardingPermissionsStep(
+                            state = state,
+                            onRequestNotifications = {
+                                if (android.os.Build.VERSION.SDK_INT >= 33) {
+                                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            },
+                            onContinue = viewModel::nextStep
+                        )
+                        4 -> OnboardingNotifyStep(state, viewModel)
+                        5 -> OnboardingWidgetsStep(
+                            onExplore = {
+                                viewModel.markWidgetsExplored()
+                                viewModel.nextStep()
+                            },
+                            onSkip = viewModel::skipWidgets
+                        )
+                        else -> OnboardingFinishStep(state, onComplete, viewModel)
                     }
                 }
             }
         }
+    }
+}
 
-        Spacer(Modifier.height(16.dp))
-        LinearProgressIndicator(
-            progress = { (state.step + 1) / 3f },
-            modifier = Modifier
-                .then(if (adaptiveWidth == AdaptiveWidth.Expanded) Modifier.width(560.dp) else Modifier.fillMaxWidth())
-                .clip(StudentAiShapes.chip)
-        )
+@Composable
+private fun OnboardingWelcomeStep(
+    state: com.edukasyon.studentai.ui.viewmodel.OnboardingUiState,
+    viewModel: com.edukasyon.studentai.ui.viewmodel.OnboardingViewModel
+) {
+    Text("Welcome to StudentAI", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+    Text(
+        "Let's get to know you so we can personalize your study companion.",
+        textAlign = TextAlign.Center,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    OutlinedTextField(
+        value = state.displayName,
+        onValueChange = viewModel::updateDisplayName,
+        label = { Text("Your name") },
+        modifier = Modifier.fillMaxWidth(),
+        shape = StudentAiShapes.chip,
+        enabled = !state.isSaving
+    )
+    Button(
+        onClick = viewModel::nextStep,
+        enabled = state.displayName.isNotBlank() && !state.isSaving,
+        modifier = Modifier.fillMaxWidth(),
+        shape = StudentAiShapes.button
+    ) { Text("Continue") }
+}
+
+@Composable
+private fun OnboardingSchoolStep(
+    state: com.edukasyon.studentai.ui.viewmodel.OnboardingUiState,
+    viewModel: com.edukasyon.studentai.ui.viewmodel.OnboardingViewModel
+) {
+    Text("School details", style = MaterialTheme.typography.headlineMedium)
+    Text(
+        "Tell us about your school so we can personalize your experience.",
+        textAlign = TextAlign.Center,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    OutlinedTextField(state.school, viewModel::updateSchool, label = { Text("School") }, modifier = Modifier.fillMaxWidth(), shape = StudentAiShapes.chip)
+    OutlinedTextField(state.gradeLevel, viewModel::updateGradeLevel, label = { Text("Grade level") }, modifier = Modifier.fillMaxWidth(), shape = StudentAiShapes.chip)
+    OutlinedTextField(state.section, viewModel::updateSection, label = { Text("Section") }, modifier = Modifier.fillMaxWidth(), shape = StudentAiShapes.chip)
+    Button(onClick = viewModel::nextStep, modifier = Modifier.fillMaxWidth(), shape = StudentAiShapes.button) { Text("Continue") }
+}
+
+@Composable
+private fun OnboardingAppearanceStep(
+    state: com.edukasyon.studentai.ui.viewmodel.OnboardingUiState,
+    viewModel: com.edukasyon.studentai.ui.viewmodel.OnboardingViewModel
+) {
+    Text("Appearance", style = MaterialTheme.typography.headlineMedium)
+    Text("Choose a theme — you can change this anytime in Profile.", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ThemeMode.entries.forEach { mode ->
+            FilterChip(
+                selected = state.themeMode == mode,
+                onClick = { viewModel.setTheme(mode) },
+                label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                leadingIcon = if (state.themeMode == mode) {
+                    { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                } else null
+            )
+        }
+    }
+    Button(onClick = viewModel::nextStep, modifier = Modifier.fillMaxWidth(), shape = StudentAiShapes.button) { Text("Continue") }
+}
+
+@Composable
+private fun OnboardingPermissionsStep(
+    state: com.edukasyon.studentai.ui.viewmodel.OnboardingUiState,
+    onRequestNotifications: () -> Unit,
+    onContinue: () -> Unit
+) {
+    Text("Stay on track", style = MaterialTheme.typography.headlineMedium)
+    Text(
+        "StudentAI uses notifications for class reminders, tasks, and exams. Grant permission so alerts arrive on time.",
+        textAlign = TextAlign.Center,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    if (android.os.Build.VERSION.SDK_INT >= 33 && !state.notificationPermissionGranted) {
+        Button(onClick = onRequestNotifications, modifier = Modifier.fillMaxWidth(), shape = StudentAiShapes.button) {
+            Text("Allow notifications")
+        }
+    } else {
+        Text("Notifications enabled ✓", color = MaterialTheme.colorScheme.secondary)
+    }
+    OutlinedButton(onClick = onContinue, modifier = Modifier.fillMaxWidth(), shape = StudentAiShapes.button) {
+        Text("Continue")
+    }
+}
+
+@Composable
+private fun OnboardingNotifyStep(
+    state: com.edukasyon.studentai.ui.viewmodel.OnboardingUiState,
+    viewModel: com.edukasyon.studentai.ui.viewmodel.OnboardingViewModel
+) {
+    Text("Notify me", style = MaterialTheme.typography.headlineMedium)
+    Text("When should we remind you about classes?", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    SettingsRow(
+        title = "Class reminders",
+        trailing = { Switch(checked = state.classReminders, onCheckedChange = viewModel::setClassReminders) }
+    )
+    SettingsRow(
+        title = "At class time",
+        trailing = { Switch(checked = state.classReminderAtTime, onCheckedChange = viewModel::setClassReminderAtTime, enabled = state.classReminders) }
+    )
+    SettingsRow(
+        title = "15 minutes before",
+        trailing = { Switch(checked = state.classReminder15MinBefore, onCheckedChange = viewModel::setClassReminder15MinBefore, enabled = state.classReminders) }
+    )
+    SettingsRow(
+        title = "Task reminders",
+        trailing = { Switch(checked = state.taskReminders, onCheckedChange = viewModel::setTaskReminders) }
+    )
+    SettingsRow(
+        title = "Exam reminders",
+        trailing = { Switch(checked = state.examReminders, onCheckedChange = viewModel::setExamReminders) }
+    )
+    Button(onClick = viewModel::nextStep, modifier = Modifier.fillMaxWidth(), shape = StudentAiShapes.button) { Text("Continue") }
+}
+
+@Composable
+private fun OnboardingWidgetsStep(onExplore: () -> Unit, onSkip: () -> Unit) {
+    Text("Home screen widgets", style = MaterialTheme.typography.headlineMedium)
+    Text(
+        "Pin a widget to see today's schedule or upcoming tasks without opening the app.",
+        textAlign = TextAlign.Center,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    WidgetSetupCard(modifier = Modifier.fillMaxWidth())
+    Button(onClick = onExplore, modifier = Modifier.fillMaxWidth(), shape = StudentAiShapes.button) { Text("Got it") }
+    TextButton(onClick = onSkip) { Text("Skip for now") }
+}
+
+@Composable
+private fun OnboardingFinishStep(
+    state: com.edukasyon.studentai.ui.viewmodel.OnboardingUiState,
+    onComplete: () -> Unit,
+    viewModel: com.edukasyon.studentai.ui.viewmodel.OnboardingViewModel
+) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(72.dp)) {
+            Box(contentAlignment = Alignment.Center) {
+                Text("🎓", style = MaterialTheme.typography.headlineMedium)
+            }
+        }
+        Surface(shape = StudentAiShapes.chip, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            Text(
+                "You're all set!",
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
+    }
+    Text(
+        "Here's what we set up, ${state.displayName.ifBlank { "Student" }}.",
+        textAlign = TextAlign.Center,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        OnboardingSummaryRow("Appearance", state.appearanceLabel)
+        OnboardingSummaryRow("Permissions", "${state.permissionsGrantedCount}/3 granted")
+        OnboardingSummaryRow("Notify me", state.notifyMeSummary)
+        OnboardingSummaryRow("Widgets", state.widgetsLabel)
+        OnboardingSummaryRow("Profile", state.displayName.ifBlank { "Not set" })
+    }
+    Button(
+        onClick = { viewModel.completeOnboarding(onFinished = onComplete) },
+        enabled = !state.isSaving,
+        modifier = Modifier.fillMaxWidth(),
+        shape = StudentAiShapes.button
+    ) {
+        Text(if (state.isSaving) "Saving…" else "Finish")
+    }
+}
+
+@Composable
+private fun OnboardingSummaryRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+        }
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
 private fun OnboardingIllustration(step: Int) {
+    if (step == 0) {
+        Image(
+            painter = painterResource(R.drawable.wala),
+            contentDescription = "Edukasyon logo",
+            modifier = Modifier.size(120.dp),
+        )
+        return
+    }
     val icon = when (step) {
-        0 -> Icons.Default.School
         1 -> Icons.Default.Edit
         else -> Icons.Default.CheckCircle
     }

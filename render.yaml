@@ -11,9 +11,14 @@ services:
     startCommand: npm start
     healthCheckPath: /health
     envVars:
+      # Set AI_API_KEY in Render Dashboard (Secret) — never commit the real key to git.
       - key: AI_API_KEY
         sync: false
       - key: AI_MODEL
-        value: auto
+        value: claude-opus-4-8
+      - key: TEXT_MODEL
+        value: claude-opus-4-8
       - key: AI_BASE_URL
-        value: https://api.hcnsec.cn/v1
+        value: https://agentrouter.org/v1
+      - key: AI_USER_AGENT
+        value: QwenCode/0.2.0 (linux; x64)

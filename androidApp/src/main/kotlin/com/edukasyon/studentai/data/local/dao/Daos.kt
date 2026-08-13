@@ -260,8 +260,16 @@ interface SyncMetadataDao {
 
 @Dao
 interface AiConversationDao {
-    @Query("SELECT * FROM conversations ORDER BY updatedAt DESC")
-    fun observeAll(): Flow<List<ConversationEntity>>
+    @Query("SELECT * FROM conversations WHERE conversationType IS NULL ORDER BY updatedAt DESC")
+    fun observeStudyGroups(): Flow<List<ConversationEntity>>
+
+    @Query(
+        "SELECT * FROM conversations WHERE conversationType IN (:types) ORDER BY updatedAt DESC"
+    )
+    fun observeByTypes(types: List<String>): Flow<List<ConversationEntity>>
+
+    @Query("SELECT * FROM conversations WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): ConversationEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(conversation: ConversationEntity)
@@ -269,8 +277,19 @@ interface AiConversationDao {
     @Query("UPDATE conversations SET updatedAt = :updatedAt WHERE id = :id")
     suspend fun touchUpdatedAt(id: String, updatedAt: Long)
 
+    @Query(
+        "UPDATE conversations SET backendConversationId = :backendId, updatedAt = :updatedAt WHERE id = :id"
+    )
+    suspend fun updateBackendConversationId(id: String, backendId: String, updatedAt: Long)
+
+    @Query("UPDATE conversations SET title = :title, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateTitle(id: String, title: String, updatedAt: Long)
+
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY sentAt ASC")
     fun observeMessages(conversationId: String): Flow<List<MessageEntity>>
+
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY sentAt ASC")
+    suspend fun getMessages(conversationId: String): List<MessageEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: MessageEntity)
@@ -292,4 +311,19 @@ interface CachedHolidayDao {
 
     @Query("DELETE FROM ph_holidays_cache WHERE year = :year")
     suspend fun deleteByYear(year: Int)
+}
+
+@Dao
+interface LectureFileDao {
+    @Query("SELECT * FROM lecture_files ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<LectureFileEntity>>
+
+    @Query("SELECT * FROM lecture_files WHERE subjectId = :subjectId ORDER BY createdAt DESC")
+    fun observeBySubject(subjectId: String): Flow<List<LectureFileEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(file: LectureFileEntity)
+
+    @Query("DELETE FROM lecture_files WHERE id = :id")
+    suspend fun deleteById(id: String)
 }

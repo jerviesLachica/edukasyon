@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">StudentAI</string>
-    <string name="widget_2x2_description">Today\'s tasks or schedule at a glance</string>
+    <string name="widget_2x2_description">Today tasks or schedule at a glance</string>
     <string name="widget_2x3_description">Combined tasks, schedule, and mini calendar</string>
+    <string name="widget_2x2_label">StudentAI 2×2</string>
+    <string name="widget_2x3_label">StudentAI 2×3</string>
     <string name="widget_add_title">Home screen widget</string>
     <string name="widget_add_subtitle">Long-press your home screen → Widgets → StudentAI. Choose 2×2 or 2×3, then pick tasks, schedule, or combined view.</string>
 </resources>

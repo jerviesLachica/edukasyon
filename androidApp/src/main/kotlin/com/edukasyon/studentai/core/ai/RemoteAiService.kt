@@ -14,22 +14,25 @@ import retrofit2.HttpException
 class RemoteAiService @Inject constructor(
     private val api: AiApiService
 ) : AiService {
-    override suspend fun chat(request: AiChatRequest): AiChatResponse {
-        return try {
-            val response = api.chat(
-                com.edukasyon.studentai.core.network.ChatRequest(
-                    message = request.message,
-                    subject = request.subject,
-                    contextSummary = request.contextSummary,
-                    conversationId = request.conversationId
-                )
+    override suspend fun chat(request: AiChatRequest): AiChatResponse = apiCall {
+        val response = api.chat(
+            com.edukasyon.studentai.core.network.ChatRequest(
+                message = request.message,
+                subject = request.subject,
+                contextSummary = request.contextSummary,
+                conversationId = request.conversationId,
+                attachmentName = request.attachmentName,
+                attachmentMimeType = request.attachmentMimeType,
+                imageBase64 = request.imageBase64,
+                attachmentText = request.attachmentText,
+                model = request.model,
             )
-            AiChatResponse(reply = response.reply, conversationId = response.conversationId)
-        } catch (e: IOException) {
-            throw AiException("No internet connection. AI features require an online connection.", e)
-        } catch (e: Exception) {
-            throw AiException("AI service is temporarily unavailable.", e)
+        )
+        val reply = response.reply.trim()
+        if (reply.isEmpty()) {
+            throw AiException("Gizmo returned an empty reply. Please try again.")
         }
+        AiChatResponse(reply = reply, conversationId = response.conversationId)
     }
 
     override suspend fun analyzeSchedule(imageData: ByteArray): ScheduleAnalysisResult {

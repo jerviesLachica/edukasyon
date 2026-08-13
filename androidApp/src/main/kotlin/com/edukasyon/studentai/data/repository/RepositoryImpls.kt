@@ -8,6 +8,7 @@ import com.edukasyon.studentai.data.mapper.*
 import com.edukasyon.studentai.domain.model.*
 import com.edukasyon.studentai.domain.repository.*
 import com.edukasyon.studentai.widget.WidgetUpdater
+import dagger.Lazy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -58,6 +59,7 @@ class ScheduleRepositoryImpl @Inject constructor(
 class TaskRepositoryImpl @Inject constructor(
     private val taskDao: TaskDao,
     private val subtaskDao: SubtaskDao,
+    private val reminderSyncService: Lazy<com.edukasyon.studentai.core.notifications.ReminderSyncService>,
     @ApplicationContext private val context: Context
 ) : TaskRepository {
     override fun observeTasks(): Flow<List<Task>> =
@@ -75,6 +77,7 @@ class TaskRepositoryImpl @Inject constructor(
         taskDao.insert(task.toEntity())
         subtaskDao.deleteByTask(task.id)
         task.subtasks.forEach { subtaskDao.insert(it.toEntity()) }
+        reminderSyncService.get().scheduleTaskReminder(task)
         WidgetUpdater.notifyDataChanged(context)
     }
 
@@ -84,6 +87,7 @@ class TaskRepositoryImpl @Inject constructor(
         val tasks = taskDao.observeAll().first()
         tasks.find { it.id == id }?.let { entity ->
             taskDao.insert(entity.copy(status = TaskStatus.COMPLETED.name, completedAt = System.currentTimeMillis(), updatedAt = System.currentTimeMillis()))
+            reminderSyncService.get().cancelTaskReminder(id)
         }
         WidgetUpdater.notifyDataChanged(context)
     }
@@ -91,6 +95,7 @@ class TaskRepositoryImpl @Inject constructor(
     override suspend fun deleteTask(id: String) {
         val now = System.currentTimeMillis()
         taskDao.softDelete(id, now, now)
+        reminderSyncService.get().cancelTaskReminder(id)
         WidgetUpdater.notifyDataChanged(context)
     }
 
@@ -103,29 +108,45 @@ private fun Subtask.toEntity() = com.edukasyon.studentai.data.local.entity.Subta
 )
 
 @Singleton
-class AssignmentRepositoryImpl @Inject constructor(private val assignmentDao: AssignmentDao) : AssignmentRepository {
+class AssignmentRepositoryImpl @Inject constructor(
+    private val assignmentDao: AssignmentDao,
+    private val reminderSyncService: Lazy<com.edukasyon.studentai.core.notifications.ReminderSyncService>
+) : AssignmentRepository {
     override fun observeAssignments(): Flow<List<Assignment>> =
         assignmentDao.observeAll().map { it.map { e -> e.toDomain() } }
 
-    override suspend fun saveAssignment(assignment: Assignment) = assignmentDao.insert(assignment.toEntity())
+    override suspend fun saveAssignment(assignment: Assignment) {
+        assignmentDao.insert(assignment.toEntity())
+        reminderSyncService.get().scheduleAssignmentReminder(assignment)
+    }
+
     override suspend fun deleteAssignment(id: String) {
         val now = System.currentTimeMillis()
         assignmentDao.softDelete(id, now, now)
+        reminderSyncService.get().cancelAssignmentReminder(id)
     }
 }
 
 @Singleton
-class ExamRepositoryImpl @Inject constructor(private val examDao: ExamDao) : ExamRepository {
+class ExamRepositoryImpl @Inject constructor(
+    private val examDao: ExamDao,
+    private val reminderSyncService: Lazy<com.edukasyon.studentai.core.notifications.ReminderSyncService>
+) : ExamRepository {
     override fun observeExams(): Flow<List<Exam>> =
         examDao.observeAll().map { it.map { e -> e.toDomain() } }
 
     override fun observeUpcoming(limit: Int): Flow<List<Exam>> =
         examDao.observeUpcoming(System.currentTimeMillis(), limit).map { it.map { e -> e.toDomain() } }
 
-    override suspend fun saveExam(exam: Exam) = examDao.insert(exam.toEntity())
+    override suspend fun saveExam(exam: Exam) {
+        examDao.insert(exam.toEntity())
+        reminderSyncService.get().scheduleExamReminder(exam)
+    }
+
     override suspend fun deleteExam(id: String) {
         val now = System.currentTimeMillis()
         examDao.softDelete(id, now, now)
+        reminderSyncService.get().cancelExamReminder(id)
     }
 }
 
@@ -282,5 +303,24 @@ class SearchRepositoryImpl @Inject constructor(
                 if (flashcards.isNotEmpty()) put("Flashcards", flashcards)
             }
         }
+    }
+}
+
+@Singleton
+class LectureFileRepositoryImpl @Inject constructor(
+    private val lectureFileDao: LectureFileDao
+) : LectureFileRepository {
+    override fun observeFiles(): Flow<List<LectureFile>> =
+        lectureFileDao.observeAll().map { files -> files.map { it.toDomain() } }
+
+    override fun observeFilesBySubject(subjectId: String): Flow<List<LectureFile>> =
+        lectureFileDao.observeBySubject(subjectId).map { files -> files.map { it.toDomain() } }
+
+    override suspend fun saveFile(file: LectureFile) {
+        lectureFileDao.insert(file.toEntity())
+    }
+
+    override suspend fun deleteFile(id: String) {
+        lectureFileDao.deleteById(id)
     }
 }

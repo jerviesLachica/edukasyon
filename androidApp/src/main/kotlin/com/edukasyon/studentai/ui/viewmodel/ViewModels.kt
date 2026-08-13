@@ -10,8 +10,11 @@ import com.edukasyon.studentai.core.firebase.FirebaseAuthManager
 import com.edukasyon.studentai.core.firebase.FirestoreSyncService
 import com.edukasyon.studentai.domain.usecase.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import javax.inject.Inject
 
 data class HomeUiState(
@@ -87,6 +90,8 @@ data class ScheduleUiState(
     val selectedDay: DayOfWeek = DateUtils.getTodayDayOfWeek(),
     val viewMode: String = "weekly",
     val dayTemplates: ScheduleWeekTemplates = ScheduleWeekTemplates.defaults(),
+    val holidays: List<com.edukasyon.studentai.domain.model.Holiday> = emptyList(),
+    val calendarYear: Int = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR),
     val error: String? = null
 )
 
@@ -96,7 +101,9 @@ class ScheduleViewModel @Inject constructor(
     private val preferences: com.edukasyon.studentai.data.preferences.UserPreferences,
     private val addScheduleItem: AddScheduleItemUseCase,
     private val updateScheduleItem: UpdateScheduleItemUseCase,
-    private val deleteScheduleItem: DeleteScheduleItemUseCase
+    private val deleteScheduleItem: DeleteScheduleItemUseCase,
+    private val holidayRepo: com.edukasyon.studentai.data.repository.HolidayRepository,
+    private val saveCalendarEvent: SaveCalendarEventUseCase,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ScheduleUiState())
     val uiState: StateFlow<ScheduleUiState> = _uiState.asStateFlow()
@@ -111,6 +118,43 @@ class ScheduleViewModel @Inject constructor(
             preferences.scheduleDayTemplates.collect { templates ->
                 _uiState.update { it.copy(dayTemplates = templates) }
             }
+        }
+        viewModelScope.launch {
+            loadHolidaysForYear(_uiState.value.calendarYear)
+        }
+    }
+
+    fun loadHolidaysForYear(year: Int) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(calendarYear = year) }
+            val cal = java.util.Calendar.getInstance()
+            cal.set(year, java.util.Calendar.JANUARY, 1, 0, 0, 0)
+            cal.set(java.util.Calendar.MILLISECOND, 0)
+            val start = cal.timeInMillis
+            cal.set(year, java.util.Calendar.DECEMBER, 31, 23, 59, 59)
+            cal.set(java.util.Calendar.MILLISECOND, 999)
+            val end = cal.timeInMillis
+            holidayRepo.refreshYearIfStale(year, force = false)
+            val holidays = holidayRepo.getHolidays(start, end)
+            _uiState.update { it.copy(holidays = holidays) }
+        }
+    }
+
+    fun createCalendarEvent(title: String, description: String?, dateMillis: Long) {
+        viewModelScope.launch {
+            val endOfDay = dateMillis + (24 * 60 * 60 * 1000) - 1
+            saveCalendarEvent.execute(
+                CalendarEvent(
+                    id = java.util.UUID.randomUUID().toString(),
+                    title = title,
+                    description = description?.ifBlank { null },
+                    startAt = dateMillis,
+                    endAt = endOfDay,
+                    type = "EVENT",
+                    referenceId = null,
+                    colorHex = "#3949AB"
+                )
+            )
         }
     }
 
@@ -151,9 +195,11 @@ class PlannerViewModel @Inject constructor(
     private val assignmentRepo: AssignmentRepository,
     private val examRepo: ExamRepository,
     private val createTask: CreateTaskUseCase,
+    private val updateTaskUseCase: UpdateTaskUseCase,
     private val completeTaskUseCase: CompleteTaskUseCase,
     private val deleteTaskUseCase: DeleteTaskUseCase,
     private val saveAssignment: SaveAssignmentUseCase,
+    private val deleteAssignment: DeleteAssignmentUseCase,
     private val saveExam: SaveExamUseCase
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PlannerUiState())
@@ -169,9 +215,36 @@ class PlannerViewModel @Inject constructor(
 
     fun selectTab(tab: Int) { _uiState.update { it.copy(selectedTab = tab) } }
     fun addTask(task: Task) { viewModelScope.launch { createTask.execute(task) } }
+    fun updateTask(task: Task) { viewModelScope.launch { updateTaskUseCase.execute(task) } }
     fun completeTask(id: String) { viewModelScope.launch { completeTaskUseCase.execute(id) } }
+    fun toggleTask(id: String) {
+        viewModelScope.launch {
+            val task = _uiState.value.tasks.find { it.id == id } ?: return@launch
+            if (task.status == TaskStatus.COMPLETED) {
+                updateTaskUseCase.execute(
+                    task.copy(
+                        status = TaskStatus.PENDING,
+                        completedAt = null,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                )
+            } else {
+                completeTaskUseCase.execute(id)
+            }
+        }
+    }
     fun deleteTask(id: String) { viewModelScope.launch { deleteTaskUseCase.execute(id) } }
     fun addAssignment(a: Assignment) { viewModelScope.launch { saveAssignment.execute(a) } }
+    fun updateAssignment(a: Assignment) { viewModelScope.launch { saveAssignment.execute(a) } }
+    fun deleteAssignment(id: String) { viewModelScope.launch { deleteAssignment.execute(id) } }
+    fun completeAssignment(id: String) {
+        viewModelScope.launch {
+            val assignment = _uiState.value.assignments.find { it.id == id } ?: return@launch
+            if (assignment.status != TaskStatus.COMPLETED) {
+                saveAssignment.execute(assignment.copy(status = TaskStatus.COMPLETED))
+            }
+        }
+    }
     fun addExam(e: Exam) { viewModelScope.launch { saveExam.execute(e) } }
 
     fun addSubtask(taskId: String, title: String) {
@@ -238,7 +311,9 @@ class NotesViewModel @Inject constructor(
 }
 
 data class AiUiState(
-    val messages: List<Pair<String, String>> = emptyList(),
+    val messages: List<GizmoChatMessage> = emptyList(),
+    val gizmo: GizmoCompanionState = GizmoCompanionState(),
+    val isOnline: Boolean = true,
     val isLoading: Boolean = false,
     val loadingTool: AiTool? = null,
     val error: String? = null,
@@ -250,7 +325,12 @@ data class AiUiState(
     val quizSaved: Boolean = false,
     val studyPlan: StudyPlan? = null,
     val scannedClasses: List<com.edukasyon.studentai.core.ai.ExtractedClass> = emptyList(),
-    val statusMessage: String? = null
+    val statusMessage: String? = null,
+    val heartsLostThisSession: Int = 0,
+    val xpEarnedThisSession: Int = 0,
+    val activeLocalConversationId: String? = null,
+    val activeConversationType: AiConversationType? = null,
+    val restoredToolInput: String? = null,
 )
 
 enum class AiTool { TUTOR, SUMMARIZE, FLASHCARDS, QUIZ, SCANNER }
@@ -261,7 +341,8 @@ data class QuizSessionState(
     val selectedAnswer: String? = null,
     val revealed: Boolean = false,
     val correctCount: Int = 0,
-    val finished: Boolean = false
+    val finished: Boolean = false,
+    val blockedByHearts: Boolean = false,
 ) {
     val currentQuestion: QuizQuestion? get() = quiz.questions.getOrNull(currentIndex)
     val totalQuestions: Int get() = quiz.questions.size
@@ -279,12 +360,55 @@ class AiViewModel @Inject constructor(
     private val aiAnalyzeSchedule: AiAnalyzeScheduleUseCase,
     private val saveFlashcards: SaveFlashcardsUseCase,
     private val saveQuiz: SaveQuizUseCase,
-    private val addScheduleItem: AddScheduleItemUseCase
+    private val addScheduleItem: AddScheduleItemUseCase,
+    private val appContextBuilder: com.edukasyon.studentai.core.ai.AppContextBuilder,
+    private val aiActionExecutor: com.edukasyon.studentai.core.ai.AiActionExecutor,
+    private val gizmoManager: com.edukasyon.studentai.core.gamification.GizmoGamificationManager,
+    private val connectivity: com.edukasyon.studentai.core.network.ConnectivityMonitor,
+    private val preferences: com.edukasyon.studentai.data.preferences.UserPreferences,
+    private val aiConversationRepo: AiConversationRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AiUiState())
     val uiState: StateFlow<AiUiState> = _uiState.asStateFlow()
     private var pendingAction: PendingAiAction? = null
     private var lastChatMessage: String? = null
+    private var backendConversationId: String? = null
+    private var lastScannedImageBytes: ByteArray? = null
+
+    init {
+        viewModelScope.launch {
+            runCatching {
+                gizmoManager.state.collect { gizmo ->
+                    _uiState.update { it.copy(gizmo = gizmo) }
+                }
+            }
+        }
+        viewModelScope.launch {
+            runCatching { gizmoManager.refreshHearts() }
+                .onSuccess { refreshed -> _uiState.update { it.copy(gizmo = refreshed) } }
+        }
+        viewModelScope.launch {
+            connectivity.isOnline.collect { online ->
+                _uiState.update { it.copy(isOnline = online) }
+            }
+        }
+    }
+
+    private suspend fun awardXp(amount: Int, message: String? = null) {
+        runCatching {
+            val updated = gizmoManager.addXp(amount)
+            gizmoManager.recordActivity()
+            updated
+        }.onSuccess { updated ->
+            _uiState.update {
+                it.copy(
+                    gizmo = updated,
+                    xpEarnedThisSession = it.xpEarnedThisSession + amount,
+                    statusMessage = message ?: "+$amount XP",
+                )
+            }
+        }
+    }
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
@@ -294,6 +418,183 @@ class AiViewModel @Inject constructor(
         _uiState.update { it.copy(statusMessage = null) }
     }
 
+    fun consumeRestoredInput() {
+        _uiState.update { it.copy(restoredToolInput = null) }
+    }
+
+    fun startNewConversation(type: AiConversationType) {
+        backendConversationId = null
+        _uiState.update {
+            AiUiState(
+                gizmo = it.gizmo,
+                isOnline = it.isOnline,
+                xpEarnedThisSession = it.xpEarnedThisSession,
+                activeConversationType = type,
+            )
+        }
+    }
+
+    fun loadConversation(conversationId: String) {
+        viewModelScope.launch {
+            val conversation = aiConversationRepo.getConversation(conversationId) ?: return@launch
+            val storedMessages = aiConversationRepo.getMessages(conversationId)
+            backendConversationId = conversation.backendConversationId
+
+            when (conversation.type) {
+                AiConversationType.TUTOR -> {
+                    val messages = storedMessages.map { msg ->
+                        GizmoChatMessage(
+                            sender = if (msg.isUser) "You" else "Gizmo",
+                            content = msg.content,
+                            isUser = msg.isUser,
+                            timestamp = msg.sentAt,
+                            attachmentName = msg.attachmentName,
+                            attachmentIsImage = msg.attachmentIsImage,
+                        )
+                    }
+                    _uiState.update {
+                        it.copy(
+                            messages = messages,
+                            activeLocalConversationId = conversation.id,
+                            activeConversationType = conversation.type,
+                            error = null,
+                            lastSummary = null,
+                            generatedFlashcards = emptyList(),
+                            generatedQuiz = null,
+                            quizSession = null,
+                            restoredToolInput = null,
+                        )
+                    }
+                }
+                AiConversationType.SUMMARIZE -> {
+                    val userInput = storedMessages.firstOrNull { it.isUser }?.content.orEmpty()
+                    val summary = storedMessages
+                        .firstOrNull { !it.isUser }
+                        ?.let { msg ->
+                            com.edukasyon.studentai.core.ai.AiConversationMetadata
+                                .decode(msg.metadataJson)?.summary ?: msg.content
+                        }
+                    _uiState.update {
+                        it.copy(
+                            messages = emptyList(),
+                            activeLocalConversationId = conversation.id,
+                            activeConversationType = conversation.type,
+                            lastSummary = summary,
+                            restoredToolInput = userInput,
+                            generatedFlashcards = emptyList(),
+                            generatedQuiz = null,
+                            quizSession = null,
+                            error = null,
+                        )
+                    }
+                }
+                AiConversationType.FLASHCARDS -> {
+                    val userInput = storedMessages.firstOrNull { it.isUser }?.content.orEmpty()
+                    val cards = storedMessages
+                        .firstOrNull { !it.isUser }
+                        ?.let { msg ->
+                            com.edukasyon.studentai.core.ai.AiConversationMetadata
+                                .decode(msg.metadataJson)
+                                ?.let(com.edukasyon.studentai.core.ai.AiConversationMetadata::toFlashcards)
+                        }.orEmpty()
+                    _uiState.update {
+                        it.copy(
+                            messages = emptyList(),
+                            activeLocalConversationId = conversation.id,
+                            activeConversationType = conversation.type,
+                            generatedFlashcards = cards,
+                            flashcardsSaved = false,
+                            restoredToolInput = userInput,
+                            lastSummary = null,
+                            generatedQuiz = null,
+                            quizSession = null,
+                            error = null,
+                        )
+                    }
+                }
+                AiConversationType.QUIZ -> {
+                    val userInput = storedMessages.firstOrNull { it.isUser }?.content.orEmpty()
+                    val quiz = storedMessages
+                        .firstOrNull { !it.isUser }
+                        ?.let { msg ->
+                            com.edukasyon.studentai.core.ai.AiConversationMetadata
+                                .decode(msg.metadataJson)
+                                ?.let(com.edukasyon.studentai.core.ai.AiConversationMetadata::toQuiz)
+                        }
+                    _uiState.update {
+                        it.copy(
+                            messages = emptyList(),
+                            activeLocalConversationId = conversation.id,
+                            activeConversationType = conversation.type,
+                            generatedQuiz = quiz,
+                            quizSession = quiz?.let { q -> QuizSessionState(quiz = q) },
+                            quizSaved = false,
+                            restoredToolInput = userInput,
+                            lastSummary = null,
+                            generatedFlashcards = emptyList(),
+                            error = null,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun ensureTutorConversation(title: String): String {
+        val existing = _uiState.value.activeLocalConversationId
+        if (existing != null && _uiState.value.activeConversationType == AiConversationType.TUTOR) {
+            return existing
+        }
+        val conversation = aiConversationRepo.createConversation(
+            type = AiConversationType.TUTOR,
+            title = titleFromText(title),
+        )
+        _uiState.update {
+            it.copy(
+                activeLocalConversationId = conversation.id,
+                activeConversationType = AiConversationType.TUTOR,
+            )
+        }
+        return conversation.id
+    }
+
+    private suspend fun createToolConversation(type: AiConversationType, title: String): String {
+        val conversation = aiConversationRepo.createConversation(type, titleFromText(title))
+        backendConversationId = null
+        _uiState.update {
+            it.copy(
+                activeLocalConversationId = conversation.id,
+                activeConversationType = type,
+            )
+        }
+        return conversation.id
+    }
+
+    private suspend fun safePersistMessage(message: AiConversationMessage) {
+        runCatching { aiConversationRepo.saveMessage(message) }
+            .onFailure { Log.w(TAG, "Failed to persist AI message ${message.id}", it) }
+    }
+
+    private suspend fun safePersistBackendConversationId(localId: String, backendId: String) {
+        runCatching {
+            backendConversationId = backendId
+            aiConversationRepo.updateBackendConversationId(localId, backendId)
+        }.onFailure { Log.w(TAG, "Failed to persist backend conversation id", it) }
+    }
+
+    private fun aiErrorMessage(error: Throwable): String = when (error) {
+        is com.edukasyon.studentai.core.ai.AiException ->
+            error.message ?: "Could not reach Gizmo. Check your connection and try again."
+        else -> error.message ?: "Could not reach Gizmo. Check your connection and try again."
+    }
+
+    private fun titleFromText(text: String): String {
+        val trimmed = text.trim().replace("\n", " ")
+        return if (trimmed.length <= 48) trimmed.ifBlank { "AI session" } else trimmed.take(45) + "…"
+    }
+
+    private fun aiMessageId(): String = java.util.UUID.randomUUID().toString()
+
     fun retryLastAction() {
         val action = pendingAction ?: return
         when (action.tool) {
@@ -301,28 +602,128 @@ class AiViewModel @Inject constructor(
             AiTool.FLASHCARDS -> generateFlashcards(action.text)
             AiTool.QUIZ -> generateQuiz(action.text)
             AiTool.TUTOR -> lastChatMessage?.let { sendMessage(it) }
-            AiTool.SCANNER -> Unit
+            AiTool.SCANNER -> lastScannedImageBytes?.let { analyzeScheduleImage(it) }
         }
     }
 
-    fun sendMessage(message: String, subject: String? = null) {
-        if (message.isBlank()) return
-        lastChatMessage = message
-        pendingAction = PendingAiAction(AiTool.TUTOR, message)
+    fun sendMessage(message: String, subject: String? = null, attachment: ChatAttachmentPayload? = null) {
+        if (message.isBlank() && attachment == null) return
+        val displayMessage = message.ifBlank { "Please help me with this attachment." }
+        lastChatMessage = displayMessage
+        pendingAction = PendingAiAction(AiTool.TUTOR, displayMessage)
+        val userTimestamp = System.currentTimeMillis()
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, loadingTool = AiTool.TUTOR, error = null) }
             try {
-                val response = aiChat.execute(com.edukasyon.studentai.core.ai.AiChatRequest(message, subject))
+                val localId = ensureTutorConversation(displayMessage)
+                val userMessage = GizmoChatMessage(
+                    sender = "You",
+                    content = displayMessage,
+                    isUser = true,
+                    timestamp = userTimestamp,
+                    attachmentName = attachment?.fileName,
+                    attachmentIsImage = attachment?.isImage == true,
+                )
+                _uiState.update {
+                    it.copy(
+                        isLoading = true,
+                        loadingTool = AiTool.TUTOR,
+                        error = null,
+                        messages = it.messages + userMessage,
+                    )
+                }
+                safePersistMessage(
+                    AiConversationMessage(
+                        id = aiMessageId(),
+                        conversationId = localId,
+                        isUser = true,
+                        content = displayMessage,
+                        sentAt = userTimestamp,
+                        attachmentName = attachment?.fileName,
+                        attachmentIsImage = attachment?.isImage == true,
+                    )
+                )
+                val contextSummary = runCatching { appContextBuilder.buildSummary() }.getOrNull()
+                var attachmentMimeOverride: String? = null
+                val imageBase64 = attachment?.takeIf { it.isImage }?.let { img ->
+                    val (bytes, mime) = com.edukasyon.studentai.core.util.ChatAttachmentUtils
+                        .compressImageBytes(img.bytes, img.mimeType)
+                    attachmentMimeOverride = mime
+                    android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                }
+                val attachmentText = attachment?.takeIf { !it.isImage }?.textContent
+                val visionModel = imageBase64?.let {
+                    preferences.aiModel.first().slug
+                }
+                val response = aiChat.execute(
+                    com.edukasyon.studentai.core.ai.AiChatRequest(
+                        message = displayMessage,
+                        subject = subject,
+                        contextSummary = contextSummary,
+                        conversationId = backendConversationId,
+                        attachmentName = attachment?.fileName,
+                        attachmentMimeType = attachmentMimeOverride ?: attachment?.mimeType,
+                        imageBase64 = imageBase64,
+                        attachmentText = attachmentText,
+                        model = visionModel,
+                    )
+                )
+                val reply = response.reply.trim()
+                if (reply.isEmpty()) {
+                    throw com.edukasyon.studentai.core.ai.AiException(
+                        "Gizmo returned an empty reply. Please try again."
+                    )
+                }
+                safePersistBackendConversationId(localId, response.conversationId)
+                val parsed = com.edukasyon.studentai.core.ai.AiActionParser.parse(reply)
+                val appliedActions = runCatching {
+                    if (parsed.actions.isNotEmpty()) aiActionExecutor.execute(parsed.actions) else emptyList()
+                }.getOrElse { emptyList() }
+                val assistantTimestamp = System.currentTimeMillis()
+                safePersistMessage(
+                    AiConversationMessage(
+                        id = aiMessageId(),
+                        conversationId = localId,
+                        isUser = false,
+                        content = parsed.displayText,
+                        sentAt = assistantTimestamp,
+                    )
+                )
+                awardXp(GizmoConstants.XP_CHAT)
                 _uiState.update { s ->
                     s.copy(
                         isLoading = false,
                         loadingTool = null,
-                        messages = s.messages + ("You" to message) + ("AI" to response.reply)
+                        messages = s.messages + GizmoChatMessage(
+                            "Gizmo",
+                            parsed.displayText,
+                            isUser = false,
+                            timestamp = assistantTimestamp,
+                        ),
+                        statusMessage = appliedActions.takeIf { it.isNotEmpty() }?.joinToString(" · "),
                     )
                 }
-            } catch (e: com.edukasyon.studentai.core.ai.AiException) {
-                _uiState.update { it.copy(isLoading = false, loadingTool = null, error = e.message) }
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isLoading = false, loadingTool = null) }
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Gizmo chat failed", e)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        loadingTool = null,
+                        error = aiErrorMessage(e),
+                    )
+                }
             }
+        }
+    }
+
+    fun sendQuickPrompt(prompt: String) = sendMessage(prompt)
+
+    fun toggleMemoriseMode() {
+        viewModelScope.launch {
+            val updated = gizmoManager.setMemoriseMode(!_uiState.value.gizmo.memoriseMode)
+            _uiState.update { it.copy(gizmo = updated) }
         }
     }
 
@@ -333,13 +734,36 @@ class AiViewModel @Inject constructor(
         }
         pendingAction = PendingAiAction(AiTool.SUMMARIZE, text)
         viewModelScope.launch {
+            val localId = createToolConversation(AiConversationType.SUMMARIZE, text)
+            val userTimestamp = System.currentTimeMillis()
+            safePersistMessage(
+                AiConversationMessage(
+                    id = aiMessageId(),
+                    conversationId = localId,
+                    isUser = true,
+                    content = text,
+                    sentAt = userTimestamp,
+                )
+            )
             _uiState.update {
                 it.copy(isLoading = true, loadingTool = AiTool.SUMMARIZE, error = null, lastSummary = null)
             }
             try {
                 val result = aiSummarize.execute(text)
+                val metadata = com.edukasyon.studentai.core.ai.AiConversationMetadata.encodeSummary(result)
+                safePersistMessage(
+                    AiConversationMessage(
+                        id = aiMessageId(),
+                        conversationId = localId,
+                        isUser = false,
+                        content = result,
+                        sentAt = System.currentTimeMillis(),
+                        metadataJson = metadata,
+                    )
+                )
+                awardXp(GizmoConstants.XP_CHAT, "Summary ready · +${GizmoConstants.XP_CHAT} XP")
                 _uiState.update {
-                    it.copy(isLoading = false, loadingTool = null, lastSummary = result, statusMessage = "Summary ready")
+                    it.copy(isLoading = false, loadingTool = null, lastSummary = result)
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, loadingTool = null, error = e.message ?: "Summarize failed") }
@@ -354,6 +778,17 @@ class AiViewModel @Inject constructor(
         }
         pendingAction = PendingAiAction(AiTool.FLASHCARDS, text)
         viewModelScope.launch {
+            val localId = createToolConversation(AiConversationType.FLASHCARDS, text)
+            val userTimestamp = System.currentTimeMillis()
+            safePersistMessage(
+                AiConversationMessage(
+                    id = aiMessageId(),
+                    conversationId = localId,
+                    isUser = true,
+                    content = text,
+                    sentAt = userTimestamp,
+                )
+            )
             _uiState.update {
                 it.copy(
                     isLoading = true,
@@ -371,13 +806,20 @@ class AiViewModel @Inject constructor(
                     }
                     return@launch
                 }
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        loadingTool = null,
-                        generatedFlashcards = cards,
-                        statusMessage = "Generated ${cards.size} flashcards"
+                val metadata = com.edukasyon.studentai.core.ai.AiConversationMetadata.encodeFlashcards(cards)
+                safePersistMessage(
+                    AiConversationMessage(
+                        id = aiMessageId(),
+                        conversationId = localId,
+                        isUser = false,
+                        content = "Generated ${cards.size} flashcards",
+                        sentAt = System.currentTimeMillis(),
+                        metadataJson = metadata,
                     )
+                )
+                awardXp(GizmoConstants.XP_GENERATE_FLASHCARDS, "Generated ${cards.size} flashcards · +${GizmoConstants.XP_GENERATE_FLASHCARDS} XP")
+                _uiState.update {
+                    it.copy(isLoading = false, loadingTool = null, generatedFlashcards = cards)
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, loadingTool = null, error = e.message ?: "Flashcard generation failed") }
@@ -391,7 +833,8 @@ class AiViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 saveFlashcards.execute(cards)
-                _uiState.update { it.copy(flashcardsSaved = true, statusMessage = "Flashcards saved to library") }
+                awardXp(GizmoConstants.XP_SAVE_FLASHCARDS, "Flashcards saved · +${GizmoConstants.XP_SAVE_FLASHCARDS} XP")
+                _uiState.update { it.copy(flashcardsSaved = true) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message ?: "Failed to save flashcards") }
             }
@@ -403,8 +846,26 @@ class AiViewModel @Inject constructor(
             _uiState.update { it.copy(error = "Paste note content or a topic to generate a quiz.") }
             return
         }
+        val gizmo = _uiState.value.gizmo
+        if (gizmo.memoriseMode && !gizmo.canQuiz) {
+            _uiState.update {
+                it.copy(error = "Out of hearts! Wait for them to refill or turn off Memorise mode.")
+            }
+            return
+        }
         pendingAction = PendingAiAction(AiTool.QUIZ, text)
         viewModelScope.launch {
+            val localId = createToolConversation(AiConversationType.QUIZ, text)
+            val userTimestamp = System.currentTimeMillis()
+            safePersistMessage(
+                AiConversationMessage(
+                    id = aiMessageId(),
+                    conversationId = localId,
+                    isUser = true,
+                    content = text,
+                    sentAt = userTimestamp,
+                )
+            )
             _uiState.update {
                 it.copy(
                     isLoading = true,
@@ -423,13 +884,24 @@ class AiViewModel @Inject constructor(
                     }
                     return@launch
                 }
+                val metadata = com.edukasyon.studentai.core.ai.AiConversationMetadata.encodeQuiz(quiz)
+                safePersistMessage(
+                    AiConversationMessage(
+                        id = aiMessageId(),
+                        conversationId = localId,
+                        isUser = false,
+                        content = quiz.title,
+                        sentAt = System.currentTimeMillis(),
+                        metadataJson = metadata,
+                    )
+                )
+                awardXp(GizmoConstants.XP_GENERATE_QUIZ, "Quiz ready — ${quiz.questions.size} questions · +${GizmoConstants.XP_GENERATE_QUIZ} XP")
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         loadingTool = null,
                         generatedQuiz = quiz,
                         quizSession = QuizSessionState(quiz = quiz),
-                        statusMessage = "Quiz ready — ${quiz.questions.size} questions"
                     )
                 }
             } catch (e: Exception) {
@@ -450,14 +922,45 @@ class AiViewModel @Inject constructor(
         val selected = session.selectedAnswer ?: return
         if (session.revealed) return
         val isCorrect = selected.equals(question.correctAnswer, ignoreCase = true)
-        _uiState.update {
-            it.copy(
-                quizSession = session.copy(
-                    revealed = true,
-                    correctCount = session.correctCount + if (isCorrect) 1 else 0
+        viewModelScope.launch {
+            var gizmo = _uiState.value.gizmo
+            var heartsLost = _uiState.value.heartsLostThisSession
+            if (!isCorrect && gizmo.memoriseMode) {
+                gizmo = gizmoManager.loseHeart()
+                heartsLost += 1
+                if (!gizmo.canQuiz) {
+                    _uiState.update {
+                        it.copy(
+                            gizmo = gizmo,
+                            heartsLostThisSession = heartsLost,
+                            quizSession = session.copy(revealed = true, blockedByHearts = true),
+                            error = "Out of hearts! Wait ${formatCooldown(gizmo.heartsCooldownRemainingMs ?: 0)} to quiz again.",
+                        )
+                    }
+                    return@launch
+                }
+            } else if (isCorrect) {
+                awardXp(GizmoConstants.XP_CORRECT_ANSWER)
+                gizmo = _uiState.value.gizmo
+            }
+            _uiState.update {
+                it.copy(
+                    gizmo = gizmo,
+                    heartsLostThisSession = heartsLost,
+                    quizSession = session.copy(
+                        revealed = true,
+                        correctCount = session.correctCount + if (isCorrect) 1 else 0,
+                    ),
                 )
-            )
+            }
         }
+    }
+
+    private fun formatCooldown(ms: Long): String {
+        val totalSeconds = kotlin.math.ceil(ms / 1000.0).toInt()
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
     }
 
     fun nextQuizQuestion() {
@@ -508,39 +1011,80 @@ class AiViewModel @Inject constructor(
     }
 
     fun analyzeScheduleImage(imageData: ByteArray) {
+        lastScannedImageBytes = imageData.copyOf()
         pendingAction = PendingAiAction(AiTool.SCANNER, "")
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, loadingTool = AiTool.SCANNER, error = null) }
             try {
                 val result = aiAnalyzeSchedule.execute(imageData)
+                if (result.classes.isEmpty()) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            loadingTool = null,
+                            error = "No classes found. Try a clearer photo or different angle.",
+                        )
+                    }
+                    return@launch
+                }
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         loadingTool = null,
                         scannedClasses = result.classes,
-                        statusMessage = "Found ${result.classes.size} classes"
+                        statusMessage = "Found ${result.classes.size} classes — review and import",
                     )
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, loadingTool = null, error = e.message) }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        loadingTool = null,
+                        error = e.message ?: "Failed to analyze schedule image",
+                    )
+                }
             }
         }
     }
 
+    fun clearScannedClasses() {
+        _uiState.update { it.copy(scannedClasses = emptyList(), error = null) }
+    }
+
     fun confirmScannedClasses() {
+        val classes = _uiState.value.scannedClasses
+        if (classes.isEmpty()) return
         viewModelScope.launch {
-            _uiState.value.scannedClasses.forEach { cls ->
-                addScheduleItem.execute(ScheduleItem(
-                    id = java.util.UUID.randomUUID().toString(),
-                    subjectId = null, subjectName = cls.subject, teacher = cls.teacher,
-                    room = cls.room, building = null,
-                    dayOfWeek = DayOfWeek.fromString(cls.day) ?: DayOfWeek.MONDAY,
-                    startTime = cls.startTime, endTime = cls.endTime,
-                    colorHex = "#1A237E", notes = null, semester = "", schoolYear = ""
-                ))
+            try {
+                classes.forEach { cls ->
+                    addScheduleItem.execute(
+                        ScheduleItem(
+                            id = java.util.UUID.randomUUID().toString(),
+                            subjectId = null,
+                            subjectName = cls.subject,
+                            teacher = cls.teacher,
+                            room = cls.room,
+                            building = null,
+                            dayOfWeek = DayOfWeek.fromString(cls.day) ?: DayOfWeek.MONDAY,
+                            startTime = cls.startTime,
+                            endTime = cls.endTime,
+                            colorHex = "#1A237E",
+                            notes = null,
+                            semester = "",
+                            schoolYear = "",
+                        )
+                    )
+                }
+                awardXp(GizmoConstants.XP_CHAT, "Imported ${classes.size} classes to schedule")
+                _uiState.update { it.copy(scannedClasses = emptyList()) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message ?: "Failed to import classes") }
             }
-            _uiState.update { it.copy(scannedClasses = emptyList()) }
         }
+    }
+
+    private companion object {
+        const val TAG = "AiViewModel"
     }
 }
 
@@ -554,6 +1098,7 @@ data class ProfileUiState(
     val taskReminders: Boolean = true,
     val examReminders: Boolean = true,
     val isOnline: Boolean = true,
+    val aiModel: AiModel = AiModel.STANDARD,
     val backupMessage: String? = null
 )
 
@@ -576,26 +1121,31 @@ class ProfileViewModel @Inject constructor(
                     preferences.notificationsEnabled
                 ) { u, t, n -> Triple(u, t, n) },
                 combine(
-                    preferences.primaryColorHex,
-                    preferences.secondaryColorHex,
-                    preferences.classReminders,
-                    preferences.taskReminders,
-                    preferences.examReminders,
-                    connectivity.isOnline
-                ) { primary, secondary, c, task, exam, o ->
-                    listOf(primary, secondary, c, task, exam, o)
-                }
-            ) { first, second ->
+                    combine(
+                        preferences.primaryColorHex,
+                        preferences.secondaryColorHex,
+                        preferences.classReminders
+                    ) { primary, secondary, classR -> Triple(primary, secondary, classR) },
+                    combine(
+                        preferences.taskReminders,
+                        preferences.examReminders,
+                        preferences.aiModel
+                    ) { task, exam, aiModel -> Triple(task, exam, aiModel) }
+                ) { colors, reminders -> colors to reminders },
+                connectivity.isOnline
+            ) { userInfo, prefs, online ->
+                val (colors, reminders) = prefs
                 ProfileUiState(
-                    user = first.first,
-                    themeMode = first.second,
-                    notificationsEnabled = first.third,
-                    primaryColorHex = second[0] as String,
-                    secondaryColorHex = second[1] as String?,
-                    classReminders = second[2] as Boolean,
-                    taskReminders = second[3] as Boolean,
-                    examReminders = second[4] as Boolean,
-                    isOnline = second[5] as Boolean
+                    user = userInfo.first,
+                    themeMode = userInfo.second,
+                    notificationsEnabled = userInfo.third,
+                    primaryColorHex = colors.first,
+                    secondaryColorHex = colors.second,
+                    classReminders = colors.third,
+                    taskReminders = reminders.first,
+                    examReminders = reminders.second,
+                    aiModel = reminders.third,
+                    isOnline = online
                 )
             }.collect { _uiState.value = it }
         }
@@ -609,6 +1159,7 @@ class ProfileViewModel @Inject constructor(
     fun setClassReminders(enabled: Boolean) { viewModelScope.launch { preferences.setClassReminders(enabled) } }
     fun setTaskReminders(enabled: Boolean) { viewModelScope.launch { preferences.setTaskReminders(enabled) } }
     fun setExamReminders(enabled: Boolean) { viewModelScope.launch { preferences.setExamReminders(enabled) } }
+    fun setAiModel(model: AiModel) { viewModelScope.launch { preferences.setAiModel(model) } }
 
     fun exportJson(uri: android.net.Uri) {
         viewModelScope.launch {
@@ -645,12 +1196,153 @@ class ProfileViewModel @Inject constructor(
     fun clearBackupMessage() { _uiState.update { it.copy(backupMessage = null) } }
 }
 
-data class GradesUiState(val entries: List<GradeEntry> = emptyList(), val weightedGrade: Double = 0.0)
+data class NotificationSettingsUiState(
+    val notificationsEnabled: Boolean = true,
+    val classReminders: Boolean = true,
+    val taskReminders: Boolean = true,
+    val examReminders: Boolean = true,
+    val classReminderAtTime: Boolean = true,
+    val classReminder15MinBefore: Boolean = true,
+    val notificationSoundEnabled: Boolean = true,
+    val notificationPermissionGranted: Boolean = true,
+    val dndAccessGranted: Boolean = false,
+    val batteryOptimizationDisabled: Boolean = false
+) {
+    val notificationsOn: Boolean
+        get() = notificationsEnabled && notificationPermissionGranted
+}
+
+@HiltViewModel
+class NotificationSettingsViewModel @Inject constructor(
+    private val preferences: com.edukasyon.studentai.data.preferences.UserPreferences,
+    @ApplicationContext private val appContext: android.content.Context
+) : ViewModel() {
+    private val _uiState = MutableStateFlow(NotificationSettingsUiState())
+    val uiState: StateFlow<NotificationSettingsUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            combine(
+                preferences.notificationsEnabled,
+                preferences.classReminders,
+                preferences.taskReminders,
+                preferences.examReminders,
+                preferences.classReminderAtTime,
+                preferences.classReminder15MinBefore,
+                preferences.notificationSoundEnabled
+            ) { values ->
+                NotificationSettingsUiState(
+                    notificationsEnabled = values[0],
+                    classReminders = values[1],
+                    taskReminders = values[2],
+                    examReminders = values[3],
+                    classReminderAtTime = values[4],
+                    classReminder15MinBefore = values[5],
+                    notificationSoundEnabled = values[6],
+                    notificationPermissionGranted = _uiState.value.notificationPermissionGranted,
+                    dndAccessGranted = _uiState.value.dndAccessGranted,
+                    batteryOptimizationDisabled = _uiState.value.batteryOptimizationDisabled
+                )
+            }.collect { prefsState ->
+                _uiState.update { current ->
+                    prefsState.copy(
+                        notificationPermissionGranted = current.notificationPermissionGranted,
+                        dndAccessGranted = current.dndAccessGranted,
+                        batteryOptimizationDisabled = current.batteryOptimizationDisabled
+                    )
+                }
+            }
+        }
+    }
+
+    fun refreshSystemState() {
+        val nm = androidx.core.app.NotificationManagerCompat.from(appContext)
+        val notificationGranted = nm.areNotificationsEnabled()
+        val dndGranted = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            val manager = appContext.getSystemService(android.app.NotificationManager::class.java)
+            manager.isNotificationPolicyAccessGranted
+        } else true
+        val powerManager = appContext.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+        val batteryOptDisabled = powerManager.isIgnoringBatteryOptimizations(appContext.packageName)
+        _uiState.update {
+            it.copy(
+                notificationPermissionGranted = notificationGranted,
+                dndAccessGranted = dndGranted,
+                batteryOptimizationDisabled = batteryOptDisabled
+            )
+        }
+    }
+
+    fun setNotificationsEnabled(enabled: Boolean) { viewModelScope.launch { preferences.setNotificationsEnabled(enabled) } }
+    fun setClassReminders(enabled: Boolean) { viewModelScope.launch { preferences.setClassReminders(enabled) } }
+    fun setTaskReminders(enabled: Boolean) { viewModelScope.launch { preferences.setTaskReminders(enabled) } }
+    fun setExamReminders(enabled: Boolean) { viewModelScope.launch { preferences.setExamReminders(enabled) } }
+    fun setClassReminderAtTime(enabled: Boolean) { viewModelScope.launch { preferences.setClassReminderAtTime(enabled) } }
+    fun setClassReminder15MinBefore(enabled: Boolean) { viewModelScope.launch { preferences.setClassReminder15MinBefore(enabled) } }
+    fun setNotificationSoundEnabled(enabled: Boolean) { viewModelScope.launch { preferences.setNotificationSoundEnabled(enabled) } }
+}
+
+data class LectureFilesUiState(
+    val files: List<LectureFile> = emptyList(),
+    val subjects: List<Subject> = emptyList(),
+    val isLoading: Boolean = true
+) {
+    fun subjectName(subjectId: String?): String =
+        subjects.find { it.id == subjectId }?.name ?: "General"
+}
+
+@HiltViewModel
+class LectureFilesViewModel @Inject constructor(
+    private val lectureFileRepo: LectureFileRepository,
+    private val subjectRepo: SubjectRepository
+) : ViewModel() {
+    private val _uiState = MutableStateFlow(LectureFilesUiState())
+    val uiState: StateFlow<LectureFilesUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            combine(
+                lectureFileRepo.observeFiles(),
+                subjectRepo.observeSubjects()
+            ) { files, subjects ->
+                LectureFilesUiState(files = files, subjects = subjects, isLoading = false)
+            }.collect { _uiState.value = it }
+        }
+    }
+
+    fun addFile(title: String, uri: String, mimeType: String, subjectId: String?) {
+        viewModelScope.launch {
+            lectureFileRepo.saveFile(
+                LectureFile(
+                    id = java.util.UUID.randomUUID().toString(),
+                    subjectId = subjectId,
+                    title = title,
+                    fileUri = uri,
+                    mimeType = mimeType,
+                    createdAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    fun deleteFile(id: String) {
+        viewModelScope.launch { lectureFileRepo.deleteFile(id) }
+    }
+}
+
+data class GradesUiState(
+    val entries: List<GradeEntry> = emptyList(),
+    val subjects: List<Subject> = emptyList(),
+    val weightedGrade: Double = 0.0,
+    val selectedTerm: String? = null
+)
 
 @HiltViewModel
 class GradesViewModel @Inject constructor(
     private val gradeRepo: GradeRepository,
+    private val subjectRepo: SubjectRepository,
     private val saveGrade: SaveGradeUseCase,
+    private val deleteGrade: DeleteGradeUseCase,
     private val calculateWeightedGrade: CalculateWeightedGradeUseCase
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(GradesUiState())
@@ -658,58 +1350,187 @@ class GradesViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            gradeRepo.observeGrades().collect { entries ->
-                _uiState.value = GradesUiState(entries, calculateWeightedGrade.execute(entries))
+            combine(
+                gradeRepo.observeGrades(),
+                subjectRepo.observeSubjects()
+            ) { entries, subjects ->
+                Triple(entries, subjects, calculateWeightedGrade.execute(entries))
+            }.collect { (entries, subjects, weighted) ->
+                _uiState.update { current ->
+                    current.copy(
+                        entries = entries,
+                        subjects = subjects,
+                        weightedGrade = weighted
+                    )
+                }
             }
         }
     }
 
+    fun setSelectedTerm(term: String?) {
+        _uiState.update { it.copy(selectedTerm = term) }
+    }
+
     fun addGrade(entry: GradeEntry) { viewModelScope.launch { saveGrade.execute(entry) } }
+
+    fun removeGrade(id: String) { viewModelScope.launch { deleteGrade.execute(id) } }
 }
 
 data class OnboardingUiState(
     val step: Int = 0,
+    val displayName: String = "",
     val school: String = "",
     val gradeLevel: String = "",
     val section: String = "",
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val notificationsEnabled: Boolean = true,
+    val classReminders: Boolean = true,
+    val classReminderAtTime: Boolean = true,
+    val classReminder15MinBefore: Boolean = true,
+    val taskReminders: Boolean = true,
+    val examReminders: Boolean = true,
+    val widgetsExplored: Boolean = false,
+    val notificationPermissionGranted: Boolean = false,
+    val exactAlarmsAllowed: Boolean = true,
+    val batteryOptimizationDisabled: Boolean = false,
     val isSaving: Boolean = false
-)
+) {
+    val totalSteps: Int = 7
+    val progress: Float get() = (step + 1) / totalSteps.toFloat()
+
+    val notifyMeSummary: String
+        get() = buildList {
+            if (classReminderAtTime) add("At class time")
+            if (classReminder15MinBefore) add("15m before")
+        }.joinToString(" + ").ifBlank { "Off" }
+
+    val permissionsGrantedCount: Int
+        get() = listOf(
+            notificationPermissionGranted,
+            exactAlarmsAllowed,
+            batteryOptimizationDisabled
+        ).count { it }
+
+    val appearanceLabel: String
+        get() = themeMode.name.lowercase().replaceFirstChar { it.uppercase() }
+
+    val widgetsLabel: String
+        get() = if (widgetsExplored) "Explored" else "None"
+}
 
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
     private val saveUser: SaveUserUseCase,
     private val preferences: com.edukasyon.studentai.data.preferences.UserPreferences,
     private val firebaseAuthManager: FirebaseAuthManager,
-    private val firestoreSyncService: FirestoreSyncService
+    private val firestoreSyncService: FirestoreSyncService,
+    @ApplicationContext private val appContext: android.content.Context
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(OnboardingUiState())
     val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
 
-    fun nextStep() {
-        _uiState.update { current ->
-            current.copy(step = (current.step + 1).coerceAtMost(2))
+    init {
+        viewModelScope.launch {
+            val theme = preferences.themeMode.first()
+            _uiState.update { it.copy(themeMode = theme) }
         }
     }
 
+    fun refreshPermissionState() {
+        val nm = androidx.core.app.NotificationManagerCompat.from(appContext)
+        val notificationGranted = nm.areNotificationsEnabled()
+        val alarmManager = appContext.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+        val exactAlarms = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            alarmManager.canScheduleExactAlarms()
+        } else true
+        val powerManager = appContext.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+        val batteryOptDisabled = powerManager.isIgnoringBatteryOptimizations(appContext.packageName)
+        _uiState.update {
+            it.copy(
+                notificationPermissionGranted = notificationGranted,
+                exactAlarmsAllowed = exactAlarms,
+                batteryOptimizationDisabled = batteryOptDisabled
+            )
+        }
+    }
+
+    fun nextStep() {
+        _uiState.update { current ->
+            current.copy(step = (current.step + 1).coerceAtMost(current.totalSteps - 1))
+        }
+    }
+
+    fun previousStep() {
+        _uiState.update { current ->
+            current.copy(step = (current.step - 1).coerceAtLeast(0))
+        }
+    }
+
+    fun updateDisplayName(name: String) { _uiState.update { it.copy(displayName = name) } }
     fun updateSchool(school: String) { _uiState.update { it.copy(school = school) } }
     fun updateGradeLevel(level: String) { _uiState.update { it.copy(gradeLevel = level) } }
     fun updateSection(section: String) { _uiState.update { it.copy(section = section) } }
 
-    fun completeGuestOnboarding(name: String = "Guest Student", onFinished: () -> Unit = {}) {
+    fun setTheme(mode: ThemeMode) {
+        _uiState.update { it.copy(themeMode = mode) }
+        viewModelScope.launch { preferences.setThemeMode(mode) }
+    }
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        _uiState.update { it.copy(notificationsEnabled = enabled) }
+        viewModelScope.launch { preferences.setNotificationsEnabled(enabled) }
+    }
+
+    fun setClassReminders(enabled: Boolean) {
+        _uiState.update { it.copy(classReminders = enabled) }
+        viewModelScope.launch { preferences.setClassReminders(enabled) }
+    }
+
+    fun setClassReminderAtTime(enabled: Boolean) {
+        _uiState.update { it.copy(classReminderAtTime = enabled) }
+        viewModelScope.launch { preferences.setClassReminderAtTime(enabled) }
+    }
+
+    fun setClassReminder15MinBefore(enabled: Boolean) {
+        _uiState.update { it.copy(classReminder15MinBefore = enabled) }
+        viewModelScope.launch { preferences.setClassReminder15MinBefore(enabled) }
+    }
+
+    fun setTaskReminders(enabled: Boolean) {
+        _uiState.update { it.copy(taskReminders = enabled) }
+        viewModelScope.launch { preferences.setTaskReminders(enabled) }
+    }
+
+    fun setExamReminders(enabled: Boolean) {
+        _uiState.update { it.copy(examReminders = enabled) }
+        viewModelScope.launch { preferences.setExamReminders(enabled) }
+    }
+
+    fun markWidgetsExplored() {
+        _uiState.update { it.copy(widgetsExplored = true) }
+        viewModelScope.launch { preferences.setOnboardingWidgetsExplored(true) }
+    }
+
+    fun skipWidgets() {
+        nextStep()
+    }
+
+    fun completeOnboarding(onFinished: () -> Unit = {}) {
         if (_uiState.value.isSaving) return
         _uiState.update { it.copy(isSaving = true) }
         onFinished()
         viewModelScope.launch {
             try {
+                val state = _uiState.value
                 val firebaseUserId = firebaseAuthManager.ensureAnonymousSession()
                 preferences.setOnboardingComplete(true)
                 val user = UserProfile(
                     id = firebaseUserId ?: java.util.UUID.randomUUID().toString(),
-                    displayName = name,
+                    displayName = state.displayName.ifBlank { "Student" },
                     email = null,
-                    school = _uiState.value.school,
-                    gradeLevel = _uiState.value.gradeLevel,
-                    section = _uiState.value.section,
+                    school = state.school,
+                    gradeLevel = state.gradeLevel,
+                    section = state.section,
                     schoolYear = "2025-2026",
                     semester = "1st",
                     isGuest = true
@@ -717,7 +1538,7 @@ class OnboardingViewModel @Inject constructor(
                 saveUser.execute(user)
                 firestoreSyncService.syncUserProfile(user)
             } catch (e: Exception) {
-                Log.e("OnboardingViewModel", "Guest onboarding failed", e)
+                Log.e("OnboardingViewModel", "Onboarding failed", e)
             } finally {
                 _uiState.update { it.copy(isSaving = false) }
             }
@@ -789,18 +1610,15 @@ class CalendarViewModel @Inject constructor(
         }
 
         _holidays.value = holidayRepo.getHolidays(monthStart, monthEnd)
-
-        if (!hasCache) {
-            holidayRepo.refreshYearIfStale(visibleYear, force = true)
-            _holidays.value = holidayRepo.getHolidays(monthStart, monthEnd)
+        if (_holidays.value.isNotEmpty()) {
             _holidaysLoading.value = false
-            return
         }
 
-        _holidaysLoading.value = false
-        if (holidayRepo.refreshYearIfStale(visibleYear)) {
+        val refreshed = holidayRepo.refreshYearIfStale(visibleYear, force = !hasCache)
+        if (refreshed || !hasCache) {
             _holidays.value = holidayRepo.getHolidays(monthStart, monthEnd)
         }
+        _holidaysLoading.value = false
     }
 }
 
@@ -840,6 +1658,26 @@ class MainViewModel @Inject constructor(
 
     fun markOnboardingFinished() {
         onboardingFinishedLocally.value = true
+    }
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@HiltViewModel
+class AiConversationHistoryViewModel @Inject constructor(
+    private val aiConversationRepo: AiConversationRepository,
+) : ViewModel() {
+    private val filterTypes = MutableStateFlow<List<AiConversationType>>(AiConversationType.entries)
+
+    val conversations: StateFlow<List<AiConversation>> = filterTypes
+        .flatMapLatest { types -> aiConversationRepo.observeConversations(types) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun setFilter(scope: String) {
+        filterTypes.value = when (scope) {
+            "tutor" -> listOf(AiConversationType.TUTOR)
+            "tools" -> AiConversationType.TOOL_TYPES
+            else -> AiConversationType.entries
+        }
     }
 }
 

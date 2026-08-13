@@ -60,15 +60,15 @@ fun SubtaskEntity.toDomain() = Subtask(id = id, taskId = taskId, title = title, 
 
 fun AssignmentEntity.toDomain() = Assignment(
     id = id, title = title, subjectId = subjectId, description = description,
-    dueDate = dueDate, attachmentUri = attachmentUri,
+    dueDate = dueDate, dueTime = dueTime, attachmentUri = attachmentUri,
     priority = Priority.valueOf(priority), status = TaskStatus.valueOf(status),
-    grade = grade, notes = notes
+    grade = grade, notes = notes, reminderAt = reminderAt
 )
 
 fun Assignment.toEntity(now: Long = System.currentTimeMillis()) = AssignmentEntity(
     id = id, title = title, subjectId = subjectId, description = description,
-    dueDate = dueDate, attachmentUri = attachmentUri, priority = priority.name,
-    status = status.name, grade = grade, notes = notes,
+    dueDate = dueDate, dueTime = dueTime, attachmentUri = attachmentUri, priority = priority.name,
+    status = status.name, grade = grade, notes = notes, reminderAt = reminderAt,
     createdAt = now, updatedAt = now, deletedAt = null, syncState = SyncState.LOCAL_ONLY.name
 )
 
@@ -140,4 +140,22 @@ fun Quiz.toEntity(now: Long = System.currentTimeMillis()) = QuizEntity(
 fun QuizQuestion.toEntity() = QuizQuestionEntity(
     id = id, quizId = quizId, type = type.name, question = question,
     optionsJson = json.encodeToString(options), correctAnswer = correctAnswer
+)
+
+fun LectureFileEntity.toDomain() = LectureFile(
+    id = id,
+    subjectId = subjectId,
+    title = title,
+    fileUri = fileUri,
+    mimeType = mimeType,
+    createdAt = createdAt
+)
+
+fun LectureFile.toEntity() = LectureFileEntity(
+    id = id,
+    subjectId = subjectId,
+    title = title,
+    fileUri = fileUri,
+    mimeType = mimeType,
+    createdAt = createdAt
 )

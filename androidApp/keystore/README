@@ -1,0 +1,17 @@
+# Release signing for StudentAI
+
+Do **not** commit `keystore.properties` or the `.jks` file.
+
+## Generate a keystore
+
+```bash
+keytool -genkey -v -keystore androidApp/keystore/release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias studentai
+```
+
+## Configure signing
+
+1. Copy `keystore.properties.example` to `keystore.properties`
+2. Fill in paths and passwords (or set `KEYSTORE_PASSWORD` / `KEY_PASSWORD` env vars)
+3. Build release: `./gradlew :androidApp:assembleRelease`
+
+Release builds use ProGuard/R8 with rules in `proguard-rules.pro`.

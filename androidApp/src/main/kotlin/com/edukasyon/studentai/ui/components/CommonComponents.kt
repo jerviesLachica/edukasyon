@@ -5,7 +5,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -36,17 +35,18 @@ fun LoadingState(modifier: Modifier = Modifier, message: String = "Loading…") 
 }
 
 @Composable
-fun ErrorState(message: String, onRetry: (() -> Unit)? = null, modifier: Modifier = Modifier) {
-    Column(
-        modifier.fillMaxWidth().padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
-        if (onRetry != null) {
-            Spacer(Modifier.height(12.dp))
-            TextButton(onClick = onRetry) { Text("Retry") }
-        }
-    }
+fun ErrorState(
+    message: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    title: String = "Please try again",
+) {
+    ErrorBanner(
+        message = message,
+        title = title,
+        onDismiss = onDismiss,
+        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
 }
 
 @Composable

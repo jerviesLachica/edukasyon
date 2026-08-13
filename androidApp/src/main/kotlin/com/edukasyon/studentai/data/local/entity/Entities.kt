@@ -105,11 +105,13 @@ data class AssignmentEntity(
     val subjectId: String?,
     val description: String?,
     val dueDate: Long?,
+    val dueTime: String?,
     val attachmentUri: String?,
     val priority: String,
     val status: String,
     val grade: String?,
     val notes: String?,
+    val reminderAt: Long?,
     val createdAt: Long,
     val updatedAt: Long,
     val deletedAt: Long?,
@@ -327,7 +329,9 @@ data class ConversationEntity(
     val isGroup: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
-    val syncState: String
+    val syncState: String,
+    val conversationType: String? = null,
+    val backendConversationId: String? = null,
 )
 
 @Entity(
@@ -349,10 +353,16 @@ data class MessageEntity(
     val content: String,
     val sentAt: Long,
     val isRead: Boolean,
-    val syncState: String
+    val syncState: String,
+    val attachmentName: String? = null,
+    val attachmentIsImage: Boolean = false,
+    val metadataJson: String? = null,
 )
 
-@Entity(tableName = "ph_holidays_cache")
+@Entity(
+    tableName = "ph_holidays_cache",
+    indices = [Index(value = ["year"])]
+)
 data class CachedHolidayEntity(
     @PrimaryKey val date: String,
     val name: String,
@@ -360,4 +370,17 @@ data class CachedHolidayEntity(
     val type: String,
     val year: Int,
     val fetchedAt: Long
+)
+
+@Entity(
+    tableName = "lecture_files",
+    indices = [Index("subjectId"), Index("createdAt")]
+)
+data class LectureFileEntity(
+    @PrimaryKey val id: String,
+    val subjectId: String?,
+    val title: String,
+    val fileUri: String,
+    val mimeType: String,
+    val createdAt: Long
 )

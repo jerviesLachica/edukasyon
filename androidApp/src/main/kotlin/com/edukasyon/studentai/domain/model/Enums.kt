@@ -10,8 +10,54 @@ enum class DayOfWeek(val displayName: String) {
     SUNDAY("Sunday");
 
     companion object {
-        fun fromString(value: String): DayOfWeek? =
-            entries.find { it.name.equals(value, ignoreCase = true) || it.displayName.equals(value, ignoreCase = true) }
+        private val ALIAS_LOOKUP: Map<String, DayOfWeek> = buildMap {
+            DayOfWeek.entries.forEach { day ->
+                put(day.name, day)
+                put(day.displayName.uppercase(), day)
+                put(day.name.take(3), day)
+                put(day.displayName.take(3).uppercase(), day)
+            }
+            put("TUES", TUESDAY)
+            put("THUR", THURSDAY)
+            put("THURS", THURSDAY)
+            put("R", THURSDAY)
+            put("U", SUNDAY)
+        }
+
+        fun fromString(value: String): DayOfWeek? {
+            val token = value.trim()
+                .substringBefore('/')
+                .substringBefore(',')
+                .substringBefore('-')
+                .trim()
+                .trimEnd('.')
+            if (token.isEmpty()) return null
+
+            ALIAS_LOOKUP[token.uppercase()]?.let { return it }
+
+            DayOfWeek.entries.find {
+                it.name.equals(token, ignoreCase = true) ||
+                    it.displayName.equals(token, ignoreCase = true)
+            }?.let { return it }
+
+            val upper = token.uppercase()
+            if (upper.length >= 3) {
+                DayOfWeek.entries.find {
+                    it.name.startsWith(upper, ignoreCase = true) ||
+                        it.displayName.startsWith(token, ignoreCase = true)
+                }?.let { return it }
+            }
+
+            token.toIntOrNull()?.let { numeric ->
+                return when (numeric) {
+                    0 -> SUNDAY
+                    in 1..7 -> DayOfWeek.entries[(numeric - 1) % DayOfWeek.entries.size]
+                    else -> null
+                }
+            }
+
+            return null
+        }
     }
 }
 
@@ -47,4 +93,14 @@ enum class QuestionType {
     MULTIPLE_CHOICE,
     TRUE_FALSE,
     SHORT_ANSWER
+}
+
+enum class AiModel(val slug: String, val displayName: String) {
+    STANDARD("claude-opus-4-8", "Opus 4.8"),
+    PRO("claude-opus-5", "Opus 5");
+
+    companion object {
+        fun fromSlug(slug: String): AiModel =
+            entries.find { it.slug == slug } ?: STANDARD
+    }
 }

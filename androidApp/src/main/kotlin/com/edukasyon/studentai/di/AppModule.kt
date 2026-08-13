@@ -10,12 +10,18 @@ import com.edukasyon.studentai.core.network.HolidayApi
 import com.edukasyon.studentai.data.local.StudentAiDatabase
 import com.edukasyon.studentai.data.local.MIGRATION_1_2
 import com.edukasyon.studentai.data.local.MIGRATION_2_3
+import com.edukasyon.studentai.data.local.MIGRATION_3_4
+import com.edukasyon.studentai.data.local.MIGRATION_4_5
+import com.edukasyon.studentai.data.local.MIGRATION_5_6
+import com.edukasyon.studentai.data.local.MIGRATION_6_7
+import com.edukasyon.studentai.data.repository.AiConversationRepositoryImpl
 import com.edukasyon.studentai.data.repository.AssignmentRepositoryImpl
 import com.edukasyon.studentai.data.repository.ChatRepositoryImpl
 import com.edukasyon.studentai.data.repository.CalendarRepositoryImpl
 import com.edukasyon.studentai.data.repository.ExamRepositoryImpl
 import com.edukasyon.studentai.data.repository.FlashcardRepositoryImpl
 import com.edukasyon.studentai.data.repository.GradeRepositoryImpl
+import com.edukasyon.studentai.data.repository.LectureFileRepositoryImpl
 import com.edukasyon.studentai.data.repository.NoteRepositoryImpl
 import com.edukasyon.studentai.data.repository.QuizRepositoryImpl
 import com.edukasyon.studentai.data.repository.ScheduleRepositoryImpl
@@ -23,12 +29,14 @@ import com.edukasyon.studentai.data.repository.SearchRepositoryImpl
 import com.edukasyon.studentai.data.repository.SubjectRepositoryImpl
 import com.edukasyon.studentai.data.repository.TaskRepositoryImpl
 import com.edukasyon.studentai.data.repository.UserRepositoryImpl
+import com.edukasyon.studentai.domain.repository.AiConversationRepository
 import com.edukasyon.studentai.domain.repository.AssignmentRepository
 import com.edukasyon.studentai.domain.repository.ChatRepository
 import com.edukasyon.studentai.domain.repository.CalendarRepository
 import com.edukasyon.studentai.domain.repository.ExamRepository
 import com.edukasyon.studentai.domain.repository.FlashcardRepository
 import com.edukasyon.studentai.domain.repository.GradeRepository
+import com.edukasyon.studentai.domain.repository.LectureFileRepository
 import com.edukasyon.studentai.domain.repository.NoteRepository
 import com.edukasyon.studentai.domain.repository.QuizRepository
 import com.edukasyon.studentai.domain.repository.ScheduleRepository
@@ -56,10 +64,22 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
     @Provides @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): StudentAiDatabase =
-        Room.databaseBuilder(context, StudentAiDatabase::class.java, "studentai.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-            .build()
+    fun provideDatabase(@ApplicationContext context: Context): StudentAiDatabase {
+        val builder = Room.databaseBuilder(context, StudentAiDatabase::class.java, "studentai.db")
+            .addMigrations(
+                MIGRATION_1_2,
+                MIGRATION_2_3,
+                MIGRATION_3_4,
+                MIGRATION_4_5,
+                MIGRATION_5_6,
+                MIGRATION_6_7,
+            )
+        if (BuildConfig.DEBUG) {
+            // Recover from schema validation failures during development without manual app-data clears.
+            builder.fallbackToDestructiveMigration()
+        }
+        return builder.build()
+    }
 
     @Provides fun provideUserDao(db: StudentAiDatabase) = db.userDao()
     @Provides fun provideSubjectDao(db: StudentAiDatabase) = db.subjectDao()
@@ -81,6 +101,7 @@ object DatabaseModule {
     @Provides fun provideSyncMetadataDao(db: StudentAiDatabase) = db.syncMetadataDao()
     @Provides fun provideAiConversationDao(db: StudentAiDatabase) = db.aiConversationDao()
     @Provides fun provideCachedHolidayDao(db: StudentAiDatabase) = db.cachedHolidayDao()
+    @Provides fun provideLectureFileDao(db: StudentAiDatabase) = db.lectureFileDao()
 }
 
 @Module
@@ -139,7 +160,9 @@ abstract class RepositoryModule {
     @Binds @Singleton abstract fun bindFlashcardRepo(impl: FlashcardRepositoryImpl): FlashcardRepository
     @Binds @Singleton abstract fun bindQuizRepo(impl: QuizRepositoryImpl): QuizRepository
     @Binds @Singleton abstract fun bindChatRepo(impl: ChatRepositoryImpl): ChatRepository
+    @Binds @Singleton abstract fun bindAiConversationRepo(impl: AiConversationRepositoryImpl): AiConversationRepository
     @Binds @Singleton abstract fun bindSearchRepo(impl: SearchRepositoryImpl): SearchRepository
+    @Binds @Singleton abstract fun bindLectureFileRepo(impl: LectureFileRepositoryImpl): LectureFileRepository
 }
 
 @Module

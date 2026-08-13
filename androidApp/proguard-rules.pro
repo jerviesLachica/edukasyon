@@ -103,3 +103,8 @@
     <fields>;
 }
 -keep class com.edukasyon.studentai.domain.model.** { *; }
+
+# Glance widgets
+-keep public class * extends androidx.glance.appwidget.GlanceAppWidgetReceiver { *; }
+-keep public class * extends androidx.glance.appwidget.GlanceAppWidget { *; }
+-keep class com.edukasyon.studentai.widget.** { *; }

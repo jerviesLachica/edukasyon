@@ -1,10 +1,13 @@
 package com.edukasyon.studentai.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
@@ -14,15 +17,25 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.edukasyon.studentai.core.util.DateUtils
 import com.edukasyon.studentai.domain.model.DayOfWeek
+import com.edukasyon.studentai.domain.model.Holiday
+import com.edukasyon.studentai.domain.model.HolidayType
 import com.edukasyon.studentai.domain.model.ScheduleItem
 import com.edukasyon.studentai.ui.components.*
+import com.edukasyon.studentai.ui.theme.parseHexColor
 import com.edukasyon.studentai.ui.viewmodel.ScheduleViewModel
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Locale
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,6 +49,7 @@ fun ScheduleScreen(
     var addForDay by remember { mutableStateOf(state.selectedDay) }
     var editingItem by remember { mutableStateOf<ScheduleItem?>(null) }
     var showTemplateSheet by remember { mutableStateOf(false) }
+    var createEventDateMillis by remember { mutableStateOf<Long?>(null) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -99,11 +113,21 @@ fun ScheduleScreen(
                         )
                     }
                 }
-                "monthly" -> MonthlyScheduleView(state.allItems)
-                else -> DailyScheduleView(state, viewModel, onAdd = {
-                    addForDay = state.selectedDay
-                    showAddDialog = true
-                })
+                "monthly" -> MonthlyScheduleView(
+                    year = state.calendarYear,
+                    allItems = state.allItems,
+                    holidays = state.holidays,
+                    onDateClick = { createEventDateMillis = it },
+                )
+                else -> DailyScheduleView(
+                    state = state,
+                    viewModel = viewModel,
+                    onAdd = {
+                        addForDay = state.selectedDay
+                        showAddDialog = true
+                    },
+                    onItemClick = { editingItem = it },
+                )
             }
         }
     }
@@ -143,13 +167,25 @@ fun ScheduleScreen(
             onReset = { viewModel.resetDayTemplates() }
         )
     }
+
+    createEventDateMillis?.let { dateMillis ->
+        CreateEventBottomSheet(
+            dateMillis = dateMillis,
+            onDismiss = { createEventDateMillis = null },
+            onConfirm = { title, description ->
+                viewModel.createCalendarEvent(title, description, dateMillis)
+                createEventDateMillis = null
+            }
+        )
+    }
 }
 
 @Composable
 private fun DailyScheduleView(
     state: com.edukasyon.studentai.ui.viewmodel.ScheduleUiState,
     viewModel: ScheduleViewModel,
-    onAdd: () -> Unit
+    onAdd: () -> Unit,
+    onItemClick: (ScheduleItem) -> Unit,
 ) {
     LazyRow(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(DayOfWeek.entries) { day ->
@@ -160,8 +196,9 @@ private fun DailyScheduleView(
             )
         }
     }
-    if (state.isLoading) LoadingState()
-    else {
+    if (state.isLoading) {
+        LoadingState()
+    } else {
         val items = viewModel.itemsForSelectedDay()
         if (items.isEmpty()) {
             EmptyState(
@@ -171,9 +208,18 @@ private fun DailyScheduleView(
                 onAction = onAdd
             )
         } else {
-            LazyColumn {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
+            ) {
                 items(items, key = { it.id }) { item ->
-                    ScheduleItemCard(item) { viewModel.deleteClass(item.id) }
+                    val isCurrent = isCurrentClass(item, state.selectedDay)
+                    DailyTimelineBlock(
+                        item = item,
+                        isCurrent = isCurrent,
+                        onClick = { onItemClick(item) },
+                    )
                 }
             }
         }
@@ -181,71 +227,368 @@ private fun DailyScheduleView(
 }
 
 @Composable
-private fun MonthlyScheduleView(allItems: List<ScheduleItem>) {
-    val cal = remember { Calendar.getInstance() }
-    val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val firstDayOfWeek = cal.apply { set(Calendar.DAY_OF_MONTH, 1) }.get(Calendar.DAY_OF_WEEK)
-    val weekdays = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+private fun DailyTimelineBlock(
+    item: ScheduleItem,
+    isCurrent: Boolean,
+    onClick: () -> Unit,
+) {
+    val subjectColor = parseHexColor(item.colorHex) ?: MaterialTheme.colorScheme.primary
+    val timeLabel = DateUtils.formatTimeRange(item.startTime, item.endTime)
 
-    Column(Modifier.padding(16.dp)) {
-        Text(
-            "${cal.getDisplayName(Calendar.MONTH, Calendar.LONG, java.util.Locale.getDefault())} ${cal.get(Calendar.YEAR)}",
-            style = MaterialTheme.typography.titleMedium
-        )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .clickable(onClick = onClick),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(52.dp),
+        ) {
+            Text(
+                text = DateUtils.formatTime12h(item.startTime),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+            )
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(56.dp)
+                    .clip(MaterialTheme.shapes.extraSmall)
+                    .background(if (isCurrent) MaterialTheme.colorScheme.primary else subjectColor.copy(alpha = 0.5f)),
+            )
+        }
+        Card(
+            modifier = Modifier
+                .weight(1f)
+                .then(
+                    if (isCurrent) {
+                        Modifier.border(
+                            width = 2.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = MaterialTheme.shapes.medium,
+                        )
+                    } else {
+                        Modifier
+                    }
+                ),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isCurrent) {
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                } else {
+                    subjectColor.copy(alpha = 0.12f)
+                },
+            ),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(subjectColor),
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            item.subjectName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (isCurrent) {
+                            Spacer(Modifier.width(8.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = MaterialTheme.shapes.extraSmall,
+                            ) {
+                                Text(
+                                    "Now",
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                )
+                            }
+                        }
+                    }
+                    Text(timeLabel, style = MaterialTheme.typography.bodySmall)
+                    item.room?.let {
+                        Text("Room $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    item.teacher?.let {
+                        Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthlyScheduleView(
+    year: Int,
+    allItems: List<ScheduleItem>,
+    holidays: List<Holiday>,
+    onDateClick: (Long) -> Unit,
+) {
+    val todayCal = remember { Calendar.getInstance() }
+    val holidayByDay = remember(holidays) {
+        holidays.groupBy { holiday ->
+            val cal = Calendar.getInstance()
+            cal.timeInMillis = holiday.dateMillis
+            cal.get(Calendar.YEAR) to cal.get(Calendar.DAY_OF_YEAR)
+        }
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        item {
+            Text(
+                "$year Calendar",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                "Tap any date to create an event. Red dots mark Philippine holidays.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        items(12) { monthIndex ->
+            MonthCalendarSection(
+                year = year,
+                monthIndex = monthIndex,
+                allItems = allItems,
+                holidayByDay = holidayByDay,
+                todayYear = todayCal.get(Calendar.YEAR),
+                todayDayOfYear = todayCal.get(Calendar.DAY_OF_YEAR),
+                onDateClick = onDateClick,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MonthCalendarSection(
+    year: Int,
+    monthIndex: Int,
+    allItems: List<ScheduleItem>,
+    holidayByDay: Map<Pair<Int, Int>, List<Holiday>>,
+    todayYear: Int,
+    todayDayOfYear: Int,
+    onDateClick: (Long) -> Unit,
+) {
+    val cal = remember(year, monthIndex) {
+        Calendar.getInstance().apply {
+            set(year, monthIndex, 1, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+    }
+    val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val firstDayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
+    val monthName = cal.getDisplayName(Calendar.MONTH, Calendar.LONG, Locale.getDefault())
+    val weekdays = listOf("S", "M", "T", "W", "T", "F", "S")
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(monthName.orEmpty(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Row(Modifier.fillMaxWidth()) {
             weekdays.forEach {
-                Text(it, Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall)
+                Text(
+                    it,
+                    Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         val cells = (1 until firstDayOfWeek).map { null as Int? } + (1..daysInMonth).map { it }
         cells.chunked(7).forEach { week ->
             Row(Modifier.fillMaxWidth()) {
                 week.forEach { day ->
-                    Box(Modifier.weight(1f).aspectRatio(1f).padding(2.dp), contentAlignment = Alignment.Center) {
-                        if (day != null) {
-                            val dow = DayOfWeek.entries[(day + firstDayOfWeek - 2) % 7]
-                            val hasClass = allItems.any { it.dayOfWeek == dow }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("$day", style = MaterialTheme.typography.bodySmall)
-                                if (hasClass) {
-                                    Box(
-                                        Modifier.size(6.dp).background(
-                                            MaterialTheme.colorScheme.primary,
-                                            shape = MaterialTheme.shapes.extraSmall
-                                        )
-                                    )
-                                }
-                            }
-                        }
+                    if (day == null) {
+                        Spacer(Modifier.weight(1f).aspectRatio(1f))
+                    } else {
+                        val dayCal = (cal.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, day) }
+                        val dayOfYear = dayCal.get(Calendar.DAY_OF_YEAR)
+                        val dayKey = year to dayOfYear
+                        val dayHolidays = holidayByDay[dayKey].orEmpty()
+                        val isToday = year == todayYear && dayOfYear == todayDayOfYear
+                        val dow = dayOfWeekFromCalendar(dayCal.get(Calendar.DAY_OF_WEEK))
+                        val hasClass = allItems.any { it.dayOfWeek == dow }
+
+                        CalendarDayCell(
+                            day = day,
+                            isToday = isToday,
+                            hasClass = hasClass,
+                            holidays = dayHolidays,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onDateClick(startOfDayMillis(dayCal)) },
+                        )
                     }
                 }
                 repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        allItems.groupBy { it.dayOfWeek }.forEach { (day, items) ->
-            Text(day.displayName, style = MaterialTheme.typography.labelLarge)
-            items.sortedBy { it.startTime }.forEach {
-                Text("• ${it.subjectName} ${it.startTime}", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
 }
 
 @Composable
-private fun ScheduleItemCard(item: ScheduleItem, onDelete: () -> Unit) {
-    StudentAiCard {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Column {
-                Text(item.subjectName, style = MaterialTheme.typography.titleMedium)
-                item.teacher?.let { Text(it) }
-                Text("${item.startTime} - ${item.endTime}")
-                item.room?.let { Text("Room $it") }
+private fun CalendarDayCell(
+    day: Int,
+    isToday: Boolean,
+    hasClass: Boolean,
+    holidays: List<Holiday>,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val hasRegularHoliday = holidays.any { it.type == HolidayType.REGULAR }
+    val hasSpecialHoliday = holidays.any { it.type == HolidayType.SPECIAL }
+    val backgroundColor = when {
+        isToday -> MaterialTheme.colorScheme.primaryContainer
+        hasRegularHoliday -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+        hasSpecialHoliday -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f)
+        else -> Color.Transparent
+    }
+
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .padding(2.dp)
+            .clip(MaterialTheme.shapes.small)
+            .background(backgroundColor)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "$day",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (hasClass) {
+                    Box(
+                        Modifier
+                            .size(5.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                    )
+                }
+                if (hasRegularHoliday) {
+                    Box(
+                        Modifier
+                            .size(5.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error),
+                    )
+                } else if (hasSpecialHoliday) {
+                    Box(
+                        Modifier
+                            .size(5.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.tertiary),
+                    )
+                }
             }
-            IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete") }
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CreateEventBottomSheet(
+    dateMillis: Long,
+    onDismiss: () -> Unit,
+    onConfirm: (title: String, description: String) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    val dateLabel = remember(dateMillis) {
+        SimpleDateFormat("EEEE, MMM d, yyyy", Locale.getDefault()).format(java.util.Date(dateMillis))
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Create Event", style = MaterialTheme.typography.titleLarge)
+            Text(dateLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("Event title") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text("Description (optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+            )
+            Button(
+                onClick = { if (title.isNotBlank()) onConfirm(title.trim(), description.trim()) },
+                enabled = title.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Save Event")
+            }
+        }
+    }
+}
+
+private fun isCurrentClass(item: ScheduleItem, selectedDay: DayOfWeek): Boolean {
+    if (selectedDay != DateUtils.getTodayDayOfWeek()) return false
+    val now = Calendar.getInstance()
+    val nowMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+    val start = parseTimeMinutes(item.startTime)
+    val end = parseTimeMinutes(item.endTime)
+    return nowMinutes in start until end
+}
+
+private fun parseTimeMinutes(time: String): Int {
+    val parts = time.split(":")
+    return (parts.getOrNull(0)?.toIntOrNull() ?: 0) * 60 + (parts.getOrNull(1)?.toIntOrNull() ?: 0)
+}
+
+private fun dayOfWeekFromCalendar(calendarDow: Int): DayOfWeek = when (calendarDow) {
+    Calendar.MONDAY -> DayOfWeek.MONDAY
+    Calendar.TUESDAY -> DayOfWeek.TUESDAY
+    Calendar.WEDNESDAY -> DayOfWeek.WEDNESDAY
+    Calendar.THURSDAY -> DayOfWeek.THURSDAY
+    Calendar.FRIDAY -> DayOfWeek.FRIDAY
+    Calendar.SATURDAY -> DayOfWeek.SATURDAY
+    else -> DayOfWeek.SUNDAY
+}
+
+private fun startOfDayMillis(cal: Calendar): Long {
+    val copy = cal.clone() as Calendar
+    copy.set(Calendar.HOUR_OF_DAY, 0)
+    copy.set(Calendar.MINUTE, 0)
+    copy.set(Calendar.SECOND, 0)
+    copy.set(Calendar.MILLISECOND, 0)
+    return copy.timeInMillis
+}
+
 
 @Composable
 private fun ClassFormDialog(
