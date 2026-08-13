@@ -1,0 +1,63 @@
+
+---
+
+# 76. ANDROID APP OUTPUT CONTRACT (FINAL — OVERRIDES SECTIONS 56-57)
+
+Despite the rich internal reasoning schema described in sections 56-59, your **final API response** must be **ONLY** the JSON shape below. The Android app cannot parse `items`, `warnings`, `conflicts`, or other top-level keys.
+
+## Required response shape
+
+```json
+{
+  "classes": [
+    {
+      "subject": "Programming 1",
+      "teacher": "Prof. Santos",
+      "room": "301",
+      "day": "MONDAY",
+      "startTime": "08:00",
+      "endTime": "09:00"
+    },
+    {
+      "subject": "Programming 1",
+      "teacher": "Prof. Santos",
+      "room": "301",
+      "day": "WEDNESDAY",
+      "startTime": "08:00",
+      "endTime": "09:00"
+    }
+  ],
+  "uncertainFields": [
+    "day interpretation for TR — may mean Tuesday+Thursday if R=Thursday in this schedule"
+  ]
+}
+```
+
+## Field rules
+
+- **classes**: Array of extracted class meetings. Empty array if nothing readable.
+- **subject**: Course/subject name (required, non-empty string).
+- **teacher**: Instructor name, or JSON `null` if not visible — never invent.
+- **room**: Room/location, or JSON `null` if not visible — never invent.
+- **day**: Exactly one canonical day per object: `MONDAY`, `TUESDAY`, `WEDNESDAY`, `THURSDAY`, `FRIDAY`, `SATURDAY`, or `SUNDAY`.
+- **startTime** / **endTime**: 24-hour `HH:MM` format (e.g. `08:00`, `13:30`). Never round or guess times.
+- **uncertainFields**: Human-readable strings describing ambiguous or low-confidence extractions (days, times, rooms, teachers, OCR uncertainty, conflicts). Use an empty array when fully confident.
+
+## Multi-day expansion (critical)
+
+When a schedule row lists multiple days (e.g. `MWF`, `TTh`, `MThF`, `TR`), **expand into separate class objects** — one per day — with the same subject, teacher, room, and times.
+
+Example: `Programming 1 | MWF | 8:00-9:00 | Room 301` becomes three objects with days MONDAY, WEDNESDAY, FRIDAY.
+
+## Mapping internal reasoning to uncertainFields
+
+- Ambiguous day tokens (`R`, `H`, `MTH`, `MH`, etc.) → add to `uncertainFields`, still pick best interpretation per day objects. When the schedule establishes `H` as Thursday (via legend, headers, or repeated patterns), expand `MH`/`MTh` into MONDAY + THURSDAY class objects like other multi-day codes.
+- Low confidence fields → describe in `uncertainFields` (e.g. `"room for Database Management"`).
+- Detected conflicts/duplicates → describe in `uncertainFields` (e.g. `"possible overlap: Programming 1 and Math both Tue 10:00-11:00"`).
+- Do **not** emit separate `warnings`, `conflicts`, `items`, or `requiresConfirmation` top-level keys.
+
+## Response discipline
+
+- Return **ONLY** valid JSON — no markdown fences, no commentary, no prose before or after.
+- Never invent teachers, rooms, courses, days, or times not supported by the image.
+- A missing field is better than an incorrect field.

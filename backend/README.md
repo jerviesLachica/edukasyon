@@ -107,6 +107,22 @@ The Android app points at the Render backend URL via `BuildConfig.AI_BACKEND_URL
 
 Debug and release builds use the cloud backend URL — no local `npm start` required.
 
+## Schedule scanner system prompt
+
+Schedule image analysis (`POST /api/ai/schedule-analysis`) uses a dedicated server-controlled prompt — **not** the Jarvis chat prompt.
+
+- Full training prompt: `backend/prompts/schedule-scanner-prompt.txt` (sections 1–75)
+- Android output contract override: `backend/prompts/android-output-contract.txt` (section 76)
+- Wired in: `backend/prompts/schedule-scanner-system-prompt.js` → `backend/server.js`
+
+After changing prompt files, **redeploy the backend** (e.g. push to Render) for production Android builds to use the updated prompt.
+
+Regenerate the Android mirror constant:
+
+```bash
+python backend/prompts/generate-android-prompt.py
+```
+
 Profile → **AI Settings**: Auto (default) or Step 3.7 Flash (`step-3.7-flash`) for stronger reasoning.
 
 For local backend development only:
