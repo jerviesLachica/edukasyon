@@ -21,7 +21,7 @@ import com.edukasyon.studentai.R
 @Composable
 fun LoadingScreen(
     modifier: Modifier = Modifier,
-    title: String? = "StudentAI",
+    title: String? = "SchedMate",
     message: String? = null,
 ) {
     Box(
@@ -34,7 +34,7 @@ fun LoadingScreen(
         ) {
             Image(
                 painter = painterResource(R.drawable.wala),
-                contentDescription = "Edukasyon logo",
+                contentDescription = "SchedMate logo",
                 modifier = Modifier.size(120.dp),
             )
             Spacer(Modifier.height(24.dp))

@@ -453,7 +453,8 @@ data class PlannerUiState(
     val subjects: List<Subject> = emptyList(),
     val jeviDecks: List<JeviDeck> = emptyList(),
     val expandedExamId: String? = null,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val snackbarMessage: String? = null,
 )
 
 @HiltViewModel
@@ -464,10 +465,16 @@ class PlannerViewModel @Inject constructor(
     private val createTask: CreateTaskUseCase,
     private val updateTaskUseCase: UpdateTaskUseCase,
     private val completeTaskUseCase: CompleteTaskUseCase,
+    private val uncompleteTaskUseCase: UncompleteTaskUseCase,
+    private val insertSubtaskUseCase: InsertSubtaskUseCase,
+    private val updateSubtaskUseCase: UpdateSubtaskUseCase,
+    private val deleteSubtaskUseCase: DeleteSubtaskUseCase,
     private val deleteTaskUseCase: DeleteTaskUseCase,
     private val saveAssignment: SaveAssignmentUseCase,
     private val deleteAssignment: DeleteAssignmentUseCase,
     private val saveExam: SaveExamUseCase,
+    private val deleteExamUseCase: DeleteExamUseCase,
+    private val duplicateExamUseCase: DuplicateExamUseCase,
     private val subjectRepo: SubjectRepository,
     private val scheduleRepo: ScheduleRepository,
     private val getJeviDecks: GetJeviDecksUseCase,
@@ -508,6 +515,7 @@ class PlannerViewModel @Inject constructor(
                     examReadiness = readiness,
                     selectedTab = _uiState.value.selectedTab,
                     expandedExamId = _uiState.value.expandedExamId,
+                    snackbarMessage = _uiState.value.snackbarMessage,
                 )
             }.collect { _uiState.value = it }
         }
@@ -532,13 +540,7 @@ class PlannerViewModel @Inject constructor(
         viewModelScope.launch {
             val task = _uiState.value.tasks.find { it.id == id } ?: return@launch
             if (task.status == TaskStatus.COMPLETED) {
-                updateTaskUseCase.execute(
-                    task.copy(
-                        status = TaskStatus.PENDING,
-                        completedAt = null,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                )
+                uncompleteTaskUseCase.execute(id)
             } else {
                 completeTaskUseCase.execute(id)
             }
@@ -556,40 +558,73 @@ class PlannerViewModel @Inject constructor(
             }
         }
     }
-    fun addExam(e: Exam) { viewModelScope.launch { saveExam.execute(e) } }
-    fun updateExam(e: Exam) { viewModelScope.launch { saveExam.execute(e) } }
+    fun addExam(e: Exam) {
+        viewModelScope.launch {
+            saveExam.execute(e)
+            showSnackbar("Exam added")
+        }
+    }
+
+    fun updateExam(e: Exam) {
+        viewModelScope.launch {
+            saveExam.execute(e)
+            showSnackbar("Exam updated")
+        }
+    }
+
+    fun deleteExam(id: String) {
+        viewModelScope.launch {
+            deleteExamUseCase.execute(id)
+            _uiState.update { state ->
+                state.copy(
+                    expandedExamId = if (state.expandedExamId == id) null else state.expandedExamId,
+                    snackbarMessage = "Exam deleted",
+                )
+            }
+        }
+    }
+
+    fun duplicateExam(exam: Exam) {
+        viewModelScope.launch {
+            duplicateExamUseCase.execute(exam)
+            showSnackbar("Exam duplicated")
+        }
+    }
+
+    fun clearSnackbarMessage() {
+        _uiState.update { it.copy(snackbarMessage = null) }
+    }
+
+    private fun showSnackbar(message: String) {
+        _uiState.update { it.copy(snackbarMessage = message) }
+    }
 
     fun addSubtask(taskId: String, title: String) {
         viewModelScope.launch {
             val task = _uiState.value.tasks.find { it.id == taskId } ?: return@launch
-            val subtasks = task.subtasks + Subtask(
-                id = java.util.UUID.randomUUID().toString(),
-                taskId = taskId,
-                title = title,
-                isCompleted = false,
-                sortOrder = task.subtasks.size
+            insertSubtaskUseCase.execute(
+                Subtask(
+                    id = java.util.UUID.randomUUID().toString(),
+                    taskId = taskId,
+                    title = title,
+                    isCompleted = false,
+                    sortOrder = task.subtasks.size
+                )
             )
-            createTask.execute(task.copy(subtasks = subtasks, updatedAt = System.currentTimeMillis()))
         }
     }
 
     fun toggleSubtask(taskId: String, subtaskId: String) {
         viewModelScope.launch {
             val task = _uiState.value.tasks.find { it.id == taskId } ?: return@launch
-            val subtasks = task.subtasks.map {
-                if (it.id == subtaskId) it.copy(isCompleted = !it.isCompleted) else it
-            }
-            createTask.execute(task.copy(subtasks = subtasks, updatedAt = System.currentTimeMillis()))
+            val subtask = task.subtasks.find { it.id == subtaskId } ?: return@launch
+            updateSubtaskUseCase.execute(subtask.copy(isCompleted = !subtask.isCompleted))
         }
     }
 
     fun deleteSubtask(taskId: String, subtaskId: String) {
         viewModelScope.launch {
-            val task = _uiState.value.tasks.find { it.id == taskId } ?: return@launch
-            createTask.execute(task.copy(
-                subtasks = task.subtasks.filter { it.id != subtaskId },
-                updatedAt = System.currentTimeMillis()
-            ))
+            deleteSubtaskUseCase.execute(DeleteSubtaskParams(taskId, subtaskId))
         }
     }
 }
@@ -828,7 +863,6 @@ class AiViewModel @Inject constructor(
     private var backendConversationId: String? = null
     private var lastScannedImageBytes: ByteArray? = null
     private var lastScannedExtractedText: String? = null
-    private var lastTutorRequestAtMs: Long = 0L
     private var scheduleScanJob: Job? = null
     private var scheduleScanAttemptCounter: Long = 0L
 
@@ -1149,14 +1183,6 @@ class AiViewModel @Inject constructor(
 
     fun sendMessage(message: String, subject: String? = null, attachment: ChatAttachmentPayload? = null) {
         if (message.isBlank() && attachment == null) return
-        val rateLimitRemainingMs = tutorRateLimitRemainingMs()
-        if (rateLimitRemainingMs > 0) {
-            _uiState.update {
-                it.copy(statusMessage = formatTutorRateLimitMessage(rateLimitRemainingMs))
-            }
-            return
-        }
-        lastTutorRequestAtMs = System.currentTimeMillis()
         val displayMessage = message.ifBlank { "Please help me with this attachment." }
         lastChatMessage = displayMessage
         pendingAction = PendingAiAction(AiTool.TUTOR, displayMessage)
@@ -1738,11 +1764,20 @@ class AiViewModel @Inject constructor(
                 )
             }
             try {
-                val ocrText = extractedText?.trim()?.takeIf { it.isNotEmpty() }
-                    ?: mlKitTextRecognizer.recognizeFromBytes(imageData).text
-                        .takeIf { it.isNotBlank() }
+                val ocrText = if (isRetry) {
+                    null
+                } else {
+                    extractedText?.trim()?.takeIf { it.isNotEmpty() }
+                        ?: mlKitTextRecognizer.recognizeFromBytes(imageData).text
+                            .takeIf { it.isNotBlank() }
+                }
                 lastScannedExtractedText = ocrText
-                _uiState.update { it.copy(scheduleScanExtractedText = ocrText) }
+                _uiState.update {
+                    it.copy(
+                        scheduleScanExtractedText = ocrText,
+                        statusMessage = if (isRetry) "Retrying with image only..." else null,
+                    )
+                }
 
                 val result = withTimeoutOrNull(SCHEDULE_SCAN_TIMEOUT_MS) {
                     aiAnalyzeSchedule.execute(
@@ -1905,18 +1940,9 @@ class AiViewModel @Inject constructor(
         }
     }
 
-    private fun tutorRateLimitRemainingMs(): Long {
-        val elapsed = System.currentTimeMillis() - lastTutorRequestAtMs
-        return (TUTOR_RATE_LIMIT_MS - elapsed).coerceAtLeast(0)
-    }
-
-    private fun formatTutorRateLimitMessage(remainingMs: Long): String =
-        com.edukasyon.studentai.ui.components.AiSafetyMessages.tutorClientCooldown(remainingMs)
-
     private companion object {
         const val TAG = "AiViewModel"
-        const val TUTOR_RATE_LIMIT_MS = 60_000L
-        const val SCHEDULE_SCAN_TIMEOUT_MS = 60_000L
+        const val SCHEDULE_SCAN_TIMEOUT_MS = 90_000L
         const val SCHEDULE_SCAN_MAX_RETRIES = 5
         const val SCHEDULE_SCAN_RETRY_LATER_MS = 30 * 60 * 1000L
         const val SCHEDULE_SCAN_RETRY_WORK = "schedule_scan_retry_later"

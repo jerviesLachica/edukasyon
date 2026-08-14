@@ -140,7 +140,7 @@ fun ProfileScreen(
             val profileSubtitle = buildList {
                 state.user?.school?.takeIf { it.isNotBlank() }?.let { add(it) }
                 state.user?.preferredStatus?.takeIf { it.isNotBlank() }?.let { add(it) }
-            }.joinToString(" · ").ifBlank { "StudentAI profile" }
+            }.joinToString(" · ").ifBlank { "SchedMate profile" }
 
             GradientHeader(
                 modifier = Modifier.clickable(onClick = viewModel::openEditSheet),
@@ -394,7 +394,7 @@ fun ProfileScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "Selected on the Jarvis AI screen. Auto is fast and unlimited; Step 3.7 Flash is stronger but limited to 5 requests every 10 minutes.",
+                    "Selected on the Jarvis AI screen. Auto is fast and unlimited; Step 3.7 Flash is stronger and allows 25 requests every 10 minutes.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -637,7 +637,7 @@ private fun OnboardingWelcomeStep(
     state: com.edukasyon.studentai.ui.viewmodel.OnboardingUiState,
     viewModel: com.edukasyon.studentai.ui.viewmodel.OnboardingViewModel
 ) {
-    Text("Welcome to StudentAI", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+    Text("Welcome to SchedMate", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
     Text(
         "Let's get to know you so we can personalize your study companion.",
         textAlign = TextAlign.Center,
@@ -706,7 +706,7 @@ private fun OnboardingPermissionsStep(
 ) {
     Text("Stay on track", style = MaterialTheme.typography.headlineMedium)
     Text(
-        "StudentAI uses notifications for class reminders, tasks, and exams. Grant permission so alerts arrive on time.",
+        "SchedMate uses notifications for class reminders, tasks, and exams. Grant permission so alerts arrive on time.",
         textAlign = TextAlign.Center,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -825,7 +825,7 @@ private fun OnboardingIllustration(step: Int) {
     if (step == 0) {
         Image(
             painter = painterResource(R.drawable.wala),
-            contentDescription = "Edukasyon logo",
+            contentDescription = "SchedMate logo",
             modifier = Modifier.size(120.dp),
         )
         return

@@ -126,7 +126,7 @@ private fun HomeTabContent() {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "StudentAI",
+            text = "SchedMate",
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
         )

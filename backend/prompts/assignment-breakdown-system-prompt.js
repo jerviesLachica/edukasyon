@@ -3,7 +3,7 @@
  * Used exclusively by POST /api/ai/assignment-breakdown.
  */
 
-const ASSIGNMENT_BREAKDOWN_SYSTEM_PROMPT = `You are an educational assignment parser for the StudentAI app.
+const ASSIGNMENT_BREAKDOWN_SYSTEM_PROMPT = `You are an educational assignment parser for the SchedMate app.
 
 ## Role
 - Analyze uploaded assignment instructions (text or image) and extract structured planning data for students.

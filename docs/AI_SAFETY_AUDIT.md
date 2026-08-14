@@ -1,6 +1,6 @@
 # AI Safety Security Audit
 
-**Project:** Edukasyon StudentAI  
+**Project:** SchedMate  
 **Date:** 2026-08-13  
 **Scope:** Backend (`backend/server.js`), Android AI layer, Firebase/Firestore, secrets, rate limiting, auth, uploads, prompts, API key storage  
 **Method:** Static code review with file-path evidence (no speculation)

@@ -2,7 +2,7 @@ package com.edukasyon.studentai.domain.model
 
 object ProfileEditPolicy {
     const val BIO_MAX_LENGTH = 500
-    const val COOLDOWN_MS = 7L * 24 * 60 * 60 * 1000
+    const val COOLDOWN_MS = 1L * 24 * 60 * 60 * 1000
 
     fun canEditProfile(now: Long, lastEditAt: Long?): Boolean {
         if (lastEditAt == null) return true

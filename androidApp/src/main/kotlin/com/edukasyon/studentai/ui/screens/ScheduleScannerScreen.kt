@@ -109,6 +109,7 @@ fun ScheduleScannerScreen(
     val scope = rememberCoroutineScope()
     val showCamera = state.scannedClasses.isEmpty()
     val isScanning = state.scheduleScanStatus == ScheduleScanStatus.SCANNING
+    val isImageOnlyRetry = state.scheduleScanRetryCount == 2
     val showScanFailure = state.scheduleScanStatus == ScheduleScanStatus.UNREADABLE ||
         state.scheduleScanStatus == ScheduleScanStatus.RETRY_LATER
     val cooldownActive = state.scheduleScanRetryAfterMillis?.let { System.currentTimeMillis() < it } == true
@@ -288,6 +289,7 @@ fun ScheduleScannerScreen(
                             ScanningOverlay(
                                 imageBytes = pendingScanImageBytes,
                                 extractedText = state.scheduleScanExtractedText,
+                                isImageOnlyRetry = isImageOnlyRetry,
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
@@ -301,6 +303,11 @@ fun ScheduleScannerScreen(
                                 onDismiss = {
                                     pendingScanImageBytes = null
                                     viewModel.dismissScheduleScanFailure()
+                                },
+                                onEnterManually = {
+                                    pendingScanImageBytes = null
+                                    viewModel.dismissScheduleScanFailure()
+                                    onBack()
                                 },
                                 modifier = Modifier.fillMaxSize(),
                             )
@@ -385,6 +392,12 @@ fun ScheduleScannerScreen(
                             Spacer(Modifier.width(8.dp))
                             Text(if (isScanning) "Scanning…" else "Capture & Analyze")
                         }
+                    }
+                    TextButton(
+                        onClick = onBack,
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    ) {
+                        Text("Skip scan — enter classes manually")
                     }
                 }
             }

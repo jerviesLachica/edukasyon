@@ -21,3 +21,7 @@ node_modules/
 backend/.env
 androidApp/keystore.properties
 androidApp/keystore/*.jks
+*.log
+compile-*.log
+build-ksp.log
+generate_jarvis_avatar.py

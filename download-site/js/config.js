@@ -8,6 +8,9 @@ const APP_CONFIG = {
   description:
     "Your offline-first AI student companion — schedule, planner, notes, grades, and an AI tutor in one app.",
 
+  // ThemePresets.Coral — matches SchedMate brand (Theme.kt / ThemeCustomization.kt)
+  themeColor: "#F97316",
+
   icon: "assets/app-icon.png",
 
   version: "1.0.0",
@@ -26,9 +29,9 @@ const APP_CONFIG = {
     },
     androidApk: {
       enabled: true,
-      label: "Download APK",
-      url: "downloads/studentai-1.0.0.apk",
-      hint: "Android 8+ · Enable “Install unknown apps” if prompted",
+      label: “Download APK”,
+      url: “downloads/schedmate-1.0.0.apk”,
+      hint: “Android 8+ · Signed release build · Enable “Install unknown apps” if prompted”,
     },
     windows: {
       enabled: false,

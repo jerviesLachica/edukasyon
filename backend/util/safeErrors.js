@@ -15,6 +15,20 @@ function sanitizeErrorForClient(err) {
   if (/AI provider not configured/i.test(raw)) {
     return { status: 503, code: 'AI_NOT_CONFIGURED', message: 'AI service is not configured.' };
   }
+  if (/WEB_SEARCH_NOT_CONFIGURED/i.test(raw)) {
+    return {
+      status: 503,
+      code: 'WEB_SEARCH_NOT_CONFIGURED',
+      message: 'Web search is not configured. Ask the app administrator to set TAVILY_API_KEY.',
+    };
+  }
+  if (/WEB_SEARCH_QUERY_REQUIRED/i.test(raw)) {
+    return {
+      status: 400,
+      code: 'WEB_SEARCH_QUERY_REQUIRED',
+      message: 'Add a search query after /search.',
+    };
+  }
   if (/abort/i.test(raw) || /timeout/i.test(raw)) {
     return { status: 504, code: 'REQUEST_TIMEOUT', message: 'AI request timed out. Please try again.' };
   }

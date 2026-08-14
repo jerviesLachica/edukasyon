@@ -1,4 +1,4 @@
-# StudentAI iOS Migration (Kotlin Multiplatform)
+# SchedMate iOS Migration (Kotlin Multiplatform)
 
 > **Status: PAUSED — Android-only first.** Phase 1 KMP scaffolding (`shared/`, `iosApp/`) is in the repo for future use. `:shared` is **not** included in `settings.gradle.kts` during Android-only development so Gradle sync stays fast and Windows-friendly. Re-enable with `include(":shared")` when you have Mac/Xcode access.
 
@@ -116,7 +116,7 @@ Xcode runs this automatically via the **Compile Kotlin Framework** build phase.
 
 Select an iOS Simulator (or device) and press **Run**. The app shows:
 
-- **Home** — StudentAI branding + live `/health` check against Render backend
+- **Home** — SchedMate branding + live `/health` check against Render backend
 - **Other tabs** — placeholders for Phase 2 screens
 
 ### 5. Gradle-only iOS compile (no Xcode UI)

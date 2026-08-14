@@ -23,6 +23,10 @@ interface TaskRepository {
     suspend fun createTask(task: Task)
     suspend fun updateTask(task: Task)
     suspend fun completeTask(id: String)
+    suspend fun uncompleteTask(id: String)
+    suspend fun insertSubtask(subtask: Subtask)
+    suspend fun updateSubtask(subtask: Subtask)
+    suspend fun deleteSubtask(taskId: String, subtaskId: String)
     suspend fun deleteTask(id: String)
     fun search(query: String): Flow<List<Task>>
 }

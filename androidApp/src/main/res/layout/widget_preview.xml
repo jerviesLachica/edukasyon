@@ -10,7 +10,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="StudentAI"
+        android:text="SchedMate"
         android:textColor="#3949AB"
         android:textSize="14sp"
         android:textStyle="bold" />

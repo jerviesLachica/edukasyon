@@ -50,11 +50,11 @@ class MarkdownChatTextTest {
     @Test
     fun buildInlineMarkdown_rendersBoldAndLink() {
         val annotated = buildInlineMarkdown(
-            text = "See **Edukasyon StudentAI** at [site](https://example.com)",
+            text = "See **SchedMate** at [site](https://example.com)",
             linkColor = androidx.compose.ui.graphics.Color.Blue,
             codeBackground = androidx.compose.ui.graphics.Color.Gray,
         )
-        assertTrue(annotated.text.contains("Edukasyon StudentAI"))
+        assertTrue(annotated.text.contains("SchedMate"))
         assertTrue(annotated.text.contains("site"))
     }
 }

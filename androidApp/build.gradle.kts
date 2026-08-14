@@ -99,6 +99,10 @@ tasks.withType<KotlinCompile>().configureEach {
     }
 }
 
+tasks.matching { it.name.startsWith("ksp") && it.name.contains("AndroidTest") }.configureEach {
+    enabled = false
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -155,5 +159,6 @@ dependencies {
     androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test)
+    androidTestImplementation(libs.room.testing)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

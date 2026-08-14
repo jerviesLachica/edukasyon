@@ -95,7 +95,7 @@ fun routeToSelectedTab(route: String?): MainTab? {
         route.startsWith("ai_conversation_history/") -> MainTab.JEVI
         route == Routes.FEATURES_GUIDE -> MainTab.PROFILE
         route == Routes.NOTIFICATION_SETTINGS || route == Routes.NOTIFICATION_SETTINGS_DETAIL -> MainTab.PROFILE
-        route == Routes.LECTURE_FILES -> MainTab.HOME
+        route == Routes.LECTURE_FILES || route == Routes.NOTES -> MainTab.HOME
         route == Routes.ASSIGNMENT_INTELLIGENCE -> MainTab.PLANNER
         else -> MainTab.entries.find { it.route == route }
     }

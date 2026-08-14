@@ -5,8 +5,8 @@
 
 const ENDPOINT_DEFAULTS = {
   chat: {
-    rateLimitPerMin: 1,
-    burstPerMin: 2,
+    rateLimitPerMin: null,
+    burstPerMin: null,
     dailyQuota: 100,
     hourlyQuota: 30,
     maxOutputTokens: 2048,
@@ -64,7 +64,7 @@ const ENDPOINT_DEFAULTS = {
 
 /** Premium step model chat quota (when client sends model=step-3.7-flash). */
 const STEP_MODEL_CHAT_DEFAULTS = {
-  limit: 5,
+  limit: 25,
   windowMs: 10 * 60 * 1000,
 };
 
@@ -89,8 +89,12 @@ function loadSafetyPolicy() {
   for (const [name, defaults] of Object.entries(ENDPOINT_DEFAULTS)) {
     const prefix = `SAFETY_${name.toUpperCase().replace(/-/g, '_')}`;
     endpoints[name] = {
-      rateLimitPerMin: envInt(`${prefix}_RATE_PER_MIN`, defaults.rateLimitPerMin),
-      burstPerMin: envInt(`${prefix}_BURST_PER_MIN`, defaults.burstPerMin),
+      rateLimitPerMin: defaults.rateLimitPerMin == null
+        ? null
+        : envInt(`${prefix}_RATE_PER_MIN`, defaults.rateLimitPerMin),
+      burstPerMin: defaults.burstPerMin == null
+        ? null
+        : envInt(`${prefix}_BURST_PER_MIN`, defaults.burstPerMin),
       dailyQuota: envInt(`${prefix}_DAILY_QUOTA`, defaults.dailyQuota ?? globalDaily),
       hourlyQuota: envInt(`${prefix}_HOURLY_QUOTA`, defaults.hourlyQuota ?? globalHourly),
       maxOutputTokens: envInt(`${prefix}_MAX_OUTPUT_TOKENS`, defaults.maxOutputTokens),

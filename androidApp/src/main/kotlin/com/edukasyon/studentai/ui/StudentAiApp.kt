@@ -56,7 +56,7 @@ fun StudentAiAppContent(
                     color = MaterialTheme.colorScheme.background,
                     contentColor = MaterialTheme.colorScheme.onBackground,
                 ) {
-                    LoadingScreen(title = "StudentAI")
+                    LoadingScreen(title = "SchedMate")
                 }
             }
             onboardingComplete -> {

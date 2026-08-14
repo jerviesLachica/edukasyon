@@ -1,6 +1,7 @@
 package com.edukasyon.studentai
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -18,8 +19,8 @@ class BottomNavTest {
     fun bottomNav_scheduleTab() {
         composeRule.waitForIdle()
         // Skip onboarding if shown
-        if (composeRule.onAllNodesWithText("Enter StudentAI").fetchSemanticsNodes().isNotEmpty()) {
-            composeRule.onNodeWithText("Enter StudentAI").performClick()
+        if (composeRule.onAllNodesWithText("Welcome to SchedMate").fetchSemanticsNodes().isNotEmpty()) {
+            composeRule.onNodeWithText("Continue Offline as Guest").performClick()
             composeRule.waitForIdle()
         } else if (composeRule.onAllNodesWithText("Get Started").fetchSemanticsNodes().isNotEmpty()) {
             composeRule.onNodeWithText("Continue Offline as Guest").performClick()

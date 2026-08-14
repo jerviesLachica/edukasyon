@@ -30,6 +30,7 @@ class AiSafetyGateway {
     this.abuseEvents = deps.abuseEvents;
     this.usageTracker = deps.usageTracker;
     this.provider = deps.provider;
+    this.webSearch = deps.webSearch || null;
     this.mockHandler = deps.mockHandler || null;
   }
 
@@ -62,21 +63,23 @@ class AiSafetyGateway {
       const inputChars = inputText.length;
 
       // 3. Rate limit
-      const rateResult = this.rateLimiter.checkEndpoint(identity, endpoint, endpointPolicy);
-      if (!rateResult.allowed) {
-        this.logEvent('rate_limited', identity, endpoint, { scope: rateResult.scope });
-        return this.sendError(
-          res,
-          429,
-          'RATE_LIMIT_EXCEEDED',
-          'Too many requests. Please wait before trying again.',
-          { retryAfterMs: rateResult.retryAfterMs }
-        );
+      if (endpointPolicy.rateLimitPerMin != null) {
+        const rateResult = this.rateLimiter.checkEndpoint(identity, endpoint, endpointPolicy);
+        if (!rateResult.allowed) {
+          this.logEvent('rate_limited', identity, endpoint, { scope: rateResult.scope });
+          return this.sendError(
+            res,
+            429,
+            'RATE_LIMIT_EXCEEDED',
+            'Too many requests. Please wait before trying again.',
+            { retryAfterMs: rateResult.retryAfterMs }
+          );
+        }
       }
 
       // 3b. Step model chat quota (only when client explicitly requests step-3.7-flash)
       if (endpoint === 'chat' && req.body?.model === 'step-3.7-flash') {
-        const stepPolicy = this.policy.stepModelChat || { limit: 5, windowMs: 600_000 };
+        const stepPolicy = this.policy.stepModelChat || { limit: 25, windowMs: 600_000 };
         const stepResult = this.rateLimiter.checkModel(identity, 'step-3.7-flash', stepPolicy);
         if (!stepResult.allowed) {
           this.logEvent('rate_limited', identity, endpoint, { scope: 'step_model', model: 'step-3.7-flash' });
@@ -84,7 +87,7 @@ class AiSafetyGateway {
             res,
             429,
             'RATE_LIMIT_EXCEEDED',
-            'Step 3.7 Flash limit reached (5 requests every 10 minutes). Switched to Auto is recommended.',
+            'Step 3.7 Flash limit reached (25 requests every 10 minutes). Switched to Auto is recommended.',
             { retryAfterMs: stepResult.retryAfterMs, model: 'step-3.7-flash' }
           );
         }
@@ -167,6 +170,7 @@ class AiSafetyGateway {
           body: req.body,
           identity,
           provider: this.provider,
+          webSearch: this.webSearch,
           maxTokens,
           signal: controller.signal,
         });

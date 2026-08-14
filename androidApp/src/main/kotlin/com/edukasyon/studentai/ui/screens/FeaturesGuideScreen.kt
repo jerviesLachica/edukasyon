@@ -265,11 +265,11 @@ private fun WidgetInstructionsDialog(
         title = { Text("Add Home Screen Widget") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Follow these steps to add a StudentAI widget:")
+                Text("Follow these steps to add a SchedMate widget:")
                 val steps = listOf(
                     "Long-press an empty area on your home screen",
                     "Tap \"Widgets\" from the menu",
-                    "Find \"StudentAI\" in the widget list",
+                    "Find \"SchedMate\" in the widget list",
                     "Drag the 2×2 or 2×3 widget to your home screen",
                     "Choose tasks, schedule, or combined view when prompted"
                 )

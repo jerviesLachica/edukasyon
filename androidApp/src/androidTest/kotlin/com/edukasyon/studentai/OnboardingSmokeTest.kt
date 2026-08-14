@@ -1,6 +1,7 @@
 package com.edukasyon.studentai
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
@@ -16,7 +17,7 @@ class OnboardingSmokeTest {
     fun onboarding_showsWelcomeOrHome() {
         composeRule.waitForIdle()
         // Fresh install shows onboarding; returning users may land on home.
-        val hasWelcome = composeRule.onAllNodesWithText("Welcome to StudentAI").fetchSemanticsNodes().isNotEmpty()
+        val hasWelcome = composeRule.onAllNodesWithText("Welcome to SchedMate").fetchSemanticsNodes().isNotEmpty()
         val hasHome = composeRule.onAllNodesWithText("Home").fetchSemanticsNodes().isNotEmpty()
         assert(hasWelcome || hasHome)
     }

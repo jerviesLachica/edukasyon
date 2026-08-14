@@ -1,4 +1,4 @@
-# StudentAI
+# SchedMate
 
 Offline-first AI-powered student companion for Android.
 
@@ -6,7 +6,7 @@ Offline-first AI-powered student companion for Android.
 
 ```
 edukasyon/
-├── androidApp/          # Primary Android application (StudentAI)
+├── androidApp/          # Primary Android application (SchedMate)
 │   └── src/main/kotlin/com/edukasyon/studentai/
 │       ├── core/        # AI, network, sync, utilities
 │       ├── data/        # Room, repositories, preferences

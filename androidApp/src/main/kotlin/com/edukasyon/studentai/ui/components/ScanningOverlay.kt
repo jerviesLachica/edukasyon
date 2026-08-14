@@ -56,6 +56,7 @@ fun ScanningOverlay(
     extractedText: String? = null,
     primaryMessage: String = "Scanning schedule…",
     subMessage: String = "Jarvis is reading your schedule",
+    isImageOnlyRetry: Boolean = false,
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
     val infiniteTransition = rememberInfiniteTransition(label = "scanOverlay")
@@ -190,7 +191,7 @@ fun ScanningOverlay(
             StarPreloader(containerSize = 56.dp, showGlow = true)
             Spacer(Modifier.height(20.dp))
             Text(
-                text = primaryMessage,
+                text = if (isImageOnlyRetry) "Retrying from scratch…" else primaryMessage,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White,
@@ -198,7 +199,7 @@ fun ScanningOverlay(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = subMessage,
+                text = if (isImageOnlyRetry) "Reading the image directly, no text preview" else subMessage,
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.85f),
                 textAlign = TextAlign.Center,
@@ -243,6 +244,7 @@ fun ScheduleScanFailureOverlay(
     retryAfterMillis: Long? = null,
     onRetry: () -> Unit,
     onDismiss: () -> Unit,
+    onEnterManually: (() -> Unit)? = null,
 ) {
     val previewBitmap = remember(imageBytes) {
         imageBytes?.let { bytes ->
@@ -304,12 +306,12 @@ fun ScheduleScanFailureOverlay(
             Text(
                 text = when (status) {
                     ScheduleScanStatus.UNREADABLE ->
-                        "We couldn't read this schedule after 1 minute. Try a clearer photo with good lighting."
+                        "Couldn't read this schedule. Tap retry to try a different approach."
                     ScheduleScanStatus.RETRY_LATER ->
                         if (retryAvailable) {
-                            "Scanning didn't work after several tries. You can try again now."
+                            "Scanning didn't work after several tries. You can try again or enter manually."
                         } else {
-                            "Scanning didn't work after several tries. Try again in ${formatRetryWait(remainingMs)}."
+                            "Scanning didn't work after several tries. Try again in ${formatRetryWait(remainingMs)} or enter manually."
                         }
                     else -> "Something went wrong while scanning."
                 },
@@ -333,6 +335,15 @@ fun ScheduleScanFailureOverlay(
                     modifier = Modifier.fillMaxWidth(0.72f),
                 ) {
                     Text(if (status == ScheduleScanStatus.RETRY_LATER) "Try again" else "Retry")
+                }
+            }
+            if (onEnterManually != null) {
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = onEnterManually,
+                    modifier = Modifier.fillMaxWidth(0.72f),
+                ) {
+                    Text("Enter classes manually")
                 }
             }
             Spacer(Modifier.height(10.dp))

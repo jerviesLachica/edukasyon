@@ -24,11 +24,16 @@ function detectPlatform() {
 }
 
 function applyConfig() {
-  const { name, tagline, description, icon, version, footer } = APP_CONFIG;
+  const { name, tagline, description, icon, version, footer, themeColor } = APP_CONFIG;
 
   document.title = `Download ${name}`;
   document.querySelector('meta[name="description"]').content =
     `${tagline} — Download ${name} for iOS, Android, Windows, and macOS.`;
+
+  if (themeColor) {
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) themeMeta.content = themeColor;
+  }
 
   document.querySelectorAll("[data-app-name]").forEach((el) => {
     el.textContent = name;
@@ -108,15 +113,22 @@ function renderDownloadButtons() {
 
 function renderFeatures() {
   const grid = document.getElementById("features-grid");
-  APP_CONFIG.features.forEach(({ icon, title, text }) => {
+  APP_CONFIG.features.forEach(({ icon, title, text }, index) => {
     const card = document.createElement("article");
     card.className = "feature-card";
+    card.style.animationDelay = `${120 + index * 70}ms`;
     card.innerHTML = `
       <div class="feature-card__icon">${icon}</div>
       <h3>${escapeHtml(title)}</h3>
       <p>${escapeHtml(text)}</p>
     `;
     grid.appendChild(card);
+  });
+
+  requestAnimationFrame(() => {
+    grid.querySelectorAll(".feature-card").forEach((card) => {
+      card.classList.add("is-visible");
+    });
   });
 }
 

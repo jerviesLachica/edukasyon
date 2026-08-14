@@ -1,6 +1,6 @@
 # Multi-Device Sync
 
-StudentAI syncs structured study data across devices via **Firebase Firestore**. Room remains the offline cache; the cloud is the source of truth when signed in with **Google**.
+SchedMate syncs structured study data across devices via **Firebase Firestore**. Room remains the offline cache; the cloud is the source of truth when signed in with **Google**.
 
 ## Architecture
 
@@ -31,7 +31,7 @@ Cross-device sync uses **Firebase Authentication — Google provider**, which is
 
 ### Spark plan limits (no Blaze)
 
-| Feature | Spark | Used by StudentAI |
+| Feature | Spark | Used by SchedMate |
 |---|---|---|
 | Firebase Auth (Google) | Free | Yes |
 | Firestore reads/writes | Daily free quota | Sync on sign-in, manual, 6h periodic |
@@ -104,7 +104,7 @@ firebase deploy --only firestore:rules
 1. Enable **Firestore** in your Firebase project (Spark plan is fine).
 2. Enable **Anonymous Authentication** (onboarding fallback).
 3. Enable **Google** sign-in provider under **Authentication → Sign-in method**.
-4. Add your app **SHA-1** and **SHA-256** fingerprints under **Project settings → Your apps → Android** (add to both **StudentAI** and **StudentAI Debug** apps).
+4. Add your app **SHA-1** and **SHA-256** fingerprints under **Project settings → Your apps → Android** (add to both **SchedMate** and **SchedMate Debug** apps).
    - Debug keystore (this machine, Mar 2026):
      - **SHA-1:** `88:DB:A9:1E:B4:E5:92:9D:68:BA:E7:1F:AC:61:9B:1D:3C:6B:8E:2D`
      - **SHA-256:** `9E:55:D4:3D:EC:20:30:5D:69:88:33:6D:B4:02:E3:79:D1:2B:C1:32:69:8C:06:6F:BE:76:85:08:36:8C:5E:75`

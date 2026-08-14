@@ -32,12 +32,14 @@
 -keepclassmembers class * {
     @kotlinx.serialization.SerialName <fields>;
 }
--if class *
+-if @kotlinx.serialization.Serializable class **
 -keepclassmembers class <1> {
-    static ** Companion;
+    static <1>$Companion Companion;
 }
--if class **$Companion
--keepclassmembers class <2> {
+-if @kotlinx.serialization.Serializable class ** {
+    static **$* *;
+}
+-keepclassmembers class <1>$<2> {
     kotlinx.serialization.KSerializer serializer(...);
 }
 

@@ -18,7 +18,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "StudentAI"
+rootProject.name = "SchedMate"
 include(":androidApp")
 // iOS KMP foundation lives in :shared but is excluded while shipping Android-only.
 // Re-enable when resuming iOS: include(":shared")

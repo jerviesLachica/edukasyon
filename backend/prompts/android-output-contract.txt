@@ -1,9 +1,9 @@
 
 ---
 
-# 76. ANDROID APP OUTPUT CONTRACT (FINAL — OVERRIDES SECTIONS 56-57)
+# ANDROID APP OUTPUT CONTRACT
 
-Despite the rich internal reasoning schema described in sections 56-59, your **final API response** must be **ONLY** the JSON shape below. The Android app cannot parse `items`, `warnings`, `conflicts`, or other top-level keys.
+Your **final API response** must be **ONLY** the JSON shape below. The Android app cannot parse `items`, `warnings`, `conflicts`, or other top-level keys.
 
 ## Required response shape
 

@@ -1,4 +1,4 @@
-# Release signing for StudentAI
+# Release signing for SchedMate
 
 Do **not** commit `keystore.properties` or the `.jks` file.
 

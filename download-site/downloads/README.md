@@ -13,11 +13,18 @@ $env:JAVA_HOME = "C:\Program Files\Java\jdk-25.0.2"
 
 Output: `androidApp/build/outputs/apk/release/androidApp-release-unsigned.apk`
 
-For sideload distribution you can rename and copy:
+For sideload distribution you can rename and copy (debug build for testing):
+
+```powershell
+Copy-Item androidApp\build\outputs\apk\debug\androidApp-debug.apk `
+  download-site\downloads\schedmate-1.0.0-debug.apk
+```
+
+For release:
 
 ```powershell
 Copy-Item androidApp\build\outputs\apk\release\androidApp-release-unsigned.apk `
-  download-site\downloads\studentai-1.0.0.apk
+  download-site\downloads\schedmate-1.0.0.apk
 ```
 
 Update `download-site/js/config.js`:

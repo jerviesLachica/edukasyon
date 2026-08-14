@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import com.edukasyon.studentai.data.local.entity.*
 import kotlinx.coroutines.flow.Flow
 
@@ -83,7 +84,7 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE deletedAt IS NULL AND status != 'COMPLETED' AND status != 'ARCHIVED' AND dueDate >= :from AND dueDate <= :to")
     suspend fun getDueInRange(from: Long, to: Long): List<TaskEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insert(task: TaskEntity)
 
     @Query("UPDATE tasks SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE id = :id")

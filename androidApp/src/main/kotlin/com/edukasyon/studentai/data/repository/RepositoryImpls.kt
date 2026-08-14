@@ -95,6 +95,39 @@ class TaskRepositoryImpl @Inject constructor(
         WidgetUpdater.notifyDataChanged(context)
     }
 
+    override suspend fun uncompleteTask(id: String) {
+        val tasks = taskDao.observeAll().first()
+        tasks.find { it.id == id }?.let { entity ->
+            val updated = entity.copy(
+                status = TaskStatus.PENDING.name,
+                completedAt = null,
+                updatedAt = System.currentTimeMillis(),
+            )
+            taskDao.insert(updated)
+            val subtasks = subtaskDao.observeByTask(id).first().map { it.toDomain() }
+            reminderSyncService.get().scheduleTaskReminder(updated.toDomain(subtasks))
+        }
+        WidgetUpdater.notifyDataChanged(context)
+    }
+
+    override suspend fun insertSubtask(subtask: Subtask) {
+        subtaskDao.insert(subtask.toEntity())
+        touchTaskUpdatedAt(subtask.taskId)
+        WidgetUpdater.notifyDataChanged(context)
+    }
+
+    override suspend fun updateSubtask(subtask: Subtask) {
+        subtaskDao.insert(subtask.toEntity())
+        touchTaskUpdatedAt(subtask.taskId)
+        WidgetUpdater.notifyDataChanged(context)
+    }
+
+    override suspend fun deleteSubtask(taskId: String, subtaskId: String) {
+        subtaskDao.deleteById(subtaskId)
+        touchTaskUpdatedAt(taskId)
+        WidgetUpdater.notifyDataChanged(context)
+    }
+
     override suspend fun deleteTask(id: String) {
         val now = System.currentTimeMillis()
         taskDao.softDelete(id, now, now)
@@ -104,6 +137,12 @@ class TaskRepositoryImpl @Inject constructor(
 
     override fun search(query: String): Flow<List<Task>> =
         taskDao.search(query).map { it.map { e -> e.toDomain() } }
+
+    private suspend fun touchTaskUpdatedAt(taskId: String) {
+        taskDao.observeAll().first().find { it.id == taskId }?.let { entity ->
+            taskDao.insert(entity.copy(updatedAt = System.currentTimeMillis()))
+        }
+    }
 }
 
 private fun Subtask.toEntity() = com.edukasyon.studentai.data.local.entity.SubtaskEntity(

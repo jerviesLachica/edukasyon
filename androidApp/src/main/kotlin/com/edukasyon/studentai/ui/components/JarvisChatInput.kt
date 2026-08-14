@@ -58,7 +58,7 @@ import com.edukasyon.studentai.domain.model.ChatAttachmentPayload
 private object JarvisModelCapabilities {
     fun tagsFor(model: AiModel): List<String> = when (model) {
         AiModel.AUTO -> listOf("Fast", "Chat", "Files", "Vision")
-        AiModel.REASONING -> listOf("Reasoning", "Vision", "Stronger", "5/10 min")
+        AiModel.REASONING -> listOf("Reasoning", "Vision", "Stronger", "25/10 min")
     }
 }
 
@@ -206,7 +206,7 @@ fun JarvisChatInputBar(
                         Box(Modifier.fillMaxWidth()) {
                             if (input.isEmpty()) {
                                 Text(
-                                    "Ask anything",
+                                    "Ask anything · /search for current sources",
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = scheme.onSurfaceVariant,
                                 )

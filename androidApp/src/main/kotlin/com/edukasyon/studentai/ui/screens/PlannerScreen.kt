@@ -21,10 +21,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import android.content.Intent
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edukasyon.studentai.core.util.DateUtils
@@ -58,8 +60,24 @@ fun PlannerScreen(
     var editingAssignment by remember { mutableStateOf<Assignment?>(null) }
     var editingExam by remember { mutableStateOf<Exam?>(null) }
     var linkingExam by remember { mutableStateOf<Exam?>(null) }
+    var deletingExam by remember { mutableStateOf<Exam?>(null) }
+    var showAddExamDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    AdaptiveContentContainer {
+    LaunchedEffect(state.snackbarMessage) {
+        state.snackbarMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearSnackbarMessage()
+        }
+    }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
+    ) { padding ->
+    AdaptiveContentContainer(
+        modifier = Modifier.padding(padding),
+    ) {
         contentModifier ->
         Column(contentModifier.fillMaxSize()) {
             GradientHeader(
@@ -171,7 +189,9 @@ fun PlannerScreen(
                     },
                 )
                 BouncyButton(
-                    onClick = { showAddDialog = true },
+                    onClick = {
+                        if (state.selectedTab == 2) showAddExamDialog = true else showAddDialog = true
+                    },
                     shape = com.edukasyon.studentai.ui.theme.StudentAiShapes.button,
                 ) {
                     Icon(Icons.Default.Add, null)
@@ -180,6 +200,7 @@ fun PlannerScreen(
                 }
             }
         }
+    }
     }
     if (showAddDialog) {
         PlannerItemDialog(

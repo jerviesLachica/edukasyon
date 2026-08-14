@@ -23,7 +23,7 @@ fun createHttpClient(): HttpClient = createPlatformHttpClient().config {
     install(Logging) {
         logger = object : Logger {
             override fun log(message: String) {
-                println("StudentAI-HTTP: $message")
+                println("SchedMate-HTTP: $message")
             }
         }
         level = LogLevel.INFO

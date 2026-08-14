@@ -52,12 +52,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.edukasyon.studentai.domain.model.GizmoCompanionState
 import com.edukasyon.studentai.domain.model.GizmoMood
+import com.edukasyon.studentai.R
 
 @Composable
 fun GizmoCompanionHeader(
@@ -264,12 +267,16 @@ fun GizmoAvatar(
 ) {
     Box(
         modifier = modifier
-            .size(56.dp)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
         contentAlignment = Alignment.Center,
     ) {
-        Text(mood.emoji, style = MaterialTheme.typography.headlineMedium)
+        androidx.compose.foundation.Image(
+            painter = painterResource(R.drawable.jarvis_avatar),
+            contentDescription = "Jarvis avatar",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit,
+        )
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -324,7 +331,20 @@ fun JarvisThinkingIndicator(
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.Top,
     ) {
-        Text("🤖", modifier = Modifier.padding(end = 6.dp, top = 4.dp))
+        Box(
+            modifier = Modifier
+                .padding(end = 6.dp, top = 4.dp)
+                .size(28.dp)
+                .clip(CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.foundation.Image(
+                painter = painterResource(R.drawable.jarvis_avatar),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit,
+            )
+        }
         Column(Modifier.weight(1f, fill = false)) {
             Text(
                 "Jarvis",
@@ -416,7 +436,20 @@ fun GizmoChatBubble(
         verticalAlignment = Alignment.Top,
     ) {
         if (!isUser) {
-            Text("🤖", modifier = Modifier.padding(end = 6.dp, top = 4.dp))
+            Box(
+                modifier = Modifier
+                    .padding(end = 6.dp, top = 4.dp)
+                    .size(28.dp)
+                    .clip(CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(R.drawable.jarvis_avatar),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit,
+                )
+            }
         }
         Column(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,

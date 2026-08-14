@@ -152,7 +152,7 @@ class MockAiService @Inject constructor() : AiService {
         } else {
             ""
         }
-        return "Hi! I'm Jarvis, your study tutor in Edukasyon StudentAI.$subjectPart$contextPart$historyPart " +
+        return "Hi! I'm Jarvis, your study tutor in SchedMate.$subjectPart$contextPart$historyPart " +
             "Ask me to explain a concept, plan study time, or add tasks to your planner. " +
             "I'll be honest when I'm unsure and won't make up facts or links."
     }

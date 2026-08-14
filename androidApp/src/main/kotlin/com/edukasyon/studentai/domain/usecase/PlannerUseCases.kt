@@ -51,6 +51,28 @@ class DeleteExamUseCase @Inject constructor(
     override suspend fun execute(params: String): Unit = examRepository.deleteExam(params)
 }
 
+class DuplicateExamUseCase @Inject constructor(
+    private val examRepository: ExamRepository,
+) : UseCase<Exam, Exam> {
+    override suspend fun execute(params: Exam): Exam {
+        val copy = params.copy(
+            id = java.util.UUID.randomUUID().toString(),
+            title = duplicateTitle(params.title),
+        )
+        examRepository.saveExam(copy)
+        return copy
+    }
+
+    private fun duplicateTitle(title: String): String {
+        val trimmed = title.trim()
+        return if (trimmed.endsWith("(copy)", ignoreCase = true)) {
+            "$trimmed 2"
+        } else {
+            "$trimmed (copy)"
+        }
+    }
+}
+
 class GetAllNotesUseCase @Inject constructor(
     private val noteRepository: NoteRepository
 ) : UseCase<Unit, List<Note>> {

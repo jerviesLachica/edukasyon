@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.edukasyon.studentai.MainActivity
+import com.edukasyon.studentai.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,7 +30,7 @@ class NotificationHelper @Inject constructor(
         val manager = context.getSystemService(NotificationManager::class.java)
         ReminderType.entries.forEach { type ->
             val channel = NotificationChannel(type.channelId, type.channelName, NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "StudentAI ${type.channelName.lowercase()}"
+                description = "SchedMate ${type.channelName.lowercase()}"
             }
             manager.createNotificationChannel(channel)
         }
@@ -53,7 +54,7 @@ class NotificationHelper @Inject constructor(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(context, type.channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)

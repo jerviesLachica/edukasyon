@@ -232,6 +232,22 @@ object UseCaseModule {
         CompleteTaskUseCase(repo)
 
     @Provides @Singleton
+    fun provideUncompleteTaskUseCase(repo: TaskRepository) =
+        UncompleteTaskUseCase(repo)
+
+    @Provides @Singleton
+    fun provideInsertSubtaskUseCase(repo: TaskRepository) =
+        InsertSubtaskUseCase(repo)
+
+    @Provides @Singleton
+    fun provideUpdateSubtaskUseCase(repo: TaskRepository) =
+        UpdateSubtaskUseCase(repo)
+
+    @Provides @Singleton
+    fun provideDeleteSubtaskUseCase(repo: TaskRepository) =
+        DeleteSubtaskUseCase(repo)
+
+    @Provides @Singleton
     fun provideDeleteTaskUseCase(repo: TaskRepository) =
         DeleteTaskUseCase(repo)
 
@@ -266,6 +282,10 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideDeleteExamUseCase(repo: ExamRepository) =
         DeleteExamUseCase(repo)
+
+    @Provides @Singleton
+    fun provideDuplicateExamUseCase(repo: ExamRepository) =
+        DuplicateExamUseCase(repo)
 
     @Provides @Singleton
     fun provideGetAllNotesUseCase(repo: NoteRepository) =

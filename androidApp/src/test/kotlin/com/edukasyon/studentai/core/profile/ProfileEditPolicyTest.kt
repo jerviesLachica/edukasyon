@@ -13,23 +13,23 @@ class ProfileEditPolicyTest {
     }
 
     @Test
-    fun canEditProfile_withinSevenDays_returnsFalse() {
+    fun canEditProfile_withinOneDay_returnsFalse() {
         val lastEdit = 1_000_000L
-        val threeDaysLater = lastEdit + (3L * 86_400_000)
-        assertFalse(ProfileEditPolicy.canEditProfile(threeDaysLater, lastEdit))
+        val hoursLater = lastEdit + (12L * 3_600_000)
+        assertFalse(ProfileEditPolicy.canEditProfile(hoursLater, lastEdit))
     }
 
     @Test
-    fun canEditProfile_afterSevenDays_returnsTrue() {
+    fun canEditProfile_afterOneDay_returnsTrue() {
         val lastEdit = 1_000_000L
-        val sevenDaysLater = lastEdit + ProfileEditPolicy.COOLDOWN_MS
-        assertTrue(ProfileEditPolicy.canEditProfile(sevenDaysLater, lastEdit))
+        val oneDayLater = lastEdit + ProfileEditPolicy.COOLDOWN_MS
+        assertTrue(ProfileEditPolicy.canEditProfile(oneDayLater, lastEdit))
     }
 
     @Test
-    fun daysUntilNextEdit_roundsUpPartialDays() {
+    fun daysUntilNextEdit_returnsOneWhenPartialDayRemains() {
         val lastEdit = 0L
         val oneDayLater = 86_400_000L
-        assertTrue(ProfileEditPolicy.daysUntilNextEdit(oneDayLater, lastEdit) == 6)
+        assertTrue(ProfileEditPolicy.daysUntilNextEdit(oneDayLater, lastEdit) == 1)
     }
 }

@@ -12,6 +12,7 @@ const { PromptInjectionDetector } = require('../safety/PromptInjectionDetector')
 const { QuizValidator, AssignmentBreakdownValidator } = require('../validation/AiResponseValidator');
 const { sanitizeErrorForClient, containsSecret } = require('../util/safeErrors');
 const { VISION_CAPABLE_MODELS } = require('../ai/AiProvider');
+const { parseWebSearchCommand } = require('../ai/WebSearchService');
 const { AiSafetyGateway } = require('../ai/AiSafetyGateway');
 const { loadSafetyPolicy } = require('../safety/SafetyPolicy');
 
@@ -32,12 +33,12 @@ describe('RateLimiter', () => {
     limiter.destroy();
   });
 
-  it('blocks step model chat beyond 5 per 10 minutes', () => {
+  it('blocks step model chat beyond 25 per 10 minutes', () => {
     const limiter = new RateLimiter();
     const identity = { userId: 'dev:step-user', clientIp: '127.0.0.1' };
-    const policy = { limit: 5, windowMs: 10 * 60 * 1000 };
+    const policy = { limit: 25, windowMs: 10 * 60 * 1000 };
 
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < 25; i += 1) {
       const result = limiter.checkModel(identity, 'step-3.7-flash', policy);
       assert.equal(result.allowed, true, `request ${i + 1} should be allowed`);
     }
@@ -45,6 +46,22 @@ describe('RateLimiter', () => {
     assert.equal(blocked.allowed, false);
     assert.ok(blocked.retryAfterMs >= 0);
     limiter.destroy();
+  });
+});
+
+describe('Web search command', () => {
+  it('detects and strips the /search prefix', () => {
+    assert.deepEqual(parseWebSearchCommand('/search current education news'), {
+      requested: true,
+      query: 'current education news',
+    });
+  });
+
+  it('leaves ordinary chat messages unchanged', () => {
+    assert.deepEqual(parseWebSearchCommand('Explain photosynthesis'), {
+      requested: false,
+      query: 'Explain photosynthesis',
+    });
   });
 });
 

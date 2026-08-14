@@ -9,9 +9,14 @@ import com.edukasyon.studentai.domain.model.FocusPlan
 import com.edukasyon.studentai.domain.model.FocusPlanContext
 import com.edukasyon.studentai.domain.model.Quiz
 import com.edukasyon.studentai.domain.model.StudyPlan
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.max
+import kotlin.math.min
 import retrofit2.HttpException
 
 @Singleton
@@ -56,9 +61,10 @@ class RemoteAiService @Inject constructor(
 
     override suspend fun analyzeSchedule(input: ScheduleScanInput): ScheduleAnalysisResult {
         return try {
+            val compressed = compressScheduleImage(input.imageData)
             val response = api.analyzeSchedule(
                 com.edukasyon.studentai.core.network.ScheduleAnalysisRequest(
-                    imageBase64 = android.util.Base64.encodeToString(input.imageData, android.util.Base64.NO_WRAP),
+                    imageBase64 = android.util.Base64.encodeToString(compressed, android.util.Base64.NO_WRAP),
                     extractedText = input.extractedText?.takeIf { it.isNotBlank() },
                 )
             )
@@ -70,6 +76,39 @@ class RemoteAiService @Inject constructor(
             )
         } catch (e: Exception) {
             throw AiException("Failed to analyze schedule image.", e)
+        }
+    }
+
+    private companion object {
+        private const val SCAN_MAX_DIMENSION = 1024
+        private const val SCAN_JPEG_QUALITY = 70
+    }
+
+    /** Downscale large camera photos so the vision model processes them faster. */
+    private fun compressScheduleImage(bytes: ByteArray): ByteArray {
+        val original = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return bytes
+        return try {
+            val ratio = min(
+                SCAN_MAX_DIMENSION.toFloat() / original.width,
+                SCAN_MAX_DIMENSION.toFloat() / original.height,
+            )
+            if (ratio >= 1f) {
+                // Already small enough — just re-encode at lower quality.
+                ByteArrayOutputStream().use { stream ->
+                    original.compress(Bitmap.CompressFormat.JPEG, SCAN_JPEG_QUALITY, stream)
+                    stream.toByteArray()
+                }
+            } else {
+                val newW = max(1, (original.width * ratio).toInt())
+                val newH = max(1, (original.height * ratio).toInt())
+                val scaled = Bitmap.createScaledBitmap(original, newW, newH, true)
+                ByteArrayOutputStream().use { stream ->
+                    scaled.compress(Bitmap.CompressFormat.JPEG, SCAN_JPEG_QUALITY, stream)
+                    stream.toByteArray()
+                }
+            }
+        } finally {
+            original.recycle()
         }
     }
 

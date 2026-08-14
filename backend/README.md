@@ -1,6 +1,6 @@
-# StudentAI Backend
+# SchedMate Backend
 
-Secure proxy between the StudentAI Android app and the hcnsec.cn OpenAI-compatible AI provider.
+Secure proxy between the SchedMate Android app and the hcnsec.cn OpenAI-compatible AI provider.
 
 ## Security
 
@@ -22,6 +22,14 @@ Optional client override for **text-only** chat: `step-3.7-flash` (Profile → A
 
 The Android app never calls hcnsec.cn directly — only this backend proxy does.
 
+## Web search
+
+Set `TAVILY_API_KEY` on the backend to enable web search. In Jarvis chat, start a
+message with `/search`, for example `/search current renewable energy statistics`.
+Jarvis receives the returned sources as untrusted reference material and cites them
+as `[1]`, `[2]`, and so on. The Tavily key stays on the server and is never sent to
+the Android app.
+
 ## Environment variables
 
 | Variable | Required | Default | Description |
@@ -32,6 +40,7 @@ The Android app never calls hcnsec.cn directly — only this backend proxy does.
 | `TEXT_MODEL` / `AI_TEXT_MODEL` | No | `auto` | Model for text chat and study tools |
 | `VISION_MODEL` / `AI_VISION_MODEL` | No | `step-3.7-flash` | Model for image chat and schedule analysis |
 | `PORT` | No | `8080` | HTTP port |
+| `TAVILY_API_KEY` | No | — | Enables `/search` web search in chat via Tavily |
 
 ### Allowed models
 
@@ -126,6 +135,9 @@ python backend/prompts/generate-android-prompt.py
 ```
 
 Profile → **AI Settings**: Auto (default) or Step 3.7 Flash (`step-3.7-flash`) for stronger reasoning.
+
+Chat has no per-minute cooldown. Step 3.7 Flash allows 25 requests every 10 minutes;
+hourly and daily safety quotas still apply.
 
 For local backend development only:
 

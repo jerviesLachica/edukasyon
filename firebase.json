@@ -10,7 +10,7 @@
       "anonymous": true,
       "emailPassword": true,
       "googleSignIn": {
-        "oAuthBrandDisplayName": "StudentAI",
+        "oAuthBrandDisplayName": "SchedMate",
         "supportEmail": "lachicajervies@gmail.com"
       }
     }

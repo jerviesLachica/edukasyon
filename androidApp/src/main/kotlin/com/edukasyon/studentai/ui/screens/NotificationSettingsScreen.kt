@@ -150,7 +150,7 @@ fun NotificationSettingsScreen(
                 PermissionInfoCard(
                     title = "Reminders muted by Do Not Disturb?",
                     body = "Grant Do Not Disturb access so class, task, and repeating reminders aren't silenced.",
-                    buttonLabel = "Allow StudentAI to bypass Do Not Disturb",
+                    buttonLabel = "Allow SchedMate to bypass Do Not Disturb",
                     granted = state.dndAccessGranted,
                     onAction = {
                         context.startActivity(
@@ -165,7 +165,7 @@ fun NotificationSettingsScreen(
                     title = "Alarm timing not matching?",
                     subtitle = "Reminders arriving later than expected? Battery optimization can delay them.",
                     body = "This is essential for accurate class alarms and for the home-screen widget to update on its own (e.g. rolling over to the next day at midnight) — without it, Android can delay or skip these in the background.",
-                    buttonLabel = "Disable battery optimization for StudentAI",
+                    buttonLabel = "Disable battery optimization for SchedMate",
                     granted = state.batteryOptimizationDisabled,
                     onAction = {
                         val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {

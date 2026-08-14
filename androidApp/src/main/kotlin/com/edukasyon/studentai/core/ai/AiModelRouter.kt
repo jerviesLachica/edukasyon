@@ -8,7 +8,7 @@ import com.edukasyon.studentai.domain.model.AiModel
  * Server routing ([backend/ai/AiProvider.js]):
  * - User-selected **auto** → text uses auto; image attachments also stay on **auto**
  *   (`VISION_CAPABLE_MODELS` includes `auto`; `resolveChatModel()` does not force step).
- * - User-selected **step-3.7-flash** → text and vision use step (subject to 5 req / 10 min quota).
+ * - User-selected **step-3.7-flash** → text and vision use step (subject to 25 req / 10 min quota).
  *
  * UI capability tags in [JarvisChatInput] show Vision on both models because auto is vision-capable.
  */

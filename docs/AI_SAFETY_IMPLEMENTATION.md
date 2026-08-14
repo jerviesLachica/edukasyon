@@ -1,6 +1,6 @@
 # AI Safety Implementation Guide
 
-**Project:** Edukasyon StudentAI  
+**Project:** SchedMate  
 **Date:** 2026-08-13  
 **Phases covered this session:** 1 (audit), 2–6 (core infrastructure), partial 11 (Android UX), partial 12 (backend tests)
 
