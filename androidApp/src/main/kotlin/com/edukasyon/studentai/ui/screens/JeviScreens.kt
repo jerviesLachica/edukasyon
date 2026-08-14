@@ -1,5 +1,7 @@
 package com.edukasyon.studentai.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,12 +22,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
+import com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer
+import com.edukasyon.studentai.core.mlkit.PdfOcrHelper
 import com.edukasyon.studentai.domain.model.Flashcard
 import com.edukasyon.studentai.domain.model.JeviDeck
 import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.components.*
 import com.edukasyon.studentai.domain.model.Quiz
+import com.edukasyon.studentai.domain.model.QuizQuestion
+import com.edukasyon.studentai.domain.model.QuestionType
+import androidx.compose.ui.platform.LocalContext
 import com.edukasyon.studentai.ui.viewmodel.JeviCreateViewModel
 import com.edukasyon.studentai.ui.viewmodel.JeviDeckDetailViewModel
 import com.edukasyon.studentai.ui.viewmodel.JeviDecksViewModel
@@ -480,11 +488,38 @@ fun JeviCreateScreen(
     viewModel: JeviCreateViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val horizontalPadding = rememberAdaptiveHorizontalPadding()
     val snackbarHostState = remember { SnackbarHostState() }
+    val pdfOcrHelper = remember { PdfOcrHelper(MlKitTextRecognizer()) }
 
     LaunchedEffect(state.error) {
         state.error?.let { snackbarHostState.showSnackbar(it) }
+    }
+
+    val pdfPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val fileName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                cursor.moveToFirst()
+                cursor.getString(cursor.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME))
+            } ?: "document.pdf"
+            val text = pdfOcrHelper.extractTextFromPdf(context, uri, fileName)
+            text?.let { viewModel.generateFromDocument(it) }
+        }
+    }
+
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val text = pdfOcrHelper.recognizeImage(context, uri)
+            text?.let { viewModel.generateFromDocument(it) }
+        }
     }
 
     Scaffold(
@@ -510,7 +545,7 @@ fun JeviCreateScreen(
             ) {
                 item {
                     Text(
-                        "JEVI will generate flashcards from your topic or notes.",
+                        "Type a topic, paste content, or import a PDF/image scan.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -522,8 +557,33 @@ fun JeviCreateScreen(
                         label = { Text("Topic or note content") },
                         minLines = 4,
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !state.isGenerating,
+                        enabled = !state.isGenerating && !state.isExtracting,
                     )
+                }
+                item {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        BouncyOutlinedButton(
+                            onClick = { pdfPicker.launch(arrayOf("application/pdf")) },
+                            modifier = Modifier.weight(1f),
+                            enabled = !state.isGenerating && !state.isExtracting,
+                        ) {
+                            Icon(Icons.Default.Description, contentDescription = null)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Pick PDF")
+                        }
+                        BouncyOutlinedButton(
+                            onClick = { imagePicker.launch("image/*") },
+                            modifier = Modifier.weight(1f),
+                            enabled = !state.isGenerating && !state.isExtracting,
+                        ) {
+                            Icon(Icons.Default.Image, contentDescription = null)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Pick Image")
+                        }
+                    }
                 }
                 item {
                     if (state.decks.isNotEmpty()) {
@@ -558,16 +618,24 @@ fun JeviCreateScreen(
                     BouncyButton(
                         onClick = viewModel::generate,
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !state.isGenerating && state.topic.isNotBlank(),
+                        enabled = !state.isGenerating && !state.isExtracting && state.topic.isNotBlank(),
                     ) {
-                        if (state.isGenerating) {
-                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Generating…")
-                        } else {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Generate with JEVI")
+                        when {
+                            state.isGenerating -> {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Generating…")
+                            }
+                            state.isExtracting -> {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Reading document…")
+                            }
+                            else -> {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Generate with JEVI")
+                            }
                         }
                     }
                 }
@@ -583,23 +651,76 @@ fun JeviCreateScreen(
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
                             )
-                            if (!state.saved) {
-                                BouncyOutlinedButton(onClick = viewModel::saveToSelectedDeck) {
-                                    Text("Save to deck")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (!state.saved) {
+                                    BouncyOutlinedButton(onClick = viewModel::saveToSelectedDeck) {
+                                        Text("Save to deck")
+                                    }
+                                } else {
+                                    AssistChip(
+                                        onClick = {},
+                                        label = { Text("Saved") },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Check, contentDescription = null, Modifier.size(16.dp))
+                                        },
+                                    )
                                 }
-                            } else {
-                                AssistChip(
-                                    onClick = {},
-                                    label = { Text("Saved") },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Check, contentDescription = null, Modifier.size(16.dp))
-                                    },
-                                )
                             }
                         }
                     }
                     items(state.generatedCards, key = { it.id }) { card ->
-                        JeviGeneratedCardPreview(card)
+                        EditableFlashcardPreview(
+                            card = card,
+                            onUpdate = { q, a -> viewModel.updateCard(card.id, q, a) },
+                            onRemove = { viewModel.removeCard(card.id) },
+                        )
+                    }
+                    item {
+                        var showAdd by remember { mutableStateOf(false) }
+                        var questionText by remember { mutableStateOf("") }
+                        var answerText by remember { mutableStateOf("") }
+
+                        if (showAdd) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Add card", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                    OutlinedTextField(
+                                        value = questionText,
+                                        onValueChange = { questionText = it },
+                                        label = { Text("Question") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        minLines = 2,
+                                    )
+                                    OutlinedTextField(
+                                        value = answerText,
+                                        onValueChange = { answerText = it },
+                                        label = { Text("Answer") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        minLines = 2,
+                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        BouncyButton(onClick = {
+                                            viewModel.addCard(questionText, answerText)
+                                            questionText = ""
+                                            answerText = ""
+                                            showAdd = false
+                                        }) { Text("Add") }
+                                        TextButton(onClick = { showAdd = false }) { Text("Cancel") }
+                                    }
+                                }
+                            }
+                        }
+                        BouncyOutlinedButton(
+                            onClick = { showAdd = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Add card manually")
+                        }
                     }
                 }
             }
@@ -624,6 +745,357 @@ private fun JeviGeneratedCardPreview(card: Flashcard) {
     }
 }
 
+@Composable
+private fun EditableFlashcardPreview(
+    card: Flashcard,
+    onUpdate: (String, String) -> Unit,
+    onRemove: () -> Unit,
+) {
+    var isEditing by remember { mutableStateOf(false) }
+    var qText by remember { mutableStateOf(card.question) }
+    var aText by remember { mutableStateOf(card.answer) }
+
+    StudentAiCard {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (isEditing) {
+                OutlinedTextField(
+                    value = qText,
+                    onValueChange = { qText = it },
+                    label = { Text("Question") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                )
+                OutlinedTextField(
+                    value = aText,
+                    onValueChange = { aText = it },
+                    label = { Text("Answer") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    BouncyButton(onClick = {
+                        onUpdate(qText, aText)
+                        isEditing = false
+                    }, modifier = Modifier.weight(1f)) { Text("Save") }
+                    TextButton(onClick = {
+                        qText = card.question
+                        aText = card.answer
+                        isEditing = false
+                    }) { Text("Cancel") }
+                }
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Q: ${card.question}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(
+                            "A: ${card.answer}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        IconButton(onClick = { isEditing = true }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(20.dp))
+                        }
+                        IconButton(onClick = onRemove) {
+                            Icon(Icons.Default.Delete, contentDescription = "Remove", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditableQuizQuestionPreview(
+    question: QuizQuestion,
+    onUpdate: (question: String, options: List<String>, correctAnswer: String) -> Unit,
+    onRemove: () -> Unit,
+) {
+    var isEditing by remember { mutableStateOf(false) }
+    var qText by remember { mutableStateOf(question.question) }
+    var options by remember { mutableStateOf(question.options.toMutableList()) }
+    var correctAnswer by remember { mutableStateOf(question.correctAnswer) }
+    var correctAnswerExpanded by remember { mutableStateOf(false) }
+
+    StudentAiCard {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (isEditing) {
+                OutlinedTextField(
+                    value = qText,
+                    onValueChange = { qText = it },
+                    label = { Text("Question") },
+                    singleLine = false,
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                // Options editor
+                for (index in options.indices) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "${('A' + index).toChar()}) ",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.width(20.dp),
+                        )
+                        OutlinedTextField(
+                            value = options[index],
+                            onValueChange = { options[index] = it },
+                            label = { Text("Option ${index + 1}") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (index > 0) {
+                            IconButton(onClick = {
+                                options.removeAt(index)
+                            }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Remove option")
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    IconButton(onClick = {
+                        options.add("")
+                    }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add option")
+                    }
+                }
+
+                // Correct answer selector (stores the actual answer text)
+                Text(
+                    "Correct answer:",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                ExposedDropdownMenuBox(
+                    expanded = correctAnswerExpanded,
+                    onExpandedChange = { correctAnswerExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = correctAnswer,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Correct answer") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(correctAnswerExpanded) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = correctAnswerExpanded,
+                        onDismissRequest = { correctAnswerExpanded = false },
+                    ) {
+                        options.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    correctAnswer = option
+                                    correctAnswerExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    Button(onClick = {
+                        isEditing = false
+                        if (options.all { it.isNotBlank() } && correctAnswer.isNotBlank()) {
+                            onUpdate(qText, options.toList(), correctAnswer)
+                        }
+                    }) {
+                        Text("Save")
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedButton(onClick = {
+                        qText = question.question
+                        options = question.options.toMutableList()
+                        correctAnswer = question.correctAnswer
+                        isEditing = false
+                    }) {
+                        Text("Cancel")
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        question.question,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    question.options.forEachIndexed { index, option ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "${('A' + index).toChar()}) ",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.width(20.dp),
+                            )
+                            Text(option)
+                            if (option == question.correctAnswer) {
+                                Spacer(Modifier.width(8.dp))
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = "Correct answer",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                    }
+                }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    IconButton(onClick = { isEditing = true }) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Edit",
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    IconButton(onClick = onRemove) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Remove",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddQuizQuestionDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (question: String, options: List<String>, correctAnswer: String) -> Unit,
+) {
+    var questionText by remember { mutableStateOf("") }
+    var options by remember { mutableStateOf(mutableListOf("", "")) }
+    var correctAnswer by remember { mutableStateOf("") }
+    var isCorrectExpanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Question") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = questionText,
+                    onValueChange = { questionText = it },
+                    label = { Text("Question") },
+                    singleLine = false,
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                for (index in options.indices) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "${('A' + index).toChar()}) ",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.width(20.dp),
+                        )
+                        OutlinedTextField(
+                            value = options[index],
+                            onValueChange = { newVal ->
+                                options[index] = newVal
+                            },
+                            label = { Text("Option ${index + 1}") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (index > 0) {
+                            IconButton(onClick = {
+                                options.removeAt(index)
+                            }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Remove option")
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    IconButton(onClick = {
+                        options.add("")
+                    }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add option")
+                    }
+                }
+
+                Text(
+                    "Correct answer:",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                ExposedDropdownMenuBox(
+                    expanded = isCorrectExpanded,
+                    onExpandedChange = { isCorrectExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = correctAnswer,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Correct answer") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(isCorrectExpanded) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = isCorrectExpanded,
+                        onDismissRequest = { isCorrectExpanded = false },
+                    ) {
+                        options.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    correctAnswer = option
+                                    isCorrectExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (questionText.isNotBlank() && options.all { it.isNotBlank() }) {
+                        onConfirm(questionText, options.toList(), correctAnswer)
+                    }
+                },
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JeviQuizArenaScreen(
@@ -638,6 +1110,34 @@ fun JeviQuizArenaScreen(
         state.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearError()
+        }
+    }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val pdfOcrHelper = remember { PdfOcrHelper(MlKitTextRecognizer()) }
+
+    val pdfPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val fileName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                cursor.moveToFirst()
+                cursor.getString(cursor.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME))
+            } ?: "document.pdf"
+            val text = pdfOcrHelper.extractTextFromPdf(context, uri, fileName)
+            text?.let { viewModel.generateFromDocument(it) }
+        }
+    }
+
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val text = pdfOcrHelper.recognizeImage(context, uri)
+            text?.let { viewModel.generateFromDocument(it) }
         }
     }
 
@@ -702,6 +1202,74 @@ fun JeviQuizArenaScreen(
                         }
                     }
                 }
+            } else if (state.phase == JeviQuizPhase.REVIEW) {
+                LazyColumn(
+                    contentModifier
+                        .fillMaxSize()
+                        .padding(horizontal = horizontalPadding),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(vertical = 16.dp),
+                ) {
+                    item {
+                        Text(
+                            "Review & edit your quiz before starting.",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            "Remove questions you don't need or edit them. Add more if you want.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    items(
+                        state.generatedQuiz!!.questions,
+                        key = { it.id },
+                    ) { question ->
+                        EditableQuizQuestionPreview(
+                            question = question,
+                            onUpdate = { q, opts, correct ->
+                                viewModel.updateQuizQuestion(question.id, q, opts, correct)
+                            },
+                            onRemove = { viewModel.removeQuizQuestion(question.id) },
+                        )
+                    }
+
+                    item {
+                        var showAddDialog by remember { mutableStateOf(false) }
+                        BouncyOutlinedButton(
+                            onClick = { showAddDialog = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Add Question")
+                        }
+
+                        if (showAddDialog) {
+                            AddQuizQuestionDialog(
+                                onDismiss = { showAddDialog = false },
+                                onConfirm = { q, opts, correct ->
+                                    viewModel.addQuizQuestion(q, opts, correct)
+                                    showAddDialog = false
+                                },
+                            )
+                        }
+                    }
+
+                    item {
+                        BouncyButton(
+                            onClick = viewModel::startQuizFromReview,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = state.generatedQuiz!!.questions.isNotEmpty(),
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Start Quiz")
+                        }
+                    }
+                }
             } else {
                 LazyColumn(
                     contentModifier
@@ -710,6 +1278,32 @@ fun JeviQuizArenaScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(vertical = 16.dp),
                 ) {
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            BouncyOutlinedButton(
+                                onClick = { pdfPicker.launch(arrayOf("application/pdf")) },
+                                modifier = Modifier.weight(1f),
+                                enabled = !state.isGenerating && !state.isExtracting,
+                            ) {
+                                Icon(Icons.Default.Description, contentDescription = null)
+                                Spacer(Modifier.width(4.dp))
+                                Text("Pick PDF")
+                            }
+                            BouncyOutlinedButton(
+                                onClick = { imagePicker.launch("image/*") },
+                                modifier = Modifier.weight(1f),
+                                enabled = !state.isGenerating && !state.isExtracting,
+                            ) {
+                                Icon(Icons.Default.Image, contentDescription = null)
+                                Spacer(Modifier.width(4.dp))
+                                Text("Pick Image")
+                            }
+                        }
+                    }
+
                     item {
                         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                             SegmentedButton(
@@ -779,7 +1373,7 @@ fun JeviQuizArenaScreen(
                         BouncyButton(
                             onClick = viewModel::generate,
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = !state.isGenerating,
+                            enabled = !state.isGenerating && !state.isExtracting,
                         ) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null)
                             Spacer(Modifier.width(8.dp))

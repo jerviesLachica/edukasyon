@@ -1010,7 +1010,7 @@ class AiViewModel @Inject constructor(
                 AiConversationType.TUTOR -> {
                     val messages = storedMessages.map { msg ->
                         GizmoChatMessage(
-                            sender = if (msg.isUser) "You" else "Jarvis",
+                            sender = if (msg.isUser) "You" else "Jevi",
                             content = msg.content,
                             isUser = msg.isUser,
                             timestamp = msg.sentAt,
@@ -1156,8 +1156,8 @@ class AiViewModel @Inject constructor(
 
     private fun aiErrorMessage(error: Throwable): String = when (error) {
         is com.edukasyon.studentai.core.ai.AiException ->
-            error.message ?: "Could not reach Jarvis. Check your connection and try again."
-        else -> error.message ?: "Could not reach Jarvis. Check your connection and try again."
+            error.message ?: "Could not reach Jevi. Check your connection and try again."
+        else -> error.message ?: "Could not reach Jevi. Check your connection and try again."
     }
 
     private fun titleFromText(text: String): String {
@@ -1258,7 +1258,7 @@ class AiViewModel @Inject constructor(
                 val reasoning = response.reasoning?.trim()?.takeIf { it.isNotEmpty() }
                 if (reply.isEmpty() && reasoning.isNullOrBlank()) {
                     throw com.edukasyon.studentai.core.ai.AiException(
-                        "Jarvis returned an empty reply."
+                        "Jevi returned an empty reply."
                     )
                 }
                 safePersistBackendConversationId(localId, response.conversationId)
@@ -1284,7 +1284,7 @@ class AiViewModel @Inject constructor(
                         isLoading = false,
                         loadingTool = null,
                         messages = s.messages + GizmoChatMessage(
-                            sender = "Jarvis",
+                            sender = "Jevi",
                             content = parsed.displayText,
                             isUser = false,
                             timestamp = assistantTimestamp,
@@ -1423,7 +1423,7 @@ class AiViewModel @Inject constructor(
     private suspend fun extractToolsPdfViaVision(uri: android.net.Uri, fileName: String): String {
         if (!_uiState.value.isOnline) {
             throw com.edukasyon.studentai.core.ai.AiException(
-                "This PDF looks scanned. Connect online so Jarvis can read it with vision."
+                "This PDF looks scanned. Connect online so Jevi can read it with vision."
             )
         }
         val pages = com.edukasyon.studentai.core.util.ChatAttachmentUtils.renderPdfPagesAsJpeg(

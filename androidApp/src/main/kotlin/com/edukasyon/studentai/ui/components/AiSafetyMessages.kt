@@ -20,7 +20,7 @@ object AiSafetyMessages {
             seconds == null || seconds <= 0 ->
                 "You're sending requests too quickly. Please wait a moment before trying again."
             seconds <= 60 ->
-                "Please wait $seconds seconds before using Jarvis again."
+                "Please wait $seconds seconds before using Jevi again."
             else -> {
                 val minutes = (seconds + 59) / 60
                 "Please wait about $minutes minute${if (minutes == 1) "" else "s"} before trying again."
@@ -41,7 +41,7 @@ object AiSafetyMessages {
         "AI access is temporarily restricted. Please try again later."
 
     fun outputBlockedMessage(): String =
-        "Jarvis couldn't deliver a safe response. Please rephrase your question."
+        "Jevi couldn't deliver a safe response. Please rephrase your question."
 
     fun providerBusyMessage(): String =
         "AI service is busy. Try again in a moment."
@@ -64,13 +64,13 @@ object AiSafetyMessages {
         else -> null
     }
 
-    /** Client-side Jarvis tutor cooldown (complements server rate limit). */
+    /** Client-side Jevi tutor cooldown (complements server rate limit). */
     fun tutorClientCooldown(remainingMs: Long): String {
         val seconds = ((remainingMs + 999) / 1000).toInt()
         return if (seconds <= 1) {
-            "Please wait a moment before asking Jarvis again."
+            "Please wait a moment before asking Jevi again."
         } else {
-            "Please wait $seconds seconds before asking Jarvis again."
+            "Please wait $seconds seconds before asking Jevi again."
         }
     }
 

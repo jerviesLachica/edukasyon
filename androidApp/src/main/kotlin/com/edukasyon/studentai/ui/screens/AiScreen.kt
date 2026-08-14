@@ -73,7 +73,7 @@ fun AiScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
-                title = { Text("Jarvis AI") },
+                title = { Text("Jevi AI") },
                 actions = {
                     IconButton(onClick = { onOpenHistory("tutor") }) {
                         Icon(Icons.Outlined.History, contentDescription = "Conversation history")
@@ -238,12 +238,12 @@ private fun AiTutorTab(
                     if (state.messages.isEmpty()) {
                         item {
                             val welcomeMessage =
-                                "Hi! I'm Jarvis, your AI study buddy. Ask me anything — I'll explain concepts, help with homework, and cheer you on! 💪"
+                                "Hi! I'm Jevi, your AI study buddy. Ask me anything — I'll explain concepts, help with homework, and cheer you on! 💪"
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 GizmoChatBubble(
                                     message = welcomeMessage,
                                     isUser = false,
-                                    sender = "Jarvis",
+                                    sender = "Jevi",
                                     onCopy = {
                                         clipboard.setText(AnnotatedString(welcomeMessage))
                                         scope.launch { onCopied() }
@@ -291,7 +291,7 @@ private fun AiTutorTab(
                     }
                     if (state.isLoading && state.loadingTool == AiTool.TUTOR) {
                         item {
-                            JarvisThinkingIndicator()
+                            JeviThinkingIndicator()
                         }
                     }
                 }
@@ -308,7 +308,7 @@ private fun AiTutorTab(
                             modifier = Modifier.padding(horizontal = 16.dp),
                         )
                     }
-                    JarvisChatInputBar(
+                    JeviChatInputBar(
                         input = input,
                         onInputChange = onInputChange,
                         selectedModel = state.selectedChatModel,

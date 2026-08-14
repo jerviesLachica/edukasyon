@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -14,18 +15,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.InsertDriveFile
-import androidx.compose.material3.AssistChip
+import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -39,11 +36,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.ui.graphics.Color
-import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,10 +50,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.edukasyon.studentai.domain.model.GizmoCompanionState
 import com.edukasyon.studentai.domain.model.GizmoMood
 import com.edukasyon.studentai.R
 
+/**
+ * Slim, premium companion header.
+ *
+ * Collapsed state: avatar + name + status dot (one row).
+ * Expanded state: avatar + name + XP/streak inline, no extra chips row.
+ */
 @Composable
 fun GizmoCompanionHeader(
     gizmo: GizmoCompanionState,
@@ -75,14 +74,13 @@ fun GizmoCompanionHeader(
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (expanded) 0.35f else 0.28f),
-        shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
-        tonalElevation = if (expanded) 0.dp else 2.dp,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
     ) {
         Column(
             Modifier.padding(
-                horizontal = 12.dp,
-                vertical = if (expanded) 12.dp else 8.dp,
+                horizontal = 16.dp,
+                vertical = if (expanded) 14.dp else 10.dp,
             ),
         ) {
             Row(
@@ -90,20 +88,24 @@ fun GizmoCompanionHeader(
                     .fillMaxWidth()
                     .clickable(onClick = onToggleExpanded),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 GizmoAvatar(
                     mood = gizmo.mood,
                     level = gizmo.level,
-                    modifier = Modifier.size(if (expanded) 56.dp else 40.dp),
+                    modifier = Modifier.size(if (expanded) 44.dp else 36.dp),
                 )
-                if (expanded) {
-                    Column(Modifier.weight(1f)) {
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "Jarvis",
+                            "Jevi",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
                         )
+                        Spacer(Modifier.width(6.dp))
+                        StatusDot(isOnline)
+                    }
+                    if (expanded) {
                         Text(
                             gizmo.mood.greeting,
                             style = MaterialTheme.typography.bodySmall,
@@ -111,54 +113,26 @@ fun GizmoCompanionHeader(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        Spacer(Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                "Lv.${gizmo.level} · ${gizmo.xp} XP",
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        }
-                        LinearProgressIndicator(
-                            progress = { gizmo.xpProgress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp)
-                                .height(4.dp)
-                                .clip(RoundedCornerShape(2.dp)),
-                        )
-                    }
-                } else {
-                    Column(Modifier.weight(1f)) {
+                    } else {
                         Text(
-                            "Jarvis",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            "Lv.${gizmo.level} · AI Tutor",
+                            "Lv.${gizmo.level}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    GizmoCompactStats(gizmo = gizmo, isOnline = isOnline)
+                }
+                if (expanded) {
+                    GizmoInlineStats(gizmo = gizmo)
                 }
                 IconButton(
                     onClick = onToggleExpanded,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(32.dp),
                 ) {
                     Icon(
                         if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = if (expanded) "Collapse companion bar" else "Expand companion bar",
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }
@@ -169,9 +143,15 @@ fun GizmoCompanionHeader(
             ) {
                 Column {
                     Spacer(Modifier.height(10.dp))
-                    GizmoCapabilityChips(isOnline = isOnline)
-                    Spacer(Modifier.height(8.dp))
-                    GizmoStreakRow(gizmo = gizmo)
+                    LinearProgressIndicator(
+                        progress = { gizmo.xpProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(1.5.dp)),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    )
                 }
             }
         }
@@ -179,14 +159,9 @@ fun GizmoCompanionHeader(
 }
 
 @Composable
-private fun GizmoCompactStats(
-    gizmo: GizmoCompanionState,
-    isOnline: Boolean,
-    modifier: Modifier = Modifier,
-) {
+private fun GizmoInlineStats(gizmo: GizmoCompanionState) {
     Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (gizmo.streakDays > 0) {
@@ -194,69 +169,45 @@ private fun GizmoCompactStats(
                 Icon(
                     Icons.Default.LocalFireDepartment,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.error,
                 )
                 Spacer(Modifier.width(3.dp))
                 Text(
-                    "${gizmo.streakDays}d",
+                    "${gizmo.streakDays}",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
         }
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(
-                    if (isOnline) {
-                        Color(0xFF4CAF50)
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    },
-                ),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Default.Star,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.width(3.dp))
+            Text(
+                "${gizmo.xp}",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
 
 @Composable
-private fun GizmoCapabilityChips(isOnline: Boolean) {
-    Row(
+private fun StatusDot(isOnline: Boolean) {
+    Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        AssistChip(
-            onClick = {},
-            label = { Text("Vision") },
-            leadingIcon = {
-                Icon(Icons.Outlined.Visibility, contentDescription = null, modifier = Modifier.size(14.dp))
-            },
-        )
-        AssistChip(
-            onClick = {},
-            label = { Text("Tools") },
-            leadingIcon = {
-                Icon(Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
-            },
-        )
-        AssistChip(
-            onClick = {},
-            label = { Text("Files") },
-            leadingIcon = {
-                Icon(Icons.Outlined.Description, contentDescription = null, modifier = Modifier.size(14.dp))
-            },
-        )
-        AssistChip(
-            onClick = {},
-            label = { Text(if (isOnline) "Online" else "Offline") },
-            leadingIcon = {
-                Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(14.dp))
-            },
-        )
-    }
+            .size(7.dp)
+            .clip(CircleShape)
+            .background(
+                if (isOnline) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+            ),
+    )
 }
 
 @Composable
@@ -268,26 +219,26 @@ fun GizmoAvatar(
     Box(
         modifier = modifier
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.foundation.Image(
-            painter = painterResource(R.drawable.jarvis_avatar),
-            contentDescription = "Jarvis avatar",
+            painter = painterResource(R.drawable.wala),
+            contentDescription = "Jevi avatar",
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Fit,
         )
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .size(20.dp)
+                .size(16.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 "$level",
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                 color = MaterialTheme.colorScheme.onPrimary,
                 fontWeight = FontWeight.Bold,
             )
@@ -296,72 +247,38 @@ fun GizmoAvatar(
 }
 
 @Composable
-fun GizmoStreakRow(
-    gizmo: GizmoCompanionState,
+fun JeviThinkingIndicator(
     modifier: Modifier = Modifier,
 ) {
-    if (gizmo.streakDays <= 0) return
-
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            Icons.Default.LocalFireDepartment,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.error,
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            "${gizmo.streakDays}-day streak",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
-}
-
-@Composable
-fun JarvisThinkingIndicator(
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Start,
-        verticalAlignment = Alignment.Top,
-    ) {
         Box(
             modifier = Modifier
-                .padding(end = 6.dp, top = 4.dp)
-                .size(28.dp)
-                .clip(CircleShape),
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
             contentAlignment = Alignment.Center,
         ) {
             androidx.compose.foundation.Image(
-                painter = painterResource(R.drawable.jarvis_avatar),
+                painter = painterResource(R.drawable.wala),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Fit,
             )
         }
-        Column(Modifier.weight(1f, fill = false)) {
-            Text(
-                "Jarvis",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.height(4.dp))
-            GeneratingLoader(
-                label = "Thinking",
-                style = GeneratingLoaderStyle.Compact,
-            )
-        }
+        Spacer(Modifier.width(8.dp))
+        GeneratingLoader(
+            label = "Thinking",
+            style = GeneratingLoaderStyle.Compact,
+        )
     }
 }
 
 @Composable
-fun JarvisReasoningSection(
+fun JeviReasoningSection(
     reasoning: String,
     modifier: Modifier = Modifier,
     initiallyExpanded: Boolean = false,
@@ -371,7 +288,7 @@ fun JarvisReasoningSection(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Row(
@@ -388,8 +305,8 @@ fun JarvisReasoningSection(
                     Icon(
                         Icons.Outlined.Psychology,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     )
                     Text(
                         "Reasoning",
@@ -401,8 +318,8 @@ fun JarvisReasoningSection(
                 Icon(
                     if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = if (expanded) "Collapse reasoning" else "Expand reasoning",
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 )
             }
             AnimatedVisibility(
@@ -438,13 +355,14 @@ fun GizmoChatBubble(
         if (!isUser) {
             Box(
                 modifier = Modifier
-                    .padding(end = 6.dp, top = 4.dp)
+                    .padding(top = 4.dp, end = 8.dp)
                     .size(28.dp)
-                    .clip(CircleShape),
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
                 contentAlignment = Alignment.Center,
             ) {
                 androidx.compose.foundation.Image(
-                    painter = painterResource(R.drawable.jarvis_avatar),
+                    painter = painterResource(R.drawable.wala),
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit,
@@ -455,14 +373,8 @@ fun GizmoChatBubble(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
             modifier = Modifier.weight(1f, fill = false),
         ) {
-            Text(
-                sender,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.height(2.dp))
             if (!isUser && !reasoning.isNullOrBlank()) {
-                JarvisReasoningSection(
+                JeviReasoningSection(
                     reasoning = reasoning,
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
@@ -471,60 +383,54 @@ fun GizmoChatBubble(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(
-                        topStart = 12.dp,
-                        topEnd = 12.dp,
-                        bottomStart = if (isUser) 12.dp else 4.dp,
-                        bottomEnd = if (isUser) 4.dp else 12.dp,
+                        topStart = 16.dp,
+                        topEnd = 16.dp,
+                        bottomStart = if (isUser) 16.dp else 6.dp,
+                        bottomEnd = if (isUser) 6.dp else 16.dp,
                     ),
                     color = if (isUser) {
-                        MaterialTheme.colorScheme.primaryContainer
+                        MaterialTheme.colorScheme.primary
                     } else {
-                        MaterialTheme.colorScheme.surfaceVariant
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
                     },
                 ) {
                     Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                         if (attachmentName != null) {
-                            AssistChip(
-                                onClick = {},
-                                enabled = false,
-                                label = {
-                                    Text(
-                                        attachmentName,
-                                        maxLines = 1,
-                                        style = MaterialTheme.typography.labelSmall,
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        if (attachmentIsImage) Icons.Outlined.Image else Icons.Outlined.InsertDriveFile,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                },
+                            Text(
+                                text = (if (attachmentIsImage) "📎 " else "📄 ") + attachmentName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isUser) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(bottom = 6.dp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                         if (message.isNotBlank()) {
                             if (isUser) {
-                                Text(message, style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    message,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                )
                             } else {
                                 MarkdownChatText(markdown = message)
                             }
                         }
                         if (!isUser && onCopy != null && message.isNotBlank()) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                                 horizontalArrangement = Arrangement.End,
                             ) {
                                 IconButton(
                                     onClick = onCopy,
-                                    modifier = Modifier.size(32.dp),
+                                    modifier = Modifier.size(28.dp),
                                 ) {
                                     Icon(
                                         Icons.Outlined.ContentCopy,
                                         contentDescription = "Copy response",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
                                     )
                                 }
                             }

@@ -443,7 +443,7 @@ fun AiSuggestionCard(
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = "Jarvis suggests",
+                    text = "Jevi suggests",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onPrimary,

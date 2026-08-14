@@ -247,7 +247,7 @@ private fun FocusSetupContent(
             FocusMode.AI_PLAN -> {
                 ModernCard(containerColor = focusPastelCard(isDark)) {
                     Text(
-                        "Jarvis builds timed study blocks using your subjects, exams, and weak areas.",
+                        "Jevi builds timed study blocks using your subjects, exams, and weak areas.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -292,7 +292,7 @@ private fun FocusSetupContent(
                     } else {
                         Icon(Icons.Default.AutoAwesome, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Generate plan with Jarvis")
+                        Text("Generate plan with Jevi")
                     }
                 }
 

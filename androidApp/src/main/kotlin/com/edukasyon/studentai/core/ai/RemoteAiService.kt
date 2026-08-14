@@ -49,7 +49,7 @@ class RemoteAiService @Inject constructor(
         )
         val recovered = ReasoningContentSplitter.recoverEmptyReply(split)
         if (recovered.reply.isEmpty() && recovered.reasoning.isNullOrBlank()) {
-            throw AiException("Jarvis returned an empty reply.")
+            throw AiException("Jevi returned an empty reply.")
         }
         AiChatResponse(
             reply = recovered.reply,

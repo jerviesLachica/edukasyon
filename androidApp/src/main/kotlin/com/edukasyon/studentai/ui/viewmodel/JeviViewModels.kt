@@ -11,6 +11,8 @@ import com.edukasyon.studentai.core.util.QuizValidator
 import com.edukasyon.studentai.domain.model.GizmoCompanionState
 import com.edukasyon.studentai.domain.model.GizmoConstants
 import com.edukasyon.studentai.domain.model.Quiz
+import com.edukasyon.studentai.domain.model.QuizQuestion
+import com.edukasyon.studentai.domain.model.QuestionType
 import com.edukasyon.studentai.domain.model.withDeckId
 import com.edukasyon.studentai.domain.repository.QuizRepository
 import com.edukasyon.studentai.domain.usecase.AiGenerateFlashcardsUseCase
@@ -23,6 +25,7 @@ import com.edukasyon.studentai.domain.usecase.GetJeviDeckUseCase
 import com.edukasyon.studentai.domain.usecase.GetJeviDecksUseCase
 import com.edukasyon.studentai.domain.usecase.SaveFlashcardsToDeckUseCase
 import com.edukasyon.studentai.domain.usecase.SaveQuizUseCase
+import com.edukasyon.studentai.core.mlkit.PdfOcrHelper
 import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -141,6 +144,7 @@ class JeviDeckDetailViewModel @Inject constructor(
 data class JeviCreateUiState(
     val topic: String = "",
     val isGenerating: Boolean = false,
+    val isExtracting: Boolean = false,
     val generatedCards: List<Flashcard> = emptyList(),
     val saved: Boolean = false,
     val error: String? = null,
@@ -155,6 +159,7 @@ class JeviCreateViewModel @Inject constructor(
     private val getDecks: GetJeviDecksUseCase,
     private val gizmoManager: GizmoGamificationManager,
     private val ensureDefaultDeck: EnsureJeviDefaultDeckUseCase,
+    private val pdfOcrHelper: PdfOcrHelper,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(JeviCreateUiState())
     val uiState: StateFlow<JeviCreateUiState> = _uiState.asStateFlow()
@@ -205,6 +210,59 @@ class JeviCreateViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Use extracted text (from scan or PDF) as the flashcard source.
+     */
+    fun generateFromDocument(text: String) {
+        if (text.isBlank()) {
+            _uiState.update { it.copy(error = "Could not read text from this document.") }
+            return
+        }
+        _uiState.update { it.copy(topic = text.take(4000), error = null) }
+        generate()
+    }
+
+    fun addCard(question: String, answer: String) {
+        val q = question.trim()
+        val a = answer.trim()
+        if (q.isBlank() || a.isBlank()) return
+        _uiState.update { state ->
+            val card = Flashcard(
+                id = UUID.randomUUID().toString(),
+                question = q,
+                answer = a,
+                subjectId = null,
+                deckId = state.selectedDeckId,
+                topic = null,
+                difficulty = "medium",
+                reviewCount = 0,
+                correctCount = 0,
+                incorrectCount = 0,
+                lastReviewedAt = null,
+                nextReviewAt = null,
+            )
+            state.copy(generatedCards = state.generatedCards + card)
+        }
+    }
+
+    fun updateCard(id: String, question: String, answer: String) {
+        _uiState.update { state ->
+            state.copy(
+                generatedCards = state.generatedCards.map { card ->
+                    if (card.id == id) {
+                        card.copy(question = question.trim(), answer = answer.trim())
+                    } else card
+                }
+            )
+        }
+    }
+
+    fun removeCard(id: String) {
+        _uiState.update { state ->
+            state.copy(generatedCards = state.generatedCards.filter { it.id != id })
+        }
+    }
+
     fun saveToSelectedDeck() {
         val cards = _uiState.value.generatedCards
         val deckId = _uiState.value.selectedDeckId
@@ -224,7 +282,7 @@ class JeviCreateViewModel @Inject constructor(
 
 enum class JeviQuizSource { DECK, TOPIC }
 
-enum class JeviQuizPhase { SETUP, PLAYING }
+enum class JeviQuizPhase { SETUP, REVIEW, PLAYING }
 
 data class JeviQuizUiState(
     val phase: JeviQuizPhase = JeviQuizPhase.SETUP,
@@ -234,6 +292,7 @@ data class JeviQuizUiState(
     val topic: String = "",
     val source: JeviQuizSource = JeviQuizSource.DECK,
     val isGenerating: Boolean = false,
+    val isExtracting: Boolean = false,
     val error: String? = null,
     val gizmo: GizmoCompanionState = GizmoCompanionState(),
     val generatedQuiz: Quiz? = null,
@@ -250,6 +309,7 @@ class JeviQuizViewModel @Inject constructor(
     private val quizRepository: QuizRepository,
     private val gizmoManager: GizmoGamificationManager,
     private val ensureDefaultDeck: EnsureJeviDefaultDeckUseCase,
+    private val pdfOcrHelper: PdfOcrHelper,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(JeviQuizUiState())
     val uiState: StateFlow<JeviQuizUiState> = _uiState.asStateFlow()
@@ -359,6 +419,18 @@ class JeviQuizViewModel @Inject constructor(
             JeviQuizSource.DECK -> generateFromDeck()
             JeviQuizSource.TOPIC -> generateFromTopic()
         }
+    }
+
+    /**
+     * Use extracted text (from scan or PDF) as the quiz source.
+     */
+    fun generateFromDocument(text: String) {
+        if (text.isBlank()) {
+            _uiState.update { it.copy(error = "Could not read text from this document.") }
+            return
+        }
+        _uiState.update { it.copy(topic = text.take(4000), error = null) }
+        generate()
     }
 
     fun startSavedQuiz(quizId: String) {
@@ -478,6 +550,56 @@ class JeviQuizViewModel @Inject constructor(
         }
     }
 
+    fun updateQuizQuestion(
+        questionId: String,
+        question: String,
+        options: List<String>,
+        correctAnswer: String,
+    ) {
+        val quiz = _uiState.value.generatedQuiz ?: return
+        val updatedQuestions = quiz.questions.map { q ->
+            if (q.id == questionId) {
+                q.copy(
+                    question = question.trim(),
+                    options = options.map { it.trim() }.filter { it.isNotBlank() },
+                    correctAnswer = correctAnswer.trim(),
+                )
+            } else q
+        }
+        _uiState.update {
+            it.copy(generatedQuiz = quiz.copy(questions = updatedQuestions), quizSaved = false)
+        }
+    }
+
+    fun addQuizQuestion(question: String, options: List<String>, correctAnswer: String) {
+        val quiz = _uiState.value.generatedQuiz ?: return
+        if (question.isBlank() || options.none { it.isNotBlank() }) return
+        val newQuestion = QuizQuestion(
+            id = UUID.randomUUID().toString(),
+            quizId = quiz.id,
+            type = QuestionType.MULTIPLE_CHOICE,
+            question = question.trim(),
+            options = options.map { it.trim() }.filter { it.isNotBlank() },
+            correctAnswer = correctAnswer.trim(),
+        )
+        _uiState.update {
+            it.copy(
+                generatedQuiz = quiz.copy(questions = quiz.questions + newQuestion),
+                quizSaved = false,
+            )
+        }
+    }
+
+    fun removeQuizQuestion(questionId: String) {
+        val quiz = _uiState.value.generatedQuiz ?: return
+        _uiState.update {
+            it.copy(
+                generatedQuiz = quiz.copy(questions = quiz.questions.filter { q -> q.id != questionId }),
+                quizSaved = false,
+            )
+        }
+    }
+
     fun saveQuizResult() {
         val quiz = _uiState.value.generatedQuiz ?: return
         viewModelScope.launch {
@@ -516,7 +638,7 @@ class JeviQuizViewModel @Inject constructor(
                 generatedQuiz = quiz,
                 quizSession = QuizSessionState(quiz = quiz),
                 quizSaved = false,
-                phase = JeviQuizPhase.PLAYING,
+                phase = JeviQuizPhase.REVIEW,
                 error = null,
             )
         }
@@ -527,5 +649,9 @@ class JeviQuizViewModel @Inject constructor(
                 _uiState.update { it.copy(quizSaved = true) }
             }
         }
+    }
+
+    fun startQuizFromReview() {
+        _uiState.update { it.copy(phase = JeviQuizPhase.PLAYING) }
     }
 }

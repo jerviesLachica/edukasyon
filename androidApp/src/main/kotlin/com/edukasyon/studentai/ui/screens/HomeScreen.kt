@@ -413,7 +413,7 @@ private fun HomeCompactQuickActions(
             modifier = Modifier.weight(1f),
         )
         HomeQuickActionChip(
-            label = "Jarvis",
+            label = "Jevi",
             icon = Icons.Default.Psychology,
             onClick = onAskAi,
             modifier = Modifier.weight(1f),

@@ -216,7 +216,7 @@ private fun InputContent(
                     )
                 }
                 Text(
-                    "Jarvis extracts deadlines, requirements, rubric, and subtasks — then adds them to your Planner.",
+                    "Jevi extracts deadlines, requirements, rubric, and subtasks — then adds them to your Planner.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

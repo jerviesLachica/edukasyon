@@ -177,7 +177,7 @@ object FeaturesCatalog {
         // AI tools
         FeatureItem(
             id = "ai_hub",
-            title = "Jarvis AI Hub",
+            title = "Jevi AI Hub",
             description = "Your AI study buddy with XP, streaks, tutor chat, tools, and scanner.",
             filterCategory = FeatureFilterCategory.AI,
             section = FeatureSection.AI_TOOLS,
@@ -188,7 +188,7 @@ object FeaturesCatalog {
         FeatureItem(
             id = "gizmo_xp",
             title = "XP & Study Streaks",
-            description = "Earn XP from chatting, quizzes, and flashcards. Build daily streaks to level up Jarvis.",
+            description = "Earn XP from chatting, quizzes, and flashcards. Build daily streaks to level up Jevi.",
             filterCategory = FeatureFilterCategory.AI,
             section = FeatureSection.AI_TOOLS,
             icon = Icons.Default.Star,
@@ -197,13 +197,13 @@ object FeaturesCatalog {
         ),
         FeatureItem(
             id = "ai_tutor",
-            title = "Jarvis AI Tutor",
-            description = "Chat with Jarvis — ask questions, get explanations, and use quick study prompts.",
+            title = "Jevi AI Tutor",
+            description = "Chat with Jevi — ask questions, get explanations, and use quick study prompts.",
             filterCategory = FeatureFilterCategory.AI,
             section = FeatureSection.AI_TOOLS,
             icon = Icons.Default.Chat,
             destination = FeatureDestination.Tab(MainTab.JEVI),
-            dashboardLabel = "Ask Jarvis",
+            dashboardLabel = "Ask Jevi",
         ),
         FeatureItem(
             id = "ai_summarizer",

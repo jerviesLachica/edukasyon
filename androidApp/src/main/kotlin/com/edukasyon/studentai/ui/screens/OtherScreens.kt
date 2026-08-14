@@ -389,12 +389,12 @@ fun ProfileScreen(
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Jarvis chat model",
+                    "Jevi chat model",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "Selected on the Jarvis AI screen. Auto is fast and unlimited; Step 3.7 Flash is stronger and allows 25 requests every 10 minutes.",
+                    "Selected on the Jevi AI screen. Auto is fast and unlimited; Step 3.7 Flash is stronger and allows 25 requests every 10 minutes.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -944,7 +944,7 @@ private fun ProfileEditSheet(
                 value = draft.bio,
                 onValueChange = onBioChange,
                 label = { Text("Bio") },
-                placeholder = { Text("Tell Jarvis about your goals, interests, or study style…") },
+                placeholder = { Text("Tell Jevi about your goals, interests, or study style…") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 120.dp),

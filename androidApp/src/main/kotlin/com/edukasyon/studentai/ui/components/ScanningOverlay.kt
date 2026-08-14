@@ -55,7 +55,7 @@ fun ScanningOverlay(
     imageBytes: ByteArray? = null,
     extractedText: String? = null,
     primaryMessage: String = "Scanning schedule…",
-    subMessage: String = "Jarvis is reading your schedule",
+    subMessage: String = "Jevi is reading your schedule",
     isImageOnlyRetry: Boolean = false,
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary

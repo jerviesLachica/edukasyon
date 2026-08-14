@@ -4,7 +4,7 @@ import com.edukasyon.studentai.domain.model.AiConversationMessage
 import com.edukasyon.studentai.domain.model.GizmoChatMessage
 
 /**
- * Builds OpenAI-style chat history for Jarvis tutor requests from persisted messages.
+ * Builds OpenAI-style chat history for Jevi tutor requests from persisted messages.
  */
 object ChatHistoryBuilder {
     private const val MAX_MESSAGES = 40
@@ -14,7 +14,7 @@ object ChatHistoryBuilder {
     fun fromConversationMessages(messages: List<AiConversationMessage>): List<AiChatHistoryMessage> =
         fromGizmoMessages(messages.map { msg ->
             GizmoChatMessage(
-                sender = if (msg.isUser) "You" else "Jarvis",
+                sender = if (msg.isUser) "You" else "Jevi",
                 content = msg.content,
                 isUser = msg.isUser,
                 timestamp = msg.sentAt,

@@ -7,8 +7,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,6 +26,7 @@ import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -50,12 +49,12 @@ import com.edukasyon.studentai.domain.model.AiModel
 import com.edukasyon.studentai.domain.model.ChatAttachmentPayload
 
 /**
- * Capability tags for the Jarvis model selector.
+ * Capability tags for the Jevi model selector.
  *
  * Vision on **Auto**: backend `AiProvider.js` lists `auto` in `VISION_CAPABLE_MODELS` and
  * `resolveChatModel()` keeps user-selected `auto` for image attachments (no forced upgrade to step).
  */
-private object JarvisModelCapabilities {
+private object JeviModelCapabilities {
     fun tagsFor(model: AiModel): List<String> = when (model) {
         AiModel.AUTO -> listOf("Fast", "Chat", "Files", "Vision")
         AiModel.REASONING -> listOf("Reasoning", "Vision", "Stronger", "25/10 min")
@@ -63,7 +62,7 @@ private object JarvisModelCapabilities {
 }
 
 @Composable
-fun JarvisChatInputBar(
+fun JeviChatInputBar(
     input: String,
     onInputChange: (String) -> Unit,
     selectedModel: AiModel,
@@ -89,7 +88,7 @@ fun JarvisChatInputBar(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        JarvisModelSelectorRow(
+        JeviModelSelectorRow(
             selectedModel = selectedModel,
             onModelSelected = onModelSelected,
             stepQuotaLabel = stepQuotaLabel,
@@ -114,7 +113,7 @@ fun JarvisChatInputBar(
                         )
                     },
                     trailingIcon = {
-                        BouncyIconButton(
+                        IconButton(
                             onClick = onRemoveAttachment,
                             modifier = Modifier.size(24.dp),
                         ) {
@@ -126,9 +125,9 @@ fun JarvisChatInputBar(
             if (attachment.isImage) {
                 Text(
                     text = if (isOnline) {
-                        "Jarvis can see this image when you send."
+                        "Jevi can see this image when you send."
                     } else {
-                        "Image attached — connect online for Jarvis to analyze it."
+                        "Image attached — connect online for Jevi to analyze it."
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
@@ -139,30 +138,30 @@ fun JarvisChatInputBar(
         val scheme = MaterialTheme.colorScheme
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
-            color = scheme.surfaceContainerHigh,
-            tonalElevation = 1.dp,
-            shadowElevation = 1.dp,
-            border = BorderStroke(1.dp, scheme.outline.copy(alpha = 0.35f)),
+            shape = RoundedCornerShape(24.dp),
+            color = scheme.surface,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+            border = BorderStroke(1.dp, scheme.outlineVariant),
         ) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = 4.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                    .padding(start = 8.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Box {
-                    BouncyIconButton(
+                    IconButton(
                         onClick = { showAttachMenu = true },
                         enabled = enabled,
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(36.dp),
                     ) {
                         Icon(
                             Icons.Default.Add,
                             contentDescription = "Attach file or image",
-                            tint = scheme.onSurface,
-                            modifier = Modifier.size(22.dp),
+                            tint = scheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                     DropdownMenu(
@@ -201,14 +200,15 @@ fun JarvisChatInputBar(
                     ),
                     cursorBrush = SolidColor(scheme.primary),
                     singleLine = false,
-                    maxLines = 4,
+                    maxLines = 5,
                     decorationBox = { innerTextField ->
                         Box(Modifier.fillMaxWidth()) {
                             if (input.isEmpty()) {
                                 Text(
-                                    "Ask anything · /search for current sources",
+                                    "Ask Jevi anything…",
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = scheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 4.dp),
                                 )
                             }
                             innerTextField()
@@ -217,15 +217,15 @@ fun JarvisChatInputBar(
                 )
 
                 val canSend = enabled && (input.isNotBlank() || pendingAttachment != null)
-                BouncyIconButton(
+                IconButton(
                     onClick = onSend,
                     enabled = canSend,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
                         .background(
                             if (canSend) scheme.primary
-                            else scheme.surfaceVariant.copy(alpha = 0.65f),
+                            else scheme.surfaceVariant.copy(alpha = 0.5f),
                         ),
                 ) {
                     Icon(
@@ -241,7 +241,7 @@ fun JarvisChatInputBar(
 }
 
 @Composable
-private fun JarvisModelSelectorRow(
+private fun JeviModelSelectorRow(
     selectedModel: AiModel,
     onModelSelected: (AiModel) -> Unit,
     stepQuotaLabel: String,
@@ -252,13 +252,13 @@ private fun JarvisModelSelectorRow(
         Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top,
     ) {
         AiModel.entries.forEach { model ->
             val isStep = model.isStepModel
             val chipEnabled = enabled && (!isStep || !stepQuotaExhausted || selectedModel == model)
-            JarvisModelChip(
+            JeviModelChip(
                 model = model,
                 selected = selectedModel == model,
                 enabled = chipEnabled,
@@ -269,9 +269,8 @@ private fun JarvisModelSelectorRow(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun JarvisModelChip(
+private fun JeviModelChip(
     model: AiModel,
     selected: Boolean,
     enabled: Boolean,
@@ -281,56 +280,56 @@ private fun JarvisModelChip(
 ) {
     val scheme = MaterialTheme.colorScheme
     val containerColor = when {
-        !enabled -> scheme.surfaceVariant.copy(alpha = 0.45f)
+        !enabled -> scheme.surfaceVariant.copy(alpha = 0.4f)
         selected -> scheme.primaryContainer
-        else -> scheme.surfaceContainerHigh
+        else -> scheme.surface
     }
     val borderColor = when {
-        selected -> scheme.primary.copy(alpha = 0.65f)
-        else -> scheme.outline.copy(alpha = 0.35f)
+        selected -> scheme.primary.copy(alpha = 0.5f)
+        else -> scheme.outlineVariant
     }
     val titleColor = when {
-        !enabled -> scheme.onSurface.copy(alpha = 0.45f)
+        !enabled -> scheme.onSurface.copy(alpha = 0.4f)
         selected -> scheme.onPrimaryContainer
         else -> scheme.onSurface
     }
     val subtitleColor = when {
         !enabled -> scheme.onSurfaceVariant.copy(alpha = 0.5f)
-        selected -> scheme.onPrimaryContainer.copy(alpha = 0.8f)
+        selected -> scheme.onPrimaryContainer.copy(alpha = 0.75f)
         else -> scheme.onSurfaceVariant
     }
 
     Surface(
         modifier = modifier
-            .widthIn(min = 148.dp, max = 220.dp)
+            .widthIn(min = 120.dp, max = 180.dp)
             .then(
                 if (enabled) Modifier.clickable(onClick = onClick)
                 else Modifier,
             ),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         color = containerColor,
         border = BorderStroke(1.dp, borderColor),
-        tonalElevation = if (selected) 2.dp else 0.dp,
+        tonalElevation = 0.dp,
     ) {
         Column(
-            Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 if (model.isStepModel) {
                     Icon(
                         Icons.Outlined.Psychology,
                         contentDescription = null,
                         tint = titleColor,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(14.dp),
                     )
                 }
                 Text(
                     model.displayName,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                     color = titleColor,
                     maxLines = 1,
@@ -342,54 +341,7 @@ private fun JarvisModelChip(
                 color = subtitleColor,
                 maxLines = 1,
             )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                JarvisModelCapabilities.tagsFor(model).forEach { tag ->
-                    JarvisCapabilityTagPill(
-                        label = tag,
-                        selected = selected,
-                        enabled = enabled,
-                    )
-                }
-            }
         }
-    }
-}
-
-@Composable
-private fun JarvisCapabilityTagPill(
-    label: String,
-    selected: Boolean,
-    enabled: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val scheme = MaterialTheme.colorScheme
-    val background = when {
-        !enabled -> scheme.surfaceVariant.copy(alpha = 0.35f)
-        selected -> scheme.primary.copy(alpha = 0.14f)
-        else -> scheme.surfaceVariant.copy(alpha = 0.55f)
-    }
-    val textColor = when {
-        !enabled -> scheme.onSurfaceVariant.copy(alpha = 0.55f)
-        selected -> scheme.onPrimaryContainer
-        else -> scheme.onSurfaceVariant
-    }
-
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
-        color = background,
-        border = BorderStroke(0.5.dp, scheme.outline.copy(alpha = 0.3f)),
-    ) {
-        Text(
-            label,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = textColor,
-            maxLines = 1,
-        )
     }
 }
 

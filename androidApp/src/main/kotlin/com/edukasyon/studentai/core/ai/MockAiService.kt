@@ -14,7 +14,7 @@ class MockAiService @Inject constructor() : AiService {
 
         if (isJailbreakAttempt(lower)) {
             return AiChatResponse(
-                reply = "I'm Jarvis, your study tutor — I can't change my role or share internal instructions. What subject or assignment can I help you with?",
+                reply = "I'm Jevi, your study tutor — I can't change my role or share internal instructions. What subject or assignment can I help you with?",
                 conversationId = conversationId,
             )
         }
@@ -152,7 +152,7 @@ class MockAiService @Inject constructor() : AiService {
         } else {
             ""
         }
-        return "Hi! I'm Jarvis, your study tutor in SchedMate.$subjectPart$contextPart$historyPart " +
+        return "Hi! I'm Jevi, your study tutor in SchedMate.$subjectPart$contextPart$historyPart " +
             "Ask me to explain a concept, plan study time, or add tasks to your planner. " +
             "I'll be honest when I'm unsure and won't make up facts or links."
     }
