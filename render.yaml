@@ -29,7 +29,3 @@ services:
     rootDir: download-site
     buildCommand: echo "Static download site — no build step"
     staticPublishPath: ./
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
