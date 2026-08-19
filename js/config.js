@@ -31,7 +31,7 @@ const APP_CONFIG = {
       enabled: true,
       label: “Download APK”,
       url: “downloads/schedmate-1.0.0.apk”,
-      hint: “Android 8+ · Signed release build · Enable “Install unknown apps” if prompted”,
+      hint: "Android 8+ · Signed release build · Enable Install unknown apps if prompted",
     },
     windows: {
       enabled: false,
@@ -81,3 +81,4 @@ const APP_CONFIG = {
     ],
   },
 };
+
