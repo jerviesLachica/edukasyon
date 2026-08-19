@@ -22,6 +22,8 @@ object WidgetUpdater {
             ExistingPeriodicWorkPolicy.KEEP,
             request
         )
+        // Also schedule robust daily alarm manager refresh to guarantee everyday refresh at midnight
+        WidgetAlarmReceiver.scheduleDailyAlarm(context)
     }
 
     suspend fun refreshAll(context: Context) {

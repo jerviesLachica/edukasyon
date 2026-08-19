@@ -1,10 +1,23 @@
-# SchedMate
+# SchedMate 🎓✨
 
-Offline-first AI-powered student companion for Android.
+**SchedMate** is an offline-first, AI-powered student companion app built for Android to help students effortlessly manage their academic lives, schedules, tasks, assignments, and study goals.
 
-## Project structure
+---
 
-```
+## 🌟 Key Features
+
+- **Smart Home Widgets (2x2 & 2x3)**: Keep your classes, tasks, and upcoming exams right on your home screen. Widgets automatically refresh every day at midnight to stay in sync with your life.
+- **Offline-First Architecture**: Your data is stored locally using Room database, ensuring lightning-fast performance and full functionality even without internet.
+- **AI Assignment Intelligence**: Automatically break down complex assignments into manageable subtasks using our intelligent AI assistant.
+- **Reliable Reminders & DND Bypass**: Never miss a class or exam with high-importance notifications that include custom sounds and can bypass Do Not Disturb mode when configured.
+- **Unified Academic Planner**: Manage your class schedule, homework assignments, exams, grades, and notes all in one clean place.
+- **Secure AI Proxy Backend**: Integrated Node.js backend proxy ensuring safe AI interactions without exposing API keys.
+
+---
+
+## 📱 Project Structure
+
+`
 edukasyon/
 ├── androidApp/          # Primary Android application (SchedMate)
 │   └── src/main/kotlin/com/edukasyon/studentai/
@@ -14,73 +27,31 @@ edukasyon/
 │       ├── di/          # Hilt modules
 │       └── ui/          # Compose screens, theme, navigation
 └── backend/             # Secure AI proxy API (Node.js)
-```
+`
 
-## Build
+---
 
-```bash
-# Windows — use JDK 17+ (JDK 25 works with Gradle 8.9)
+## 🚀 Getting Started & Build
+
+### Prerequisites
+- Android Studio / JDK 17+ (JDK 25 fully compatible with Gradle 8.9)
+
+### Building the APK
+`ash
 set JAVA_HOME=C:\Program Files\Java\jdk-25.0.2
 gradlew.bat :androidApp:assembleDebug
-```
+`
 
-## Features (MVP)
+### Running the AI Backend
+`ash
+cd backend
+npm install
+npm start
+`
 
-- **Offline-first** — Room database is the source of truth
-- **Guest mode** — no account required
-- **Onboarding** — school setup, continue offline
-- **Home dashboard** — next class, schedule, tasks, exams, AI suggestions
-- **Schedule** — daily view, add/edit/delete classes
-- **Planner** — tasks, assignments, exams with CRUD; **Assignment Intelligence** (AI breakdown → subtasks)
-- **Notes** — create, search, delete
-- **Grades** — weighted grade calculation
-- **Calendar** — unified events from tasks/exams/assignments
-- **AI** — tutor chat, summarizer, flashcards, quiz, schedule scanner (mock + remote)
-- **Profile** — theme, notifications, AI settings, privacy info
-- **Sync skeleton** — WorkManager periodic sync
+---
 
-## AI security
+## 📦 Application ID & Firebase
 
-- No API keys in the Android app
-- Backend URL via `BuildConfig.AI_BACKEND_URL`
-- Run `backend/` with provider key in `backend/.env` (see `backend/.env.example`): [hcnsec.cn](https://api.hcnsec.cn/v1) — text uses `auto`, vision auto-routes to `step-3.7-flash`
-
-## Application ID
-
-`com.edukasyon.studentai` (debug builds use `com.edukasyon.studentai.debug`)
-
-## Firebase
-
-Project: **edukasyon-studentai** (`246011040847`)
-
-- Auth: anonymous + email/password enabled
-- Firestore: user-scoped rules in `firestore.rules`
-- Config: `androidApp/google-services.json` (release + debug clients)
-
-Guest onboarding signs in anonymously when online; offline guest mode still works with a local UUID.
-
-### Manual setup (if needed)
-
-1. Install [Firebase CLI](https://firebase.google.com/docs/cli) and run `firebase login`
-2. Select project: `firebase use edukasyon-studentai`
-3. Deploy rules: `firebase deploy --only firestore:rules,auth`
-4. In [Firebase Console](https://console.firebase.google.com/project/edukasyon-studentai), confirm **Authentication → Sign-in method → Anonymous** is enabled
-
-## Deferred / follow-up
-
-- Per-subtask calendar entries (currently one parent task + checklist subtasks; suggested dates in description)
-- Full Google Calendar two-way sync
-- Push reminders for individual subtask offsets (parent task uses existing `ReminderSyncService` / WorkManager)
-
-## Assignment Intelligence (backend)
-
-Endpoint: `POST /api/ai/assignment-breakdown` (via AiSafetyGateway)
-
-Deploy: restart backend after pull; requires `AI_API_KEY` in `backend/.env` for real analysis (mock without key).
-
-```bash
-cd backend && npm install && npm start
-# npm test  — includes AssignmentBreakdownValidator tests
-```
-
-Request body: `{ "text"?: string, "attachmentText"?: string, "imageBase64"?: string }`
+- **Application ID**: com.edukasyon.studentai (Debug: com.edukasyon.studentai.debug)
+- **Firebase Project**: dukasyon-studentai (246011040847) supporting anonymous guest auth and Firestore sync.

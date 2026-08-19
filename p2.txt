@@ -1,0 +1,6 @@
+*** Begin Patch
+*** Update File: androidApp/src/main/kotlin/com/edukasyon/studentai/ui/components/ExamEditDialog.kt
+@@
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+*** End Patch

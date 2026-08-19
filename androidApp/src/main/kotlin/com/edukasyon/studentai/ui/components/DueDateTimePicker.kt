@@ -76,6 +76,21 @@ data class PlannerScheduleInput(
             )
         }
 
+        fun defaultForExam(): PlannerScheduleInput {
+            val dueDate = DateUtils.tomorrowStartOfDay()
+            val dueMillis = DateUtils.combineDateAndTime(dueDate, "08:00")
+            val defaultReminder = DateUtils.defaultReminderAt(dueMillis)
+            val reminderCal = Calendar.getInstance().apply { timeInMillis = defaultReminder }
+            return PlannerScheduleInput(
+                dueDateMillis = dueDate,
+                dueHour = 8,
+                dueMinute = 0,
+                reminderDateMillis = DateUtils.startOfDay(defaultReminder),
+                reminderHour = reminderCal.get(Calendar.HOUR_OF_DAY),
+                reminderMinute = reminderCal.get(Calendar.MINUTE)
+            )
+        }
+
         fun fromDue(dueDate: Long?, dueTime: String?, reminderAt: Long?): PlannerScheduleInput {
             if (dueDate == null) {
                 return PlannerScheduleInput(hasDueDate = false)

@@ -6,6 +6,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.provider.Settings
+import android.media.AudioAttributes
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.edukasyon.studentai.MainActivity
@@ -29,8 +31,17 @@ class NotificationHelper @Inject constructor(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
         ReminderType.entries.forEach { type ->
-            val channel = NotificationChannel(type.channelId, type.channelName, NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "SchedMate ${type.channelName.lowercase()}"
+            val channel = NotificationChannel(type.channelId, type.channelName, NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "SchedMate "
+                setSound(
+                    Settings.System.DEFAULT_NOTIFICATION_URI,
+                    AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .build()
+                )
+                enableVibration(true)
+                setBypassDnd(true)
             }
             manager.createNotificationChannel(channel)
         }
@@ -57,7 +68,8 @@ class NotificationHelper @Inject constructor(
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(message)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setContentIntent(pending)
             .setAutoCancel(true)
             .build()

@@ -59,9 +59,9 @@ fun PlannerScreen(
     var editingTask by remember { mutableStateOf<Task?>(null) }
     var editingAssignment by remember { mutableStateOf<Assignment?>(null) }
     var editingExam by remember { mutableStateOf<Exam?>(null) }
+    var showAddExamDialog by remember { mutableStateOf(false) }
     var linkingExam by remember { mutableStateOf<Exam?>(null) }
     var deletingExam by remember { mutableStateOf<Exam?>(null) }
-    var showAddExamDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(state.snackbarMessage) {
@@ -164,12 +164,14 @@ fun PlannerScreen(
                         onEdit = { editingAssignment = it },
                         onDelete = viewModel::deleteAssignment,
                     )
-                    2 -> ExamList(
+                   2 -> ExamList(
                         exams = state.exams,
                         examReadiness = state.examReadiness,
                         expandedExamId = state.expandedExamId,
                         horizontalPadding = horizontalPadding,
+                        onDelete = viewModel::deleteExam,
                         onEdit = { editingExam = it },
+                        onDuplicate = viewModel::duplicateExam,
                         onToggleExpanded = viewModel::toggleExamExpanded,
                         onLinkStudy = { linkingExam = it },
                     )
@@ -238,16 +240,27 @@ fun PlannerScreen(
         )
     }
     editingExam?.let { exam ->
-        PlannerItemDialog(
-            tab = 2,
+        ExamEditDialog(
             existingExam = exam,
+            subjects = state.subjects,
+            decks = state.jeviDecks,
             onDismiss = { editingExam = null },
-            onSaveTask = {},
-            onSaveAssignment = {},
-            onSaveExam = { updated ->
+            onSave = { updated ->
                 viewModel.updateExam(updated)
                 editingExam = null
-            }
+            },
+        )
+    }
+    if (showAddExamDialog) {
+        ExamEditDialog(
+            existingExam = null,
+            subjects = state.subjects,
+            decks = state.jeviDecks,
+            onDismiss = { showAddExamDialog = false },
+            onSave = { exam ->
+                viewModel.addExam(exam)
+                showAddExamDialog = false
+            },
         )
     }
     linkingExam?.let { exam ->
@@ -259,6 +272,25 @@ fun PlannerScreen(
             onConfirm = { subjectId, deckId, newDeckTitle ->
                 viewModel.linkExamStudy(exam, subjectId, deckId, newDeckTitle)
                 linkingExam = null
+            },
+        )
+    }
+
+    deletingExam?.let { exam ->
+        AlertDialog(
+            onDismissRequest = { deletingExam = null },
+            title = { Text("Delete exam") },
+            text = { Text("Are you sure you want to delete \"${exam.title}\"? This can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteExam(exam.id)
+                    deletingExam = null
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingExam = null }) { Text("Cancel") }
             },
         )
     }
@@ -653,6 +685,8 @@ private fun ExamList(
     expandedExamId: String?,
     horizontalPadding: androidx.compose.ui.unit.Dp,
     onEdit: (Exam) -> Unit,
+    onDelete: (String) -> Unit,
+    onDuplicate: (Exam) -> Unit,
     onToggleExpanded: (String) -> Unit,
     onLinkStudy: (Exam) -> Unit,
 ) {
@@ -671,6 +705,12 @@ private fun ExamList(
                         }
                         BouncyIconButton(onClick = { onEdit(exam) }) {
                             Icon(Icons.Default.Edit, "Edit exam")
+                        }
+                        BouncyIconButton(onClick = { onDelete(exam.id) }) {
+                            Icon(Icons.Default.Delete, "Delete exam")
+                        }
+                        BouncyIconButton(onClick = { onDuplicate(exam) }) {
+                            Icon(Icons.Default.ContentCopy, "Duplicate exam")
                         }
                     }
                     ExamReadinessCard(
@@ -724,6 +764,7 @@ private fun PlannerItemDialog(
             }
         )
     }
+    var titleError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -748,10 +789,15 @@ private fun PlannerItemDialog(
             ) {
                 OutlinedTextField(
                     value = title,
-                    onValueChange = { title = it },
+                    onValueChange = {
+                        title = it
+                        if (titleError != null && it.isNotBlank()) titleError = null
+                    },
                     label = { Text("Title") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    isError = titleError != null,
+                    supportingText = titleError?.let { { Text(it) } }
                 )
                 PlannerScheduleFields(
                     schedule = schedule,
@@ -761,7 +807,11 @@ private fun PlannerItemDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                if (title.isBlank()) return@TextButton
+                if (title.isBlank()) {
+                    titleError = "Please enter a title"
+                    return@TextButton
+                }
+                titleError = null
                 val now = System.currentTimeMillis()
                 when (tab) {
                     0 -> {
