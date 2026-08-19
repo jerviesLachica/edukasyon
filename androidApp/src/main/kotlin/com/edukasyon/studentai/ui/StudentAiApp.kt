@@ -20,6 +20,9 @@ import com.edukasyon.studentai.ui.navigation.Routes
 import com.edukasyon.studentai.ui.navigation.mainTabComposable
 import com.edukasyon.studentai.ui.navigation.navigateToTab
 import com.edukasyon.studentai.ui.navigation.routeToSelectedTab
+import com.edukasyon.studentai.core.update.UpdateManager
+import com.edukasyon.studentai.core.update.UpdateResult
+import com.edukasyon.studentai.ui.components.UpdateDialog
 import com.edukasyon.studentai.ui.screens.*
 import com.edukasyon.studentai.ui.theme.StudentAiTheme
 import com.edukasyon.studentai.ui.viewmodel.MainViewModel
@@ -32,6 +35,7 @@ fun StudentAiAppContent(
     onInitialTabConsumed: () -> Unit = {},
 ) {
     val viewModel: MainViewModel = hiltViewModel()
+    val updateManager: UpdateManager = hiltViewModel()
     val preferencesReady by viewModel.preferencesReady.collectAsStateWithLifecycle()
     val onboardingComplete by viewModel.onboardingComplete.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
@@ -43,6 +47,17 @@ fun StudentAiAppContent(
             Log.d(TAG, "Root state: onboardingComplete=$onboardingComplete themeMode=$themeMode primary=$primaryColorHex")
         }
     }
+
+    LaunchedEffect(Unit) {
+        runCatching {
+            when (updateManager.checkForUpdate()) {
+                is UpdateResult.Available -> Unit
+                else -> Unit
+            }
+        }.onFailure { Log.w(TAG, "Update check failed", it) }
+    }
+
+    val updateState by updateManager.uiState.collectAsStateWithLifecycle()
 
     StudentAiTheme(
         themeMode = themeMode,
@@ -84,6 +99,22 @@ fun StudentAiAppContent(
             }
         }
     }
+
+    UpdateDialog(
+        state = updateState,
+        onDismissRequest = updateManager::reset,
+        onUpdateNow = updateManager::installApk
+    )
+                }
+            }
+        }
+    }
+
+    UpdateDialog(
+        state = updateState,
+        onDismissRequest = updateManager::reset,
+        onUpdateNow = updateManager::installApk
+    )
 }
 
 @Composable
