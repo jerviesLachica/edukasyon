@@ -11,7 +11,7 @@ class WidgetBootReceiver : BroadcastReceiver() {
             intent.action == Intent.ACTION_MY_PACKAGE_REPLACED ||
             intent.action == Intent.ACTION_TIME_CHANGED ||
             intent.action == Intent.ACTION_TIMEZONE_CHANGED) {
-            Log.i("WidgetBootReceiver", "Rescheduling daily widget alarm on action: \")
+            Log.i("WidgetBootReceiver", "Rescheduling daily widget alarm on action: ${intent.action}")
             WidgetAlarmReceiver.scheduleDailyAlarm(context)
         }
     }

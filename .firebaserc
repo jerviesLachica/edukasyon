@@ -2,6 +2,14 @@
   "projects": {
     "default": "edukasyon-studentai"
   },
-  "targets": {},
+  "targets": {
+    "edukasyon-studentai": {
+      "hosting": {
+        "studentai-download": [
+          "edukasyon-studentai"
+        ]
+      }
+    }
+  },
   "etags": {}
 }

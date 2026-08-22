@@ -65,7 +65,7 @@ class WidgetAlarmReceiver : BroadcastReceiver() {
                 } else {
                     alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
                 }
-                Log.i("WidgetAlarmReceiver", "Successfully scheduled next daily widget alarm for \")
+                Log.i("WidgetAlarmReceiver", "Successfully scheduled next daily widget alarm for $triggerTime")
             } catch (e: SecurityException) {
                 Log.w("WidgetAlarmReceiver", "SecurityException scheduling exact alarm, falling back to inexact", e)
                 alarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)

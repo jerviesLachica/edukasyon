@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Environment
 import android.util.Log
 import androidx.core.content.FileProvider
+import androidx.lifecycle.ViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,13 +20,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
-import javax.inject.Singleton
+import dagger.hilt.android.lifecycle.HiltViewModel
 
-@Singleton
+@HiltViewModel
 class UpdateManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val updateChecker: UpdateChecker,
-) {
+) : ViewModel() {
     companion object {
         private const val TAG = "UpdateManager"
     }
@@ -93,7 +94,7 @@ class UpdateManager @Inject constructor(
             val cursor = downloadManager.query(query)
             if (cursor.moveToFirst()) {
                 val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                val bytesDownloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED))
+                val bytesDownloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
                 val totalBytes = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
                 val progress = if (totalBytes > 0) bytesDownloaded.toFloat() / totalBytes else 0f
 

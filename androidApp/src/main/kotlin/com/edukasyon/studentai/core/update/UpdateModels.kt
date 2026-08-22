@@ -10,3 +10,9 @@ data class UpdateInfo(
     val releaseNotes: String = "",
     val mandatoryUpdate: Boolean = false,
 )
+
+sealed class UpdateResult {
+    data object UpToDate : UpdateResult()
+    data class Available(val info: UpdateInfo) : UpdateResult()
+    data class Error(val message: String) : UpdateResult()
+}

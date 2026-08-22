@@ -5,6 +5,18 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "hosting": [
+    {
+      "target": "studentai-download",
+      "public": "download-site",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**",
+        "downloads/**"
+      ]
+    }
+  ],
   "auth": {
     "providers": {
       "anonymous": true,

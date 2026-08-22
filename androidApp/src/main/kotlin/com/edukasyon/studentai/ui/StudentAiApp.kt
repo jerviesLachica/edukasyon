@@ -33,9 +33,9 @@ private const val TAG = "StudentAiApp"
 fun StudentAiAppContent(
     initialTabRoute: String? = null,
     onInitialTabConsumed: () -> Unit = {},
+    updateManager: UpdateManager,
 ) {
     val viewModel: MainViewModel = hiltViewModel()
-    val updateManager: UpdateManager = hiltViewModel()
     val preferencesReady by viewModel.preferencesReady.collectAsStateWithLifecycle()
     val onboardingComplete by viewModel.onboardingComplete.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
@@ -95,16 +95,6 @@ fun StudentAiAppContent(
                     contentColor = MaterialTheme.colorScheme.onBackground,
                 ) {
                     OnboardingScreen(onComplete = viewModel::markOnboardingFinished)
-                }
-            }
-        }
-    }
-
-    UpdateDialog(
-        state = updateState,
-        onDismissRequest = updateManager::reset,
-        onUpdateNow = updateManager::installApk
-    )
                 }
             }
         }

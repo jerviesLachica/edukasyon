@@ -8,7 +8,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.edukasyon.studentai.core.notifications.NotificationHelper
+import com.edukasyon.studentai.core.update.UpdateManager
 import com.edukasyon.studentai.ui.StudentAiAppContent
 import com.edukasyon.studentai.widget.WidgetActions
 import dagger.hilt.android.AndroidEntryPoint
@@ -22,9 +24,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         pendingTabRoute = extractStartTab(intent)
         setContent {
+            val updateManager: UpdateManager = hiltViewModel()
             StudentAiAppContent(
                 initialTabRoute = pendingTabRoute,
                 onInitialTabConsumed = { pendingTabRoute = null },
+                updateManager = updateManager,
             )
         }
     }
