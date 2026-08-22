@@ -1,7 +1,7 @@
 {
-  "versionCode": 1,
-  "versionName": "1.0.0",
-  "apkUrl": "https://studentai-download.onrender.com/downloads/schedmate-1.0.0.apk",
-  "releaseNotes": "Initial release of SchedMate - your AI student companion.",
-  "mandatoryUpdate": false
+  "versionCode": 2,
+  "versionName": "1.1.0",
+  "apkUrl": "https://studentai-download.onrender.com/downloads/schedmate-1.1.0.apk",
+  "releaseNotes": "New signing key and fixed in-app update checker.",
+  "mandatoryUpdate": true
 }

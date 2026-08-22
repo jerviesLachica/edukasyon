@@ -13,7 +13,7 @@ const APP_CONFIG = {
 
   icon: "assets/app-icon.png",
 
-  version: "1.0.0",
+  version: "1.1.0",
   packageId: "com.edukasyon.studentai",
 
   downloads: {
@@ -29,9 +29,9 @@ const APP_CONFIG = {
     },
     androidApk: {
       enabled: true,
-      label: “Download APK”,
-      url: “downloads/schedmate-1.0.0.apk”,
-      hint: “Android 8+ · Signed release build · Enable “Install unknown apps” if prompted”,
+      label: "Download APK",
+      url: "https://studentai-download.onrender.com/downloads/schedmate-1.1.0.apk",
+      hint: "Android 8+ · Signed release build · Enable 'Install unknown apps' if prompted",
     },
     windows: {
       enabled: false,

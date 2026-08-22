@@ -22,7 +22,7 @@ class UpdateChecker @Inject constructor(
 ) {
     companion object {
         private const val TAG = "UpdateChecker"
-        private const val VERSION_URL = "https://jerviesLachica.github.io/edukasyon/version.json"
+        private const val VERSION_URL = "https://edukasyon-studentai.web.app/version.json"
     }
 
     suspend fun checkForUpdate(): UpdateResult = withContext(Dispatchers.IO) {
