@@ -779,6 +779,27 @@ app.post('/api/ai/focus-plan', (req, res) =>
   })
 );
 
+// Internal: announce a new app version to ALL users via FCM topic broadcast.
+// Guarded by the x-admin-key header (must match ADMIN_API_KEY env var).
+app.post('/internal/broadcast-update', async (req, res) => {
+  const expectedKey = process.env.ADMIN_API_KEY;
+  if (!expectedKey || req.get('x-admin-key') !== expectedKey) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  }
+  try {
+    const { broadcastUpdate } = require('./updates/UpdateBroadcastService');
+    const result = await broadcastUpdate(req.body || {});
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    const status = error.status || 500;
+    console.error('[broadcast-update]', error.message);
+    res.status(status).json({
+      ok: false,
+      error: status === 400 ? error.message : 'Broadcast failed',
+    });
+  }
+});
+
 app.get('/health', (_, res) =>
   res.json({
     status: 'ok',

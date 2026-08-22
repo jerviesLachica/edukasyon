@@ -53,6 +53,12 @@ class StudentAiApplication : Application(), Configuration.Provider {
                 holidaySyncScheduler.schedulePeriodicSync()
                 holidayRepository.refreshOnAppStart()
                 notificationHelper.createChannels()
+                runCatching {
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance()
+                        .subscribeToTopic(
+                            com.edukasyon.studentai.core.update.AppUpdateMessagingService.UPDATE_TOPIC
+                        )
+                }.onFailure { Log.w("StudentAiApp", "FCM topic subscribe failed", it) }
                 reminderSyncService.rescheduleAll()
                 WidgetUpdater.schedulePeriodicRefresh(this@StudentAiApplication)
                 WidgetUpdater.refreshAll(this@StudentAiApplication)

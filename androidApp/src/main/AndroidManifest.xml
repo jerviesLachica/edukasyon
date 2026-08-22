@@ -60,6 +60,14 @@
             </intent-filter>
         </activity>
 
+        <service
+            android:name=".core.update.AppUpdateMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".widget.StudentAiWidget2x2Receiver"
             android:exported="true"

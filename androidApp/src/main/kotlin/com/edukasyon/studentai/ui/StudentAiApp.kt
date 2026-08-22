@@ -33,6 +33,8 @@ private const val TAG = "StudentAiApp"
 fun StudentAiAppContent(
     initialTabRoute: String? = null,
     onInitialTabConsumed: () -> Unit = {},
+    autoTriggerUpdate: Boolean = false,
+    onAutoTriggerConsumed: () -> Unit = {},
     updateManager: UpdateManager,
 ) {
     val viewModel: MainViewModel = hiltViewModel()
@@ -48,13 +50,26 @@ fun StudentAiAppContent(
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(autoTriggerUpdate) {
         runCatching {
-            when (updateManager.checkForUpdate()) {
-                is UpdateResult.Available -> Unit
-                else -> Unit
+            when (val result = updateManager.checkForUpdate()) {
+                is UpdateResult.Available -> {
+                    if (autoTriggerUpdate) {
+                        // User tapped the push notification's "Install update" action —
+                        // skip straight to downloading; progress shows in the dialog.
+                        onAutoTriggerConsumed()
+                        updateManager.startDownload(result.info)
+                    } else {
+                        // Regular app open — show the in-app update prompt.
+                        updateManager.showAvailable(result.info)
+                    }
+                }
+                else -> updateManager.reset()
             }
-        }.onFailure { Log.w(TAG, "Update check failed", it) }
+        }.onFailure {
+            Log.w(TAG, "Update check failed", it)
+            updateManager.reset()
+        }
     }
 
     val updateState by updateManager.uiState.collectAsStateWithLifecycle()
@@ -103,7 +118,8 @@ fun StudentAiAppContent(
     UpdateDialog(
         state = updateState,
         onDismissRequest = updateManager::reset,
-        onUpdateNow = updateManager::installApk
+        onUpdateNow = updateManager::installApk,
+        onStartDownload = updateManager::startPendingDownload,
     )
 }
 

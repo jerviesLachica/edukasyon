@@ -36,10 +36,23 @@ class UpdateManager @Inject constructor(
 
     private var downloadId: Long = -1L
     private var downloadReceiver: BroadcastReceiver? = null
+    private var pendingInfo: UpdateInfo? = null
 
     suspend fun checkForUpdate(): UpdateResult {
         _uiState.value = UpdateUiState.Checking
         return updateChecker.checkForUpdate()
+    }
+
+    /** Surfaces an available update in the UI (in-app prompt with install button). */
+    fun showAvailable(info: UpdateInfo) {
+        pendingInfo = info
+        _uiState.value = UpdateUiState.UpdateAvailable(info)
+    }
+
+    /** Starts downloading the last [showAvailable] payload (used by the update dialog). */
+    fun startPendingDownload() {
+        val info = pendingInfo ?: return
+        startDownload(info)
     }
 
     fun startDownload(updateInfo: UpdateInfo) {
@@ -201,6 +214,7 @@ sealed class UpdateUiState {
     data object Idle : UpdateUiState()
     data object Checking : UpdateUiState()
     data object UpToDate : UpdateUiState()
+    data class UpdateAvailable(val info: UpdateInfo) : UpdateUiState()
     data class Downloading(val progress: Float) : UpdateUiState()
     data class ReadyToInstall(val apkUri: String) : UpdateUiState()
     data object InstallStarted : UpdateUiState()
