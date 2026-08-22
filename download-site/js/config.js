@@ -30,7 +30,7 @@ const APP_CONFIG = {
     androidApk: {
       enabled: true,
       label: "Download APK",
-      url: "https://media.githubusercontent.com/media/jerviesLachica/edukasyon/master/download-site/downloads/schedmate-1.1.0.apk",
+      url: "https://github.com/jerviesLachica/edukasyon/releases/download/v1.1.0/schedmate-1.1.0.apk",
       hint: "Android 8+ · Signed release build · Enable 'Install unknown apps' if prompted",
     },
     windows: {
