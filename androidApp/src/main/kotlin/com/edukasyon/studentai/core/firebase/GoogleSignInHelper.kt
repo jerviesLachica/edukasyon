@@ -2,11 +2,16 @@ package com.edukasyon.studentai.core.firebase
 
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.edukasyon.studentai.R
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -39,7 +44,46 @@ class GoogleSignInHelper @Inject constructor(
                 "Google Sign-In not configured — download an updated google-services.json from Firebase Console"
             clientId.startsWith("REPLACE_WITH") ->
                 "Google Sign-In not configured — add SHA-1/SHA-256 in Firebase Console, then download google-services.json"
-            else -> null
+            else -> playServicesIssue()
+        }
+    }
+
+    /** Detects broken/outdated Google Play Services — the usual cause of ApiException 8. */
+    private fun playServicesIssue(): String? {
+        val availability = GoogleApiAvailability.getInstance()
+        val status = availability.isGooglePlayServicesAvailable(context)
+        if (status == ConnectionResult.SUCCESS) return null
+        return if (availability.isUserResolvableError(status)) {
+            "Google Play Services needs an update — open the Play Store, update 'Google Play services', then try again"
+        } else {
+            "Google Play Services is unavailable on this device"
+        }
+    }
+
+    /**
+     * Maps a Google Sign-In failure to an actionable, user-facing message.
+     * Returns null for benign outcomes (e.g. user cancelled) that should be silent.
+     */
+    fun describeSignInError(throwable: Throwable): String? {
+        Log.w(TAG, "Google Sign-In failed", throwable)
+        if (throwable !is ApiException) {
+            val raw = throwable.message
+            // Raw ApiException messages look like "8: " — never surface those verbatim.
+            return if (raw != null && !raw.matches(Regex("\\d+: ?"))) {
+                raw
+            } else {
+                "Google Sign-In failed — please try again"
+            }
+        }
+        return when (throwable.statusCode) {
+            GoogleSignInStatusCodes.SIGN_IN_CANCELLED, CommonStatusCodes.CANCELED -> null
+            CommonStatusCodes.NETWORK_ERROR ->
+                "Network error during Google Sign-In — check your connection and try again"
+            CommonStatusCodes.DEVELOPER_ERROR ->
+                "App configuration mismatch — verify this build's SHA-1 fingerprint in Firebase Console"
+            CommonStatusCodes.INTERNAL_ERROR ->
+                "Google had an internal error. Update 'Google Play services' from the Play Store, restart the app, then try signing in again"
+            else -> "Google Sign-In failed (code ${throwable.statusCode}) — please try again"
         }
     }
 
@@ -60,5 +104,9 @@ class GoogleSignInHelper @Inject constructor(
         val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
         if (resId == 0) return null
         return context.getString(resId).takeIf { it.isNotBlank() }
+    }
+
+    companion object {
+        private const val TAG = "GoogleSignInHelper"
     }
 }

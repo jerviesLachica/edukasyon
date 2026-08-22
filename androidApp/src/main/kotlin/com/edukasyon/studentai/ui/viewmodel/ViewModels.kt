@@ -2093,23 +2093,19 @@ class ProfileViewModel @Inject constructor(
         viewModelScope.launch {
             val tokenResult = googleSignInHelper.getIdTokenFromResult(data)
             tokenResult.onFailure { error ->
-                _uiState.update {
-                    it.copy(
-                        isSigningInWithGoogle = false,
-                        backupMessage = error.message ?: "Google Sign-In cancelled",
-                    )
-                }
+                val friendly = googleSignInHelper.describeSignInError(error)
+                    ?: return@launch // user cancelled — stay silent, just reset
+                _uiState.update { it.copy(isSigningInWithGoogle = false, backupMessage = friendly) }
                 return@launch
             }
             val idToken = tokenResult.getOrThrow()
             firebaseAuthManager.signInWithGoogle(idToken)
                 .onSuccess { outcome -> onGoogleSignInSuccess(outcome) }
                 .onFailure { error ->
+                    val friendly = googleSignInHelper.describeSignInError(error)
+                        ?: "Google Sign-In failed"
                     _uiState.update {
-                        it.copy(
-                            isSigningInWithGoogle = false,
-                            backupMessage = error.message ?: "Google Sign-In failed",
-                        )
+                        it.copy(isSigningInWithGoogle = false, backupMessage = friendly)
                     }
                 }
         }
