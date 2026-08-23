@@ -3,5 +3,9 @@
     "versionName":  "1.2.1",
     "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.1/schedmate-1.2.1.apk",
     "releaseNotes":  "Smoother first-run setup with cloud sign-in, an in-app changelog, and a home screen widget promo.",
-    "mandatoryUpdate":  false
+    "mandatoryUpdate":  false,
+    "apkFile":  "schedmate-1.2.1.apk",
+    "sha256":  "660123f6e134c616c091a8123f2aa533c677e553312bd90f7a79de50c281bee7",
+    "sizeBytes":  50362361,
+    "releaseDate":  "2026-08-23"
 }

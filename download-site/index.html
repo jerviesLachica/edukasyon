@@ -26,17 +26,17 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-<script type="application/ld+json">
+<script type="application/ld+json" id="ldjson">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "SchedMate",
   "operatingSystem": "ANDROID",
   "applicationCategory": "EducationalApplication",
-  "softwareVersion": "1.2.0",
+  "softwareVersion": "1.2.1",
   "fileSize": "48MB",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "downloadUrl": "https://studentai-download.onrender.com/downloads/schedmate-1.2.0.apk",
+  "downloadUrl": "https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.1/schedmate-1.2.1.apk",
   "description": "Offline-first student companion: class schedule, task and exam tracker, notes, GPA calculator, reminders, and an AI tutor that works without internet."
 }
 </script>
@@ -634,7 +634,7 @@ html.js .reveal.in { opacity: 1; transform: none; }
   <!-- ============ HERO ============ -->
   <section class="container hero">
     <div class="hero-copy">
-      <span class="badge"><i></i>v1.2.0 &nbsp;·&nbsp; 48 MB &nbsp;·&nbsp; runs fully offline</span>
+      <span class="badge"><i></i>v<span data-app-version>1.2.1</span> &nbsp;·&nbsp; <span data-apk-size-mb>48 MB</span> &nbsp;·&nbsp; runs fully offline</span>
       <h1>Your classes, tasks, and grades — together, even offline.</h1>
       <p class="hero-sub">
         SchedMate keeps your schedule, deadlines, notes, and GPA in one Android app,
@@ -642,7 +642,7 @@ html.js .reveal.in { opacity: 1; transform: none; }
         no subscription.
       </p>
       <div class="hero-actions">
-        <a class="btn btn-primary" href="https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.0/schedmate-1.2.0.apk" download>
+        <a class="btn btn-primary" data-apk-url href="https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.1/schedmate-1.2.1.apk" download>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
           Download APK — free
         </a>
@@ -770,7 +770,7 @@ html.js .reveal.in { opacity: 1; transform: none; }
         <article class="step reveal">
           <div class="step-num" aria-hidden="true"></div>
           <h3>Install the APK</h3>
-          <p>Download the 48 MB file and open it. Android asks for one-time permission to install from your browser — normal for apps outside the Play Store.</p>
+          <p>Download the <span data-apk-size-mb>48 MB</span> file and open it. Android asks for one-time permission to install from your browser — normal for apps outside the Play Store.</p>
         </article>
         <article class="step reveal">
           <div class="step-num" aria-hidden="true"></div>
@@ -800,11 +800,11 @@ html.js .reveal.in { opacity: 1; transform: none; }
           <li>This is a direct APK release, not a Play Store listing. When installing, allow your browser to install apps if Android asks.</li>
           <li>If Google Play Protect flags the app as from an unknown developer, that's expected for any sideloaded APK — the build is signed with the official SchedMate release key.</li>
           <li>Your data is stored locally. Uninstalling the app deletes it, so keep device backups if the notes matter to you.</li>
-          <li>The APK is served from GitHub Releases (CDN). Backup links if that's slow: <a href="https://media.githubusercontent.com/media/jerviesLachica/edukasyon/master/download-site/downloads/schedmate-1.2.0.apk" rel="noopener">GitHub LFS</a> · <a href="https://studentai-download.onrender.com/downloads/schedmate-1.0.0.apk" rel="noopener">Render mirror (v1.0.0)</a>.</li>
+          <li>The APK is served from GitHub Releases (CDN). If the download is slow, you can also grab any version from the <a href="https://github.com/jerviesLachica/edukasyon/releases" rel="noopener">Releases page</a>.</li>
         </ul>
         <code class="checksum">
-          <b>SHA-256</b>&nbsp; 6b5ea46a69060a5be71f81bc17d7249dd999050b5c2e91cca84a1f37ce3656bb<br>
-          <b>Size</b>&nbsp; 50,242,121 bytes &nbsp;·&nbsp; <b>schedmate-1.2.0.apk</b> &nbsp;·&nbsp; versionName 1.2.0 (versionCode 3)
+          <b>SHA-256</b>&nbsp; <span data-apk-sha256>660123f6e134c616c091a8123f2aa533c677e553312bd90f7a79de50c281bee7</span><br>
+          <b>Size</b>&nbsp; <span data-apk-size>50,362,361 bytes</span> &nbsp;·&nbsp; <b><span data-apk-file>schedmate-1.2.1.apk</span></b> &nbsp;·&nbsp; versionName <span data-app-version>1.2.1</span> (versionCode <span data-version-code>4</span>)
         </code>
       </div>
     </div>
@@ -816,9 +816,9 @@ html.js .reveal.in { opacity: 1; transform: none; }
       <div class="download-band reveal">
         <div>
           <h2>One download, and it's yours</h2>
-          <p>schedmate-1.2.0.apk · 48 MB · works offline forever. Free for personal use.</p>
+          <p><span data-apk-file>schedmate-1.2.1.apk</span> · <span data-apk-size-mb>48 MB</span> · works offline forever. Free for personal use.</p>
         </div>
-        <a class="btn btn-primary" href="https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.0/schedmate-1.2.0.apk" download>
+        <a class="btn btn-primary" data-apk-url href="https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.1/schedmate-1.2.1.apk" download>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
           Download APK
         </a>
@@ -834,7 +834,7 @@ html.js .reveal.in { opacity: 1; transform: none; }
       <a href="https://github.com/jerviesLachica/edukasyon" rel="noopener">Source</a>
       <a href="#top">Back to top ↑</a>
     </div>
-    <p>© <span id="year">2026</span> SchedMate · v1.2.0</p>
+    <p>© <span id="year">2026</span> SchedMate · v<span data-app-version>1.2.1</span></p>
   </div>
 </footer>
 
@@ -857,6 +857,39 @@ document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 
 // Current year
 document.getElementById('year').textContent = new Date().getFullYear();
+
+// Dynamic release info — everything version-specific lives in /version.json.
+// Static text above is the no-JS fallback; this keeps the page in sync automatically.
+(async () => {
+  try {
+    const r = await fetch('version.json', { cache: 'no-cache' });
+    if (!r.ok) return;
+    const v = await r.json();
+    const set = (sel, val, attr) =>
+      document.querySelectorAll(sel).forEach(el => (attr ? el.setAttribute(attr, val) : (el.textContent = val)));
+
+    if (v.versionName) set('[data-app-version]', v.versionName);
+    if (v.versionCode) set('[data-version-code]', String(v.versionCode));
+    if (v.apkUrl) set('[data-apk-url]', v.apkUrl, 'href');
+    if (v.apkFile || v.apkUrl) set('[data-apk-file]', v.apkFile || v.apkUrl.split('/').pop());
+    if (v.sha256) set('[data-apk-sha256]', v.sha256);
+    if (v.sizeBytes) {
+      set('[data-apk-size]', v.sizeBytes.toLocaleString('en-US') + ' bytes');
+      set('[data-apk-size-mb]', Math.round(v.sizeBytes / 1048576) + ' MB');
+    }
+
+    // Keep structured metadata (SEO) in sync too
+    const ld = document.getElementById('ldjson');
+    if (ld) {
+      try {
+        const j = JSON.parse(ld.textContent);
+        j.softwareVersion = v.versionName;
+        if (v.apkUrl) j.downloadUrl = v.apkUrl;
+        ld.textContent = JSON.stringify(j, null, 2);
+      } catch (_) {}
+    }
+  } catch (_) { /* offline or missing file — static fallbacks remain */ }
+})();
 </script>
 </body>
 </html>
