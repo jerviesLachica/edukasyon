@@ -25,3 +25,6 @@ androidApp/keystore/*.jks
 compile-*.log
 build-ksp.log
 generate_jarvis_avatar.py
+
+secrets/
+*.key.json

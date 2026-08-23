@@ -22,19 +22,26 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -285,6 +292,30 @@ fun ScheduleScannerScreen(
                             },
                             modifier = Modifier.fillMaxSize(),
                         )
+                        // Scan frame guide overlay
+                        Canvas(Modifier.fillMaxSize()) {
+                            val w = size.width
+                            val h = size.height
+                            val frameW = w * 0.82f
+                            val frameH = h * 0.5f
+                            val left = (w - frameW) / 2f
+                            val top = (h - frameH) / 2f
+                            val color = androidx.compose.ui.graphics.Color(0xFFF97316)
+                            val stroke = 4.dp.toPx()
+                            val len = 28.dp.toPx()
+                            // top-left
+                            drawLine(color = color, start = Offset(left, top), end = Offset(left + len, top), strokeWidth = stroke)
+                            drawLine(color = color, start = Offset(left, top), end = Offset(left, top + len), strokeWidth = stroke)
+                            // top-right
+                            drawLine(color = color, start = Offset(left + frameW, top), end = Offset(left + frameW - len, top), strokeWidth = stroke)
+                            drawLine(color = color, start = Offset(left + frameW, top), end = Offset(left + frameW, top + len), strokeWidth = stroke)
+                            // bottom-left
+                            drawLine(color = color, start = Offset(left, top + frameH), end = Offset(left + len, top + frameH), strokeWidth = stroke)
+                            drawLine(color = color, start = Offset(left, top + frameH), end = Offset(left, top + frameH - len), strokeWidth = stroke)
+                            // bottom-right
+                            drawLine(color = color, start = Offset(left + frameW, top + frameH), end = Offset(left + frameW - len, top + frameH), strokeWidth = stroke)
+                            drawLine(color = color, start = Offset(left + frameW, top + frameH), end = Offset(left + frameW, top + frameH - len), strokeWidth = stroke)
+                        }
                         if (isScanning) {
                             ScanningOverlay(
                                 imageBytes = pendingScanImageBytes,
@@ -364,33 +395,61 @@ fun ScheduleScannerScreen(
                     )
                 }
                 if (showCamera) {
-                    Row(
-                        Modifier.padding(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    Surface(
+                        tonalElevation = 6.dp,
+                        shadowElevation = 8.dp,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        OutlinedButton(
-                            onClick = { galleryLauncher.launch("image/*") },
-                            enabled = !scanBlocked,
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            Icon(Icons.Default.PhotoLibrary, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Gallery")
-                        }
-                        OutlinedButton(
-                            onClick = launchDocumentScan,
-                            enabled = !scanBlocked,
-                        ) {
-                            Icon(Icons.Default.DocumentScanner, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Doc scan")
-                        }
-                        Button(
-                            onClick = { captureAndAnalyze() },
-                            enabled = !scanBlocked && cameraReady,
-                        ) {
-                            Icon(Icons.Default.CameraAlt, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(if (isScanning) "Scanning…" else "Capture & Analyze")
+                            // Gallery
+                            IconButton(
+                                onClick = { galleryLauncher.launch("image/*") },
+                                enabled = !scanBlocked,
+                                modifier = Modifier.size(48.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.PhotoLibrary,
+                                    contentDescription = "Pick from Gallery",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+
+                                    // Center shutter
+                            Button(
+                                onClick = { captureAndAnalyze() },
+                                enabled = !scanBlocked && cameraReady,
+                                shape = CircleShape,
+                                modifier = Modifier
+                                    .size(72.dp),
+                                contentPadding = PaddingValues(0.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.CameraAlt,
+                                    contentDescription = if (isScanning) "Scanning" else "Capture",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(34.dp),
+                                )
+                            }
+
+                            // Doc scan
+                            IconButton(
+                                onClick = launchDocumentScan,
+                                enabled = !scanBlocked,
+                                modifier = Modifier.size(48.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.DocumentScanner,
+                                    contentDescription = "Scan document",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
                         }
                     }
                     TextButton(

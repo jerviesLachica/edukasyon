@@ -14,6 +14,26 @@
         "**/.*",
         "**/node_modules/**",
         "downloads/**"
+      ],
+      "headers": [
+        {
+          "source": "/version.json",
+          "headers": [
+            { "key": "Cache-Control", "value": "max-age=60" }
+          ]
+        },
+        {
+          "source": "/js/config.js",
+          "headers": [
+            { "key": "Cache-Control", "value": "max-age=300" }
+          ]
+        },
+        {
+          "source": "/index.html",
+          "headers": [
+            { "key": "Cache-Control", "value": "max-age=300" }
+          ]
+        }
       ]
     }
   ],
