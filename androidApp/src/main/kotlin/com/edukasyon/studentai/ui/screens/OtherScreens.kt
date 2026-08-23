@@ -47,6 +47,7 @@ fun ProfileScreen(
     onNavigateFeaturesGuide: () -> Unit = {},
     onNavigateNotificationSettings: () -> Unit = {},
     onRequestNotificationPermission: () -> Unit = {},
+    onNavigateChangelog: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -201,6 +202,15 @@ fun ProfileScreen(
                     subtitle = "Explore all app features and where to find them",
                     trailing = {
                         TextButton(onClick = onNavigateFeaturesGuide) {
+                            Text("Open")
+                        }
+                    }
+                )
+                SettingsRow(
+                    title = "What's New",
+                    subtitle = "See what changed in recent updates",
+                    trailing = {
+                        TextButton(onClick = onNavigateChangelog) {
                             Text("Open")
                         }
                     }

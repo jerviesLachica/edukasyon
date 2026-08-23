@@ -12,6 +12,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.edukasyon.studentai.BuildConfig
+import com.edukasyon.studentai.data.preferences.UserPreferences
 import com.edukasyon.studentai.ui.adaptive.AdaptiveScaffold
 import com.edukasyon.studentai.ui.components.LoadingScreen
 import com.edukasyon.studentai.ui.components.StarfieldScaffold
@@ -40,6 +41,7 @@ fun StudentAiAppContent(
     val viewModel: MainViewModel = hiltViewModel()
     val preferencesReady by viewModel.preferencesReady.collectAsStateWithLifecycle()
     val onboardingComplete by viewModel.onboardingComplete.collectAsStateWithLifecycle()
+    val authStrategy by viewModel.authStrategy.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val primaryColorHex by viewModel.primaryColorHex.collectAsStateWithLifecycle()
     val secondaryColorHex by viewModel.secondaryColorHex.collectAsStateWithLifecycle()
@@ -87,6 +89,14 @@ fun StudentAiAppContent(
                     contentColor = MaterialTheme.colorScheme.onBackground,
                 ) {
                     LoadingScreen(title = "SchedMate")
+                }
+            }
+            authStrategy == UserPreferences.AuthStrategy.UNSELECTED -> {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
+                    AuthGateScreen()
                 }
             }
             onboardingComplete -> {
@@ -211,6 +221,9 @@ fun MainNavigation(
             }
             composable(Routes.NOTIFICATION_SETTINGS_DETAIL) {
                 NotificationSettingsDetailScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.CHANGELOG) {
+                ChangelogScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.LECTURE_FILES) {
                 LectureFilesScreen(

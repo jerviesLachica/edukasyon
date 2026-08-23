@@ -1,5 +1,6 @@
 package com.edukasyon.studentai.ui.viewmodel
 
+import android.content.Intent
 import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -2583,6 +2584,14 @@ class OnboardingViewModel @Inject constructor(
         viewModelScope.launch {
             val theme = preferences.themeMode.first()
             _uiState.update { it.copy(themeMode = theme) }
+            // Returning user (reinstall) who signed in with Google: prefill their account
+            // name so the wizard feels familiar instead of starting from scratch.
+            if (firebaseAuthManager.isGoogleSignedIn) {
+                val accountName = firebaseAuthManager.currentUser?.displayName
+                if (!accountName.isNullOrBlank()) {
+                    _uiState.update { it.copy(displayName = it.displayName.ifBlank { accountName }) }
+                }
+            }
         }
     }
 
@@ -2674,19 +2683,28 @@ class OnboardingViewModel @Inject constructor(
                 val state = _uiState.value
                 val firebaseUserId = firebaseAuthManager.ensureAnonymousSession()
                 preferences.setOnboardingComplete(true)
-                val user = UserProfile(
+
+                // Returning user (reinstall): their Google account already has a cloud profile.
+                // Restore it instead of overwriting it with onboarding defaults.
+                val existingProfile = firestoreSyncService.fetchCloudProfile()
+
+                val user = existingProfile ?: UserProfile(
                     id = firebaseUserId ?: java.util.UUID.randomUUID().toString(),
                     displayName = state.displayName.ifBlank { "Student" },
-                    email = null,
+                    email = firebaseAuthManager.userEmail?.takeIf { firebaseAuthManager.isGoogleSignedIn },
                     school = state.school,
                     gradeLevel = state.gradeLevel,
                     section = state.section,
                     schoolYear = "2025-2026",
                     semester = "1st",
-                    isGuest = true
+                    isGuest = !firebaseAuthManager.isGoogleSignedIn,
                 )
                 saveUser.execute(user)
                 firestoreSyncService.syncUserProfile(user)
+
+                // Pull the rest of their cloud data down right away (reinstall restore) and
+                // push anything captured during onboarding up. No-ops for guests offline.
+                firestoreSyncService.syncAll()
             } catch (e: Exception) {
                 Log.e("OnboardingViewModel", "Onboarding failed", e)
             } finally {
@@ -2774,7 +2792,9 @@ class CalendarViewModel @Inject constructor(
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val preferences: com.edukasyon.studentai.data.preferences.UserPreferences
+    private val preferences: com.edukasyon.studentai.data.preferences.UserPreferences,
+    private val authManager: com.edukasyon.studentai.core.firebase.FirebaseAuthManager,
+    private val googleSignInHelper: com.edukasyon.studentai.core.firebase.GoogleSignInHelper,
 ) : ViewModel() {
     private val onboardingFinishedLocally = MutableStateFlow(false)
 
@@ -2784,6 +2804,13 @@ class MainViewModel @Inject constructor(
     ) { stored, finishedLocally ->
         stored || finishedLocally
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val authStrategy: StateFlow<com.edukasyon.studentai.data.preferences.UserPreferences.AuthStrategy> =
+        preferences.authStrategy.stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            com.edukasyon.studentai.data.preferences.UserPreferences.AuthStrategy.UNSELECTED,
+        )
 
     val preferencesReady: StateFlow<Boolean> = combine(
         preferences.onboardingComplete,
@@ -2808,6 +2835,71 @@ class MainViewModel @Inject constructor(
 
     fun markOnboardingFinished() {
         onboardingFinishedLocally.value = true
+    }
+
+    /** Persist the user's first-launch authentication choice. */
+    fun chooseAuthStrategy(strategy: com.edukasyon.studentai.data.preferences.UserPreferences.AuthStrategy) {
+        viewModelScope.launch {
+            preferences.setAuthStrategy(strategy)
+            onboardingFinishedLocally.value = false
+        }
+    }
+
+    /** Build a Google sign-in intent launcher payload. */
+    suspend fun buildGoogleSignInIntent(): Intent? = googleSignInHelper.getSignInIntent()
+
+    /** User-facing reason Google Sign-In cannot start, or null when ready. */
+    fun googleSignInIssue(): String? = googleSignInHelper.configurationIssue()
+
+    /** Complete Google sign-in after the system returns the activity result. */
+    fun completeGoogleSignIn(
+        data: android.content.Intent?,
+        onSuccess: (String?) -> Unit = {},
+        onFailure: (String) -> Unit = {},
+        onCancelled: () -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            val tokenResult = googleSignInHelper.getIdTokenFromResult(data)
+            val idToken = tokenResult.getOrNull()
+            if (idToken.isNullOrBlank()) {
+                val friendly = tokenResult.exceptionOrNull()
+                    ?.let { googleSignInHelper.describeSignInError(it) }
+                    ?: "Could not read Google sign-in result. Please try again."
+                if (friendly != null) onFailure(friendly) else onCancelled()
+                return@launch
+            }
+            val outcome = authManager.signInWithGoogle(idToken)
+            outcome
+                .onSuccess {
+                    preferences.setAuthStrategy(
+                        com.edukasyon.studentai.data.preferences.UserPreferences.AuthStrategy.GOOGLE,
+                    )
+                    onSuccess(it.email)
+                }
+                .onFailure { e -> onFailure(e.message ?: "Google sign-in failed.") }
+        }
+    }
+
+    /**
+     * Confirm the user picked "Continue as Guest": persist the choice immediately so setup can
+     * proceed even offline, then create the anonymous Firebase session in the background.
+     * [completeOnboarding] retries session creation, so a transient failure is not fatal.
+     */
+    fun continueAsGuest(onError: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            preferences.setAuthStrategy(
+                com.edukasyon.studentai.data.preferences.UserPreferences.AuthStrategy.GUEST,
+            )
+            val uid = authManager.ensureAnonymousSession()
+            if (uid == null) {
+                Log.w(TAG, "Guest anonymous session not created yet — will retry on onboarding completion")
+                onError("Couldn't reach the cloud just now — your data stays on this device until you're back online.")
+            }
+        }
+    }
+
+    companion object {
+        private const val TAG = "MainViewModel"
     }
 }
 

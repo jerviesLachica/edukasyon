@@ -1,7 +1,7 @@
 {
-    "versionCode":  3,
-    "versionName":  "1.2.0",
-    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.0/schedmate-1.2.0.apk",
-    "releaseNotes":  "Fixed Google sign-in failures and added instant update notifications with one-tap install.",
+    "versionCode":  4,
+    "versionName":  "1.2.1",
+    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.1/schedmate-1.2.1.apk",
+    "releaseNotes":  "Smoother first-run setup with cloud sign-in, an in-app changelog, and a home screen widget promo.",
     "mandatoryUpdate":  false
 }

@@ -14,11 +14,27 @@
       },
       "oauth_client": [
         {
-          "client_id": "246011040847-q8mmabei91quq929kg5mrfn15vete9di.apps.googleusercontent.com",
+          "client_id": "246011040847-iiihkmfnhgjh4jvkddipsstp7k9d44hb.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.edukasyon.studentai",
             "certificate_hash": "49ef6751c9f6743490f2e400b9d2b1d49dd1d32b"
+          }
+        },
+        {
+          "client_id": "246011040847-q8mmabei91quq929kg5mrfn15vete9di.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.edukasyon.studentai",
+            "certificate_hash": "88dba91eb4e5929d68bae71fac619b1d3c6b8e2d"
+          }
+        },
+        {
+          "client_id": "246011040847-u6l3jn44bea9i4aq4pv5th764lb7l9it.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.edukasyon.studentai",
+            "certificate_hash": "df2d03330b98e5c8ea874f9997a0b4a6ed42df22"
           }
         },
         {
@@ -51,11 +67,27 @@
       },
       "oauth_client": [
         {
-          "client_id": "246011040847-iobe3511o6nb6trgttk9mofl3c5block.apps.googleusercontent.com",
+          "client_id": "246011040847-iiihkmfnhgjh4jvkddipsstp7k9d44hb.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.edukasyon.studentai.debug",
+            "package_name": "com.edukasyon.studentai",
+            "certificate_hash": "49ef6751c9f6743490f2e400b9d2b1d49dd1d32b"
+          }
+        },
+        {
+          "client_id": "246011040847-q8mmabei91quq929kg5mrfn15vete9di.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.edukasyon.studentai",
             "certificate_hash": "88dba91eb4e5929d68bae71fac619b1d3c6b8e2d"
+          }
+        },
+        {
+          "client_id": "246011040847-u6l3jn44bea9i4aq4pv5th764lb7l9it.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.edukasyon.studentai",
+            "certificate_hash": "df2d03330b98e5c8ea874f9997a0b4a6ed42df22"
           }
         },
         {

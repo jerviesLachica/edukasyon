@@ -75,6 +75,7 @@ object Routes {
     const val LECTURE_FILES = "lecture_files"
     const val FOCUS = "focus"
     const val ASSIGNMENT_INTELLIGENCE = "assignment_intelligence"
+    const val CHANGELOG = "changelog"
     const val AI_CONVERSATION_HISTORY = "ai_conversation_history/{filterScope}"
     fun aiConversationHistory(filterScope: String) = "ai_conversation_history/$filterScope"
     fun noteDetail(id: String) = "note_detail/$id"
@@ -95,6 +96,7 @@ fun routeToSelectedTab(route: String?): MainTab? {
         route.startsWith("ai_conversation_history/") -> MainTab.JEVI
         route == Routes.FEATURES_GUIDE -> MainTab.PROFILE
         route == Routes.NOTIFICATION_SETTINGS || route == Routes.NOTIFICATION_SETTINGS_DETAIL -> MainTab.PROFILE
+        route == Routes.CHANGELOG -> MainTab.PROFILE
         route == Routes.LECTURE_FILES || route == Routes.NOTES -> MainTab.HOME
         route == Routes.ASSIGNMENT_INTELLIGENCE -> MainTab.PLANNER
         else -> MainTab.entries.find { it.route == route }

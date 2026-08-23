@@ -31,6 +31,18 @@ class UserPreferences @Inject constructor(
         const val DEFAULT_PRIMARY_COLOR = "#3949AB"
     }
 
+    /** Persisted first-launch choice for how the app authenticates the user. */
+    enum class AuthStrategy(val key: String) {
+        UNSELECTED(""),
+        GUEST("guest"),
+        GOOGLE("google");
+
+        companion object {
+            fun fromKey(raw: String?): AuthStrategy =
+                entries.firstOrNull { raw != null && it.key == raw } ?: UNSELECTED
+        }
+    }
+
     private object Keys {
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
         val THEME_MODE = stringPreferencesKey("theme_mode")
@@ -53,6 +65,7 @@ class UserPreferences @Inject constructor(
         val SCHEDULE_DAY_TEMPLATES = stringPreferencesKey("schedule_day_templates")
         val FIREBASE_AUTH_EMAIL = stringPreferencesKey("firebase_auth_email")
         val GOOGLE_ACCOUNT_LINKED = booleanPreferencesKey("google_account_linked")
+        val AUTH_STRATEGY = stringPreferencesKey("auth_strategy")
     }
 
     private val templateJson = Json { ignoreUnknownKeys = true }
@@ -82,6 +95,9 @@ class UserPreferences @Inject constructor(
     }
     val googleAccountLinked: Flow<Boolean> = context.dataStore.data.map {
         it[Keys.GOOGLE_ACCOUNT_LINKED] ?: false
+    }
+    val authStrategy: Flow<AuthStrategy> = context.dataStore.data.map { prefs ->
+        AuthStrategy.fromKey(prefs[Keys.AUTH_STRATEGY])
     }
     val useMockAi: Flow<Boolean> = context.dataStore.data.map { it[Keys.USE_MOCK_AI] ?: false }
     val aiModel: Flow<AiModel> = context.dataStore.data.map { prefs ->
@@ -195,6 +211,10 @@ class UserPreferences @Inject constructor(
             prefs.remove(Keys.FIREBASE_AUTH_EMAIL)
             prefs[Keys.GOOGLE_ACCOUNT_LINKED] = false
         }
+    }
+
+    suspend fun setAuthStrategy(strategy: AuthStrategy) {
+        context.dataStore.edit { it[Keys.AUTH_STRATEGY] = strategy.key }
     }
 
     suspend fun setUseMockAi(useMock: Boolean) {
