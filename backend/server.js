@@ -108,13 +108,15 @@ const usageTracker = gateway.usageTracker;
 
 // Dedicated scan provider (e.g. NVIDIA NIM) so schedule analysis can use a
 // faster vision model without moving every AI feature off the main proxy.
-// Set SCAN_AI_BASE_URL + SCAN_AI_API_KEY + SCAN_VISION_MODEL to enable.
-const scanProvider = process.env.SCAN_AI_BASE_URL
+// Set SCAN_AI_API_KEY to enable; base URL and model have safe defaults.
+const scanProvider = (process.env.SCAN_AI_API_KEY || process.env.SCAN_AI_BASE_URL)
   ? createAiProvider({
-      baseUrl: process.env.SCAN_AI_BASE_URL,
+      baseUrl: process.env.SCAN_AI_BASE_URL || 'https://integrate.api.nvidia.com/v1',
       apiKey: process.env.SCAN_AI_API_KEY || process.env.AI_API_KEY,
     })
   : null;
+// Benchmarked 2026-08-24: ~18s with clean JSON, vs 56-101s for llama-3.2 vision models.
+const SCAN_VISION_MODEL_DEFAULT = 'nvidia/nemotron-nano-12b-v2-vl';
 
 // ── Mock fallbacks (when AI_API_KEY is not set) ─────────────────────────────
 
@@ -342,7 +344,7 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
   }
   if (!imageBase64) throw new Error('imageBase64 is required');
 
-  const model = ai.resolveVisionModel(process.env.SCAN_VISION_MODEL || requestedModel);
+  const model = ai.resolveVisionModel(process.env.SCAN_VISION_MODEL || SCAN_VISION_MODEL_DEFAULT);
   const ocrContext = extractedText?.trim()
     ? `\n\nOn-device OCR extracted this text from the schedule image (may contain errors — use the image as source of truth):\n${wrapUntrustedDocument(extractedText, 'OCR text')}`
     : '';
