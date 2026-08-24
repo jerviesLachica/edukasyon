@@ -106,6 +106,16 @@ const assignmentBreakdownValidator = new AssignmentBreakdownValidator();
 const focusPlanValidator = new FocusPlanValidator();
 const usageTracker = gateway.usageTracker;
 
+// Dedicated scan provider (e.g. NVIDIA NIM) so schedule analysis can use a
+// faster vision model without moving every AI feature off the main proxy.
+// Set SCAN_AI_BASE_URL + SCAN_AI_API_KEY + SCAN_VISION_MODEL to enable.
+const scanProvider = process.env.SCAN_AI_BASE_URL
+  ? createAiProvider({
+      baseUrl: process.env.SCAN_AI_BASE_URL,
+      apiKey: process.env.SCAN_AI_API_KEY || process.env.AI_API_KEY,
+    })
+  : null;
+
 // ── Mock fallbacks (when AI_API_KEY is not set) ─────────────────────────────
 
 const mockHandlers = {
@@ -323,14 +333,16 @@ async function handleChat({ body, provider: ai, webSearch: searchService, maxTok
   };
 }
 
-async function handleScheduleAnalysis({ body, provider: ai, maxTokens, signal }) {
+async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTokens, signal }) {
+  // Prefer the dedicated scan provider (NVIDIA NIM) when configured.
+  const ai = scanProvider ?? fallbackProvider;
   const { imageBase64, extractedText, model: requestedModel, systemPrompt: clientSystemPrompt } = body;
   if (clientSystemPrompt) {
     console.warn('[schedule-analysis] Ignoring client-supplied systemPrompt.');
   }
   if (!imageBase64) throw new Error('imageBase64 is required');
 
-  const model = ai.resolveVisionModel(requestedModel);
+  const model = ai.resolveVisionModel(process.env.SCAN_VISION_MODEL || requestedModel);
   const ocrContext = extractedText?.trim()
     ? `\n\nOn-device OCR extracted this text from the schedule image (may contain errors — use the image as source of truth):\n${wrapUntrustedDocument(extractedText, 'OCR text')}`
     : '';
@@ -346,7 +358,7 @@ async function handleScheduleAnalysis({ body, provider: ai, maxTokens, signal })
         ],
       },
     ],
-    { temperature: 0.2, maxTokens, model, isVision: true, signal }
+    { temperature: 0.2, maxTokens, model, isVision: true, signal, responseFormat: { type: 'json_object' } }
   );
 
   const parsed = ai.extractJson(content);

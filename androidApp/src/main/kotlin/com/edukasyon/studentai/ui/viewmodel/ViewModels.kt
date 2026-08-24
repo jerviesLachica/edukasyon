@@ -1765,12 +1765,18 @@ class AiViewModel @Inject constructor(
                 )
             }
             try {
-                val ocrText = if (isRetry) {
+                val ocrText: String? = if (isRetry) {
                     null
                 } else {
-                    extractedText?.trim()?.takeIf { it.isNotEmpty() }
-                        ?: mlKitTextRecognizer.recognizeFromBytes(imageData).text
-                            .takeIf { it.isNotBlank() }
+                    val hint = extractedText?.trim()?.takeIf { it.isNotEmpty() }
+                    hint ?: run {
+                        // OCR is only a hint for the vision model — cap ML Kit so a
+                        // slow pass never delays the AI request by more than 2.5s.
+                        val recognized = withTimeoutOrNull(SCHEDULE_SCAN_OCR_DEADLINE_MS) {
+                            mlKitTextRecognizer.recognizeFromBytes(imageData).text
+                        }
+                        recognized?.trim()?.takeIf { it.isNotEmpty() }
+                    }
                 }
                 lastScannedExtractedText = ocrText
                 _uiState.update {
@@ -1944,6 +1950,7 @@ class AiViewModel @Inject constructor(
     private companion object {
         const val TAG = "AiViewModel"
         const val SCHEDULE_SCAN_TIMEOUT_MS = 90_000L
+        const val SCHEDULE_SCAN_OCR_DEADLINE_MS = 2_500L
         const val SCHEDULE_SCAN_MAX_RETRIES = 5
         const val SCHEDULE_SCAN_RETRY_LATER_MS = 30 * 60 * 1000L
         const val SCHEDULE_SCAN_RETRY_WORK = "schedule_scan_retry_later"

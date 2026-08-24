@@ -3,8 +3,25 @@
  * Extracted from server.js for use by AiSafetyGateway.
  */
 
-const ALLOWED_MODELS = ['auto', 'step-3.7-flash'];
-const VISION_CAPABLE_MODELS = ['step-3.7-flash', 'auto'];
+function envModelList(name) {
+  return (process.env[name] || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+const BASE_ALLOWED_MODELS = ['auto', 'step-3.7-flash'];
+// Operators extend the catalog via env (e.g. NVIDIA NIM ids) without code changes.
+const CONFIGURED_MODELS = envModelList('ALLOWED_MODELS');
+const ALLOWED_MODELS = [...new Set([...BASE_ALLOWED_MODELS, ...CONFIGURED_MODELS])];
+const VISION_CAPABLE_MODELS = [
+  ...new Set([
+    'step-3.7-flash',
+    'auto',
+    ...envModelList('VISION_CAPABLE_MODELS'),
+    ...CONFIGURED_MODELS,
+  ]),
+];
 const DEFAULT_TEXT_MODEL = 'auto';
 const DEFAULT_VISION_MODEL = 'step-3.7-flash';
 
@@ -184,11 +201,14 @@ function createAiProvider(config = {}) {
     };
   }
 
-  async function chatCompletionOnce(messages, { temperature = 0.7, maxTokens = 2048, model, signal } = {}) {
+  async function chatCompletionOnce(messages, { temperature = 0.7, maxTokens = 2048, model, signal, responseFormat } = {}) {
+    const payload = { model, messages, temperature, max_tokens: maxTokens };
+    // Structured-output hint; providers that don't support it are handled by the caller's fallback.
+    if (responseFormat) payload.response_format = responseFormat;
     const res = await fetch(`${AI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: providerHeaders(AI_API_KEY),
-      body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens }),
+      body: JSON.stringify(payload),
       signal,
     });
     if (!res.ok) {
@@ -199,7 +219,7 @@ function createAiProvider(config = {}) {
     return parseChatCompletionResult(data);
   }
 
-  async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, signal } = {}) {
+  async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, signal, responseFormat } = {}) {
     if (!hasAiKey) throw new Error('AI provider not configured (set AI_API_KEY)');
     const models = modelFallbackChain(model || (isVision ? VISION_MODEL : TEXT_MODEL), { isVision });
     let lastError;
@@ -207,9 +227,15 @@ function createAiProvider(config = {}) {
       const candidate = models[i];
       try {
         if (i > 0) console.warn(`[ai] Retrying with fallback model=${candidate}`);
-        const result = await chatCompletionOnce(messages, { temperature, maxTokens, model: candidate, signal });
+        const result = await chatCompletionOnce(messages, { temperature, maxTokens, model: candidate, signal, responseFormat });
         return { ...result, model: result.model || candidate };
       } catch (err) {
+        // Some providers reject response_format outright — drop it and retry the same model once.
+        if (responseFormat && /response_format|unsupported|invalid.*format/i.test(String(err.message || ''))) {
+          console.warn('[ai] response_format rejected; retrying without it');
+          const retry = await chatCompletionOnce(messages, { temperature, maxTokens, model: candidate, signal });
+          return { ...retry, model: retry.model || candidate };
+        }
         lastError = err;
         const hasNext = i < models.length - 1;
         if (!hasNext || !isRetryableModelError(err.message)) throw err;
@@ -226,8 +252,19 @@ function createAiProvider(config = {}) {
 
   function extractJson(text) {
     const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    const raw = fenced ? fenced[1].trim() : text.trim();
-    return JSON.parse(raw);
+    let raw = fenced ? fenced[1].trim() : text.trim();
+    try {
+      return JSON.parse(raw);
+    } catch (_) {
+      // Reasoning-style models often prepend prose before the JSON object.
+      // Salvage from the first "{" to the matching last "}" before giving up.
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        return JSON.parse(raw.slice(start, end + 1));
+      }
+      throw new Error('AI returned no parsable JSON');
+    }
   }
 
   function requestHasVisionContent(body = {}) {
