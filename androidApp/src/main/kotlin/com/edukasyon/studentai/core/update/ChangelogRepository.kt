@@ -12,7 +12,7 @@ object ChangelogRepository {
     val changelog = listOf(
         ChangelogEntry(
             versionName = "1.2.2",
-            versionCode = 5,
+            versionCode = 6,
             releaseDate = "2026-08-24",
             isMandatory = false,
             notes = listOf(

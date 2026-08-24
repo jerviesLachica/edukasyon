@@ -1,11 +1,11 @@
-{
-    "versionCode":  4,
-    "versionName":  "1.2.1",
-    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.1/schedmate-1.2.1.apk",
-    "releaseNotes":  "Smoother first-run setup with cloud sign-in, an in-app changelog, and a home screen widget promo.",
+﻿{
+    "versionCode":  6,
+    "versionName":  "1.2.2",
+    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.2/schedmate-1.2.2.apk",
+    "releaseNotes":  "Schedule scanning fixed and more accurate, faster widget backgrounds, and version-aware What\u0027s New badges in the Features Guide.",
     "mandatoryUpdate":  false,
-    "apkFile":  "schedmate-1.2.1.apk",
-    "sha256":  "660123f6e134c616c091a8123f2aa533c677e553312bd90f7a79de50c281bee7",
+    "apkFile":  "schedmate-1.2.2.apk",
+    "sha256":  "c8c2108a42204941868c3ab0df903c82ee5e331a5c6df974c0cec05ef06e2332",
     "sizeBytes":  50362361,
-    "releaseDate":  "2026-08-23"
+    "releaseDate":  "2026-08-24"
 }
