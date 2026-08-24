@@ -77,9 +77,10 @@ interface AiApiService {
     val subject: String,
     val teacher: String? = null,
     val room: String? = null,
-    @JsonNames("day", "dayOfWeek", "day_of_week") val day: String,
-    val startTime: String,
-    val endTime: String,
+    @JsonNames("day", "dayOfWeek", "day_of_week") val day: String = "",
+    // Defaults + coerceInputValues keep one AI-returned null from failing the whole response.
+    val startTime: String = "",
+    val endTime: String = "",
 )
 @Serializable data class ScheduleAnalysisResponseDto(val classes: List<ExtractedClassDto>, val uncertainFields: List<String> = emptyList())
 @Serializable data class TextRequest(val text: String)

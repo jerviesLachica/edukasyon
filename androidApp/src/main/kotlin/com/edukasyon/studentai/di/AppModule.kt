@@ -116,7 +116,7 @@ object DatabaseModule {
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
     @Provides @Singleton
-    fun provideJson(): Json = Json { ignoreUnknownKeys = true; isLenient = true }
+    fun provideJson(): Json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     @Provides @Singleton
     fun provideOkHttp(deviceIdInterceptor: com.edukasyon.studentai.core.network.AiSafetyHeadersInterceptor): OkHttpClient = OkHttpClient.Builder()

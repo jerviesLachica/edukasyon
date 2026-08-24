@@ -58,7 +58,7 @@ Schedules may use: full names (`Monday`), 3-letter (`MON`), short (`Mon`), or si
 ```
 
 ### Implied End Times
-If only a start time is visible, do NOT invent an end time unless a schedule grid or period system explicitly establishes it. Use `null` when evidence is insufficient.
+If only a start time is visible, do NOT invent an end time unless a schedule grid or period system explicitly establishes it. When no end time can be established, use the start time + 1 hour as endTime and note the estimate in `uncertainFields` — never emit JSON `null`.
 
 ---
 
@@ -166,5 +166,5 @@ Return ONLY valid JSON — no markdown fences, no commentary:
 - **subject**: Required, non-empty string.
 - **teacher / room**: String or `null`.
 - **day**: Exactly one canonical value: `MONDAY`, `TUESDAY`, `WEDNESDAY`, `THURSDAY`, `FRIDAY`, `SATURDAY`, or `SUNDAY`.
-- **startTime / endTime**: 24-hour `HH:MM` format. `null` if not determinable.
+- **startTime / endTime**: 24-hour `HH:MM` format. NEVER emit JSON `null` for times — always emit your best-evidence `HH:MM` normalization (e.g. `9:00 AM` → `09:00`, `0800` → `08:00`). If confidence is low, still emit the best interpretation and describe the uncertainty in `uncertainFields`. If only a start time is visible and no end time is established by a grid/period system, use start + 1 hour as endTime and note the estimate in `uncertainFields`. For genuinely unreadable times, emit `"00:00"` and explain in `uncertainFields`.
 - **uncertainFields**: Human-readable strings for ambiguous extractions. Empty array when fully confident.

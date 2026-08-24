@@ -35,10 +35,17 @@ data class FeatureItem(
     val section: FeatureSection,
     val icon: ImageVector,
     val destination: FeatureDestination,
-    val isNew: Boolean = false,
+    /**
+     * App release where this feature launched or received a major upgrade
+     * (e.g. "1.2"). Rendered as "New in 1.2" in the Features Guide. Keep in
+     * sync with [com.edukasyon.studentai.core.update.ChangelogRepository].
+     */
+    val newInVersion: String? = null,
     /** Shorter label for home dashboard tiles; falls back to [title]. */
     val dashboardLabel: String? = null,
-)
+) {
+    val isNew: Boolean get() = newInVersion != null
+}
 
 object FeaturesCatalog {
     val all: List<FeatureItem> = listOf(
@@ -105,7 +112,6 @@ object FeaturesCatalog {
             section = FeatureSection.SCHEDULE_PLANNING,
             icon = Icons.Default.Timer,
             destination = FeatureDestination.Route(Routes.FOCUS),
-            isNew = true,
             dashboardLabel = "Focus",
         ),
         FeatureItem(
@@ -182,8 +188,7 @@ object FeaturesCatalog {
             filterCategory = FeatureFilterCategory.AI,
             section = FeatureSection.AI_TOOLS,
             icon = Icons.Default.Psychology,
-            destination = FeatureDestination.Tab(MainTab.JEVI),
-            isNew = true
+            destination = FeatureDestination.Tab(MainTab.JEVI)
         ),
         FeatureItem(
             id = "gizmo_xp",
@@ -192,8 +197,7 @@ object FeaturesCatalog {
             filterCategory = FeatureFilterCategory.AI,
             section = FeatureSection.AI_TOOLS,
             icon = Icons.Default.Star,
-            destination = FeatureDestination.Tab(MainTab.JEVI),
-            isNew = true
+            destination = FeatureDestination.Tab(MainTab.JEVI)
         ),
         FeatureItem(
             id = "ai_tutor",
@@ -260,7 +264,7 @@ object FeaturesCatalog {
             section = FeatureSection.AI_TOOLS,
             icon = Icons.Default.CameraAlt,
             destination = FeatureDestination.Route(Routes.SCHEDULE_SCANNER),
-            isNew = true,
+            newInVersion = "1.2",
             dashboardLabel = "Scan Schedule",
         ),
         // Personalization
@@ -298,8 +302,7 @@ object FeaturesCatalog {
             filterCategory = FeatureFilterCategory.STUDY,
             section = FeatureSection.SCHEDULE_PLANNING,
             icon = Icons.Default.FolderCopy,
-            destination = FeatureDestination.Route(Routes.LECTURE_FILES),
-            isNew = true
+            destination = FeatureDestination.Route(Routes.LECTURE_FILES)
         ),
 
         // Data & sync
@@ -322,7 +325,7 @@ object FeaturesCatalog {
             section = FeatureSection.WIDGETS_EXTRAS,
             icon = Icons.Default.Widgets,
             destination = FeatureDestination.WidgetInstructions,
-            isNew = true
+            newInVersion = "1.2"
         )
     )
 

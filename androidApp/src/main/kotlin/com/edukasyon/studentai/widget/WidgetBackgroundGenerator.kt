@@ -132,17 +132,21 @@ object WidgetBackgroundGenerator {
         val hexWidth = sqrt(3f) * radius
         val vertStep = hexHeight * 0.75f
 
+        // One paint per palette color — allocating inside the loop cost ~200 Paint objects per render.
+        val palettePaints = palette.map { color ->
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.color = color
+                style = Paint.Style.FILL
+            }
+        }
+
         var row = 0
         var y = -hexHeight
         while (y < height + hexHeight) {
             var x = if (row % 2 == 0) -hexWidth else -hexWidth / 2f
             var col = 0
             while (x < width + hexWidth) {
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = palette[(row + col) % palette.size]
-                    style = Paint.Style.FILL
-                }
-                drawHexagon(canvas, x + hexWidth / 2f, y + radius, radius * 0.92f, paint)
+                drawHexagon(canvas, x + hexWidth / 2f, y + radius, radius * 0.92f, palettePaints[(row + col) % palettePaints.size])
                 x += hexWidth
                 col++
             }

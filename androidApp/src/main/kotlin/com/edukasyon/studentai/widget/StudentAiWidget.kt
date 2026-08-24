@@ -9,6 +9,8 @@ import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.provideContent
 import com.edukasyon.studentai.MainActivity
 import androidx.glance.appwidget.action.actionStartActivity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 object WidgetActions {
     const val START_TAB_KEY = "start_tab"
@@ -31,6 +33,12 @@ abstract class BaseStudentAiWidget(
 
         val cached = WidgetDataProvider.loadCachedSnapshot(context, appWidgetId, widgetSize)
         val snapshot = cached ?: WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
+
+        // Render the design bitmap off the main thread BEFORE composition — otherwise
+        // WidgetBackgroundLayer draws pattern bitmaps synchronously during first paint.
+        withContext(Dispatchers.Default) {
+            WidgetDataProvider.prewarmBackground(context, snapshot)
+        }
 
         val startTab = when (snapshot.displayType) {
             WidgetDisplayType.TASKS, WidgetDisplayType.COMBINED -> "planner"

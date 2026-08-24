@@ -17,6 +17,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
 import kotlin.math.min
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 
 @Singleton
@@ -61,7 +63,9 @@ class RemoteAiService @Inject constructor(
 
     override suspend fun analyzeSchedule(input: ScheduleScanInput): ScheduleAnalysisResult {
         return try {
-            val compressed = compressScheduleImage(input.imageData)
+            val compressed = withContext(Dispatchers.Default) {
+                compressScheduleImage(input.imageData)
+            }
             val response = api.analyzeSchedule(
                 com.edukasyon.studentai.core.network.ScheduleAnalysisRequest(
                     imageBase64 = android.util.Base64.encodeToString(compressed, android.util.Base64.NO_WRAP),
@@ -69,8 +73,13 @@ class RemoteAiService @Inject constructor(
                 )
             )
             ScheduleAnalysisResult(
-                classes = response.classes.map {
-                    ExtractedClass(it.subject, it.teacher, it.room, it.day, it.startTime, it.endTime)
+                classes = response.classes.mapNotNull { dto ->
+                    // Drop entries the AI left blank instead of failing the whole scan.
+                    val subject = dto.subject.trim().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                    val day = dto.day.trim().uppercase().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                    val startTime = dto.startTime.trim().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                    val endTime = dto.endTime.trim().takeIf { it.isNotEmpty() } ?: startTime
+                    ExtractedClass(subject, dto.teacher, dto.room, day, startTime, endTime)
                 },
                 uncertainFields = response.uncertainFields
             )
@@ -80,8 +89,9 @@ class RemoteAiService @Inject constructor(
     }
 
     private companion object {
-        private const val SCAN_MAX_DIMENSION = 1024
-        private const val SCAN_JPEG_QUALITY = 70
+        // 1568px keeps small schedule text legible for vision models (1024 crushed it).
+        private const val SCAN_MAX_DIMENSION = 1568
+        private const val SCAN_JPEG_QUALITY = 85
     }
 
     /** Downscale large camera photos so the vision model processes them faster. */

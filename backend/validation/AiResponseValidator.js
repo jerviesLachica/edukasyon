@@ -77,23 +77,81 @@ class ScheduleValidator {
     if (!data || !Array.isArray(data.classes)) {
       return { valid: false, error: 'Missing classes array' };
     }
-    const days = new Set(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']);
-    const timePattern = /^\d{2}:\d{2}$/;
+    const DAY_ALIASES = {
+      M: 'MONDAY', MON: 'MONDAY', MONDAY: 'MONDAY',
+      T: 'TUESDAY', TU: 'TUESDAY', TUE: 'TUESDAY', TUES: 'TUESDAY', TUESDAY: 'TUESDAY',
+      W: 'WEDNESDAY', WED: 'WEDNESDAY', WEDNESDAY: 'WEDNESDAY',
+      TH: 'THURSDAY', THU: 'THURSDAY', THUR: 'THURSDAY', THURS: 'THURSDAY', THURSDAY: 'THURSDAY',
+      R: 'THURSDAY', H: 'THURSDAY',
+      F: 'FRIDAY', FRI: 'FRIDAY', FRIDAY: 'FRIDAY',
+      S: 'SATURDAY', SAT: 'SATURDAY', SATURDAY: 'SATURDAY',
+      U: 'SUNDAY', SU: 'SUNDAY', SUN: 'SUNDAY', SUNDAY: 'SUNDAY',
+    };
 
-    const classes = data.classes.filter((c) => {
-      if (!c || !isNonEmptyString(c.subject)) return false;
-      const day = String(c.day || c.dayOfWeek || '').toUpperCase();
-      if (!days.has(day)) return false;
-      if (!timePattern.test(c.startTime) || !timePattern.test(c.endTime)) return false;
-      return true;
+    // Lenient time parsing: "9:00", "8:00 AM", "0800", "13:30" → canonical "HH:MM".
+    const normalizeTime = (value) => {
+      if (typeof value !== 'string') return null;
+      const raw = value.trim().toUpperCase();
+      let match = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
+      if (!match) match = raw.match(/^(\d{2})(\d{2})$/);
+      if (match) {
+        let hours = parseInt(match[1], 10);
+        const minutes = parseInt(match[2], 10);
+        if (minutes > 59 || hours > 24) return null;
+        const meridiem = match[3];
+        if (meridiem === 'PM' && hours < 12) hours += 12;
+        if (meridiem === 'AM' && hours === 12) hours = 0;
+        if (hours === 24) hours = 0;
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+      }
+      // "8-9" style ranges → start only.
+      match = raw.match(/^(\d{1,2})(AM|PM)?\s*[-–]\s*\d{1,2}(AM|PM)?$/);
+      if (match) {
+        let hours = parseInt(match[1], 10);
+        const meridiem = match[2];
+        if (meridiem === 'PM' && hours < 12) hours += 12;
+        return `${String(hours).padStart(2, '0')}:00`;
+      }
+      return null;
+    };
+
+    const addHour = (hhmm) => {
+      const [hours, minutes] = hhmm.split(':').map(Number);
+      return `${String((hours + 1) % 24).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    };
+
+    const classes = [];
+    const uncertainFields = Array.isArray(data.uncertainFields) ? data.uncertainFields.slice() : [];
+
+    data.classes.forEach((c, index) => {
+      if (!c || !isNonEmptyString(c.subject)) return;
+      const rawDay = String(c.day || c.dayOfWeek || '').trim().toUpperCase();
+      const day = DAY_ALIASES[rawDay];
+      if (!day) return;
+
+      const startTime = normalizeTime(c.startTime);
+      if (!startTime) return; // Without any parseable start time the entry is unusable.
+
+      let endTime = normalizeTime(c.endTime);
+      if (!endTime) {
+        // Never invent silently — estimate +1h and flag it so the UI can show uncertainty.
+        endTime = addHour(startTime);
+        uncertainFields.push(`end time for ${c.subject} (${day} ${startTime}) was missing — estimated as ${endTime}`);
+      }
+
+      classes.push({
+        subject: c.subject.trim(),
+        teacher: typeof c.teacher === 'string' && c.teacher.trim() ? c.teacher.trim() : null,
+        room: typeof c.room === 'string' && c.room.trim() ? c.room.trim() : null,
+        day,
+        startTime,
+        endTime,
+      });
     });
 
     return {
       valid: true,
-      data: {
-        classes,
-        uncertainFields: Array.isArray(data.uncertainFields) ? data.uncertainFields : [],
-      },
+      data: { classes, uncertainFields },
     };
   }
 }

@@ -157,7 +157,8 @@ object WidgetDataProvider {
         )
     }
 
-    private fun prewarmBackground(context: Context, snapshot: WidgetSnapshot) {
+    /** Renders the design bitmap ahead of Glance composition so first paint never blocks on drawing. */
+    internal fun prewarmBackground(context: Context, snapshot: WidgetSnapshot) {
         if (snapshot.designPreset == WidgetDesignPreset.MINIMAL) return
         val (widthDp, heightDp) = backgroundSizeDp(snapshot.widgetSize)
         WidgetBackgroundGenerator.getBitmap(

@@ -40,7 +40,7 @@ Your **final API response** must be **ONLY** the JSON shape below. The Android a
 - **teacher**: Instructor name, or JSON `null` if not visible — never invent.
 - **room**: Room/location, or JSON `null` if not visible — never invent.
 - **day**: Exactly one canonical day per object: `MONDAY`, `TUESDAY`, `WEDNESDAY`, `THURSDAY`, `FRIDAY`, `SATURDAY`, or `SUNDAY`.
-- **startTime** / **endTime**: 24-hour `HH:MM` format (e.g. `08:00`, `13:30`). Never round or guess times.
+- **startTime** / **endTime**: 24-hour `HH:MM` format (e.g. `08:00`, `13:30`). Never round or guess times. NEVER emit JSON `null` for times — always emit your best-evidence `HH:MM` normalization, and if confidence is low describe it in `uncertainFields`. If only a start time is visible and no end time is established anywhere in the schedule (no grid/period system), use the start time + 1 hour as endTime and note the estimate in `uncertainFields`.
 - **uncertainFields**: Human-readable strings describing ambiguous or low-confidence extractions (days, times, rooms, teachers, OCR uncertainty, conflicts). Use an empty array when fully confident.
 
 ## Multi-day expansion (critical)
