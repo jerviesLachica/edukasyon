@@ -108,15 +108,36 @@ const usageTracker = gateway.usageTracker;
 
 // Dedicated scan provider (e.g. NVIDIA NIM) so schedule analysis can use a
 // faster vision model without moving every AI feature off the main proxy.
-// Set SCAN_AI_API_KEY to enable; base URL and model have safe defaults.
-const scanProvider = (process.env.SCAN_AI_API_KEY || process.env.SCAN_AI_BASE_URL)
-  ? createAiProvider({
-      baseUrl: process.env.SCAN_AI_BASE_URL || 'https://integrate.api.nvidia.com/v1',
-      apiKey: process.env.SCAN_AI_API_KEY || process.env.AI_API_KEY,
-    })
-  : null;
+// Activation priority: SCAN_AI_* env vars → runtimeConfig/scanProvider in
+// Firestore → null (fall back to the default provider). Base URL and model
+// have safe defaults.
+const scanProviderConfig = require('./config/ScanProviderConfig');
 // Benchmarked 2026-08-24: ~18s with clean JSON, vs 56-101s for llama-3.2 vision models.
 const SCAN_VISION_MODEL_DEFAULT = 'nvidia/nemotron-nano-12b-v2-vl';
+const SCAN_BASE_URL_DEFAULT = 'https://integrate.api.nvidia.com/v1';
+
+async function resolveScanProvider() {
+  if (process.env.SCAN_AI_API_KEY || process.env.SCAN_AI_BASE_URL) {
+    return {
+      provider: createAiProvider({
+        baseUrl: process.env.SCAN_AI_BASE_URL || SCAN_BASE_URL_DEFAULT,
+        apiKey: process.env.SCAN_AI_API_KEY || process.env.AI_API_KEY,
+      }),
+      model: process.env.SCAN_VISION_MODEL || SCAN_VISION_MODEL_DEFAULT,
+    };
+  }
+  const remote = await scanProviderConfig.getRemoteScanProvider();
+  if (remote && remote.apiKey) {
+    return {
+      provider: createAiProvider({
+        baseUrl: remote.baseUrl || SCAN_BASE_URL_DEFAULT,
+        apiKey: remote.apiKey,
+      }),
+      model: remote.model || SCAN_VISION_MODEL_DEFAULT,
+    };
+  }
+  return null;
+}
 
 // ── Mock fallbacks (when AI_API_KEY is not set) ─────────────────────────────
 
@@ -337,14 +358,15 @@ async function handleChat({ body, provider: ai, webSearch: searchService, maxTok
 
 async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTokens, signal }) {
   // Prefer the dedicated scan provider (NVIDIA NIM) when configured.
-  const ai = scanProvider ?? fallbackProvider;
+  const scan = await resolveScanProvider();
+  const ai = scan ? scan.provider : fallbackProvider;
   const { imageBase64, extractedText, model: requestedModel, systemPrompt: clientSystemPrompt } = body;
   if (clientSystemPrompt) {
     console.warn('[schedule-analysis] Ignoring client-supplied systemPrompt.');
   }
   if (!imageBase64) throw new Error('imageBase64 is required');
 
-  const model = ai.resolveVisionModel(process.env.SCAN_VISION_MODEL || SCAN_VISION_MODEL_DEFAULT);
+  const model = ai.resolveVisionModel(scan ? scan.model : requestedModel);
   const ocrContext = extractedText?.trim()
     ? `\n\nOn-device OCR extracted this text from the schedule image (may contain errors — use the image as source of truth):\n${wrapUntrustedDocument(extractedText, 'OCR text')}`
     : '';
