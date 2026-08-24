@@ -11,6 +11,18 @@ data class ChangelogEntry(
 object ChangelogRepository {
     val changelog = listOf(
         ChangelogEntry(
+            versionName = "1.2.2",
+            versionCode = 5,
+            releaseDate = "2026-08-24",
+            isMandatory = false,
+            notes = listOf(
+                "Fixed schedule scanning sometimes returning no results for photos with tricky time or day formats.",
+                "Schedule scans now read fine print more reliably — images are analyzed at higher quality.",
+                "Home screen widget backgrounds now render faster when the app starts fresh.",
+                "The Features Guide now shows which release each new feature arrived in (New in 1.2).",
+            ),
+        ),
+        ChangelogEntry(
             versionName = "1.2.1",
             versionCode = 4,
             releaseDate = "2026-08-23",
