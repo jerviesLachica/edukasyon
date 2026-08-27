@@ -2,9 +2,10 @@ package com.edukasyon.studentai.core.mlkit
 
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.net.Uri
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -12,9 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Launches Google Play ML Kit Document Scanner (auto-crop, enhance).
@@ -43,37 +42,32 @@ fun rememberDocumentScanLauncher(
                 onError("Document scan did not produce an image")
                 return@rememberLauncherForActivityResult
             }
+
         scope.launch {
             val bytes = readUriBytes(context, pageUri)
-            if (bytes != null && bytes.isNotEmpty()) {
+            if (bytes != null) {
                 onResult(bytes)
             } else {
-                onError("Could not read scanned document")
+                onError("Failed to read image bytes")
             }
         }
     }
 
-    return {
-        val options = GmsDocumentScannerOptions.Builder()
-            .setGalleryImportAllowed(true)
-            .setPageLimit(pageLimit.coerceIn(1, 10))
-            .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
-            .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
-            .build()
+    return {}
+}
 
-        GmsDocumentScanning.getClient(options)
-            .getStartScanIntent(context as Activity)
-            .addOnSuccessListener { intentSender ->
-                scannerLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
-            }
-            .addOnFailureListener { error ->
-                onError(error.message ?: "Document scanner unavailable")
-            }
+private suspend fun readUriBytes(context: Context, uri: Uri): ByteArray? {
+    return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        } catch (e: Exception) {
+            null
+        }
     }
 }
 
-private suspend fun readUriBytes(context: Context, uri: Uri): ByteArray? = withContext(Dispatchers.IO) {
-    runCatching {
-        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-    }.getOrNull()
+private tailrec fun Context.findComponentActivity(): ComponentActivity? = when (this) {
+    is ComponentActivity -> this
+    is ContextWrapper -> baseContext.findComponentActivity()
+    else -> null
 }
