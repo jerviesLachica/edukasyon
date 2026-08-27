@@ -69,7 +69,7 @@ if ($DryRun) { Write-Host "[dry-run] no changes written." -ForegroundColor Yello
 if (-not $DryRun) {
     $gradle = $gradle -replace 'versionCode\s*=\s*\d+', "versionCode = $VersionCode"
     $gradle = $gradle -replace 'versionName\s*=\s*"[^"]+"', "versionName = `"$VersionName`""
-    Set-Content -Path $gradleF -Value $gradle -NoNewline -Encoding UTF8
+    [System.IO.File]::WriteAllText($gradleF, $gradle, [System.Text.UTF8Encoding]::new($false))
     Write-Host "[ok] build.gradle.kts bumped" -ForegroundColor Green
 }
 
@@ -112,7 +112,7 @@ $meta = [ordered]@{
 $json = $meta | ConvertTo-Json
 foreach ($dest in @((Join-Path $root "version.json"), (Join-Path $root "download-site\version.json"))) {
     if ($DryRun) { Write-Host ("[dry-run] would write {0}" -f $dest) }
-    else { Set-Content -Path $dest -Value $json -Encoding UTF8; Write-Host "[ok] $dest" -ForegroundColor Green }
+    else { [System.IO.File]::WriteAllText($dest, $json, [System.Text.UTF8Encoding]::new($false)); Write-Host "[ok] $dest (BOM-free)" -ForegroundColor Green }
 }
 
 # ---------- 6. Optional: app changelog entry ----------
@@ -134,7 +134,7 @@ if ($Changelog -and (Test-Path $changelogKt)) {
     $kt = Get-Content $changelogKt -Raw
     if ($kt -notmatch [regex]::Escape("versionName = `"$VersionName`"" )) {
         $kt = $kt -replace 'val changelog = listOf\(\r?\n', ("val changelog = listOf(`r`n" + $entry + "`r`n")
-        if (-not $DryRun) { Set-Content -Path $changelogKt -Value $kt -NoNewline -Encoding UTF8 }
+        if (-not $DryRun) { [System.IO.File]::WriteAllText($changelogKt, $kt, [System.Text.UTF8Encoding]::new($false)) }
         Write-Host "[ok] changelog entry added" -ForegroundColor Green
     } else {
         Write-Host "[skip] changelog already contains $VersionName"

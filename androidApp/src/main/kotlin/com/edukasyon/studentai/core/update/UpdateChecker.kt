@@ -33,7 +33,9 @@ class UpdateChecker @Inject constructor(
                     return@withContext UpdateResult.Error("Server returned ${response.code}")
                 }
                 val body = response.body?.string() ?: return@withContext UpdateResult.Error("Empty response")
-                val updateInfo = json.decodeFromString<UpdateInfo>(body)
+                // Strip a UTF-8 BOM if present — kotlinx.serialization rejects a
+                // leading \uFEFF, which older releases of scripts/release.ps1 wrote.
+                val updateInfo = json.decodeFromString<UpdateInfo>(body.removePrefix("\uFEFF"))
                 val currentVersionCode = getCurrentVersionCode()
 
                 Log.d(TAG, "Server versionCode=${updateInfo.versionCode}, current=$currentVersionCode")
