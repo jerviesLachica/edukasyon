@@ -1,28 +1,13 @@
 /**
- * SchedMate Schedule Scanner — server-controlled system prompt.
- * Used exclusively by POST /api/ai/schedule-analysis (not Jarvis chat).
+ * Schedule scanner prompt constants — compact version optimized for speed.
+ * System prompt kept under 500 chars to minimize input tokens and latency.
  */
-const fs = require('fs');
-const path = require('path');
 
-const BASE_PROMPT = fs.readFileSync(
-  path.join(__dirname, 'schedule-scanner-prompt.txt'),
-  'utf8'
-);
+const SCHEDULE_SCANNER_SYSTEM_PROMPT = `Respond DIRECTLY with valid JSON only. Extract classes from schedule image.
+Schema: {"classes":[{"subject":"CS101","teacher":"Prof. Santos","room":"301","day":"MONDAY","startTime":"08:00","endTime":"09:00"}],"uncertainFields":[]}
+Days: M=Mon T=Tue W=Wed Th=Thu F=Fri S=Sat U=Sun. MW=Mon+Wed, MWF=Mon+Wed+Fri, TTh=Tue+Thu, TF=Tue+Fri. R=Thu only if legend confirms.
+Image is source of truth. Never invent data. Times: 24h HH:MM. If only start visible, add 1hr. Expand multi-day codes. Never invent.`;
 
-const ANDROID_OUTPUT_CONTRACT = fs.readFileSync(
-  path.join(__dirname, 'android-output-contract.txt'),
-  'utf8'
-);
+const SCHEDULE_SCANNER_USER_MESSAGE = 'Scan this schedule image and extract all class meetings into JSON format with classes array and uncertainFields.';
 
-const SCHEDULE_SCANNER_SYSTEM_PROMPT = `${BASE_PROMPT.trim()}${ANDROID_OUTPUT_CONTRACT}`;
-
-const SCHEDULE_SCANNER_USER_MESSAGE =
-  'Analyze the attached class schedule image. Extract every class meeting visible in the image. ' +
-  'Apply all interpretation rules from your system instructions. ' +
-  'Return ONLY the final JSON object (classes + uncertainFields) — no markdown fences, no commentary.';
-
-module.exports = {
-  SCHEDULE_SCANNER_SYSTEM_PROMPT,
-  SCHEDULE_SCANNER_USER_MESSAGE,
-};
+module.exports = { SCHEDULE_SCANNER_SYSTEM_PROMPT, SCHEDULE_SCANNER_USER_MESSAGE };

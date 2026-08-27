@@ -367,22 +367,22 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
   if (!imageBase64) throw new Error('imageBase64 is required');
 
   const model = ai.resolveVisionModel(scan ? scan.model : requestedModel);
-  const ocrContext = extractedText?.trim()
-    ? `\n\nOn-device OCR extracted this text from the schedule image (may contain errors — use the image as source of truth):\n${wrapUntrustedDocument(extractedText, 'OCR text')}`
+  // Drop OCR text if long (>500 chars) — it adds tokens and can distract the model
+  const ocrContext = extractedText?.trim() && extractedText.trim().length < 500
+    ? `\n\nOCR text (hint only — image is source of truth):\n${extractedText.trim().slice(0, 400)}`
     : '';
-  const userText = `${SCHEDULE_SCANNER_USER_MESSAGE}${ocrContext}`;
   const content = await ai.chatCompletionText(
     [
       { role: 'system', content: SCHEDULE_SCANNER_SYSTEM_PROMPT },
       {
         role: 'user',
         content: [
-          { type: 'text', text: userText },
+          { type: 'text', text: SCHEDULE_SCANNER_USER_MESSAGE + ocrContext },
           buildVisionImagePart(imageBase64, detectImageMimeFromBase64(imageBase64)),
         ],
       },
     ],
-    { temperature: 0.2, maxTokens, model, isVision: true, signal, responseFormat: { type: 'json_object' } }
+    { temperature: 0, maxTokens, model, isVision: true, signal, responseFormat: { type: 'json_object' }, reasoning: 'none' }
   );
 
   const parsed = ai.extractJson(content);

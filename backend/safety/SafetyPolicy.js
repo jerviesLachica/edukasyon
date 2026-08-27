@@ -16,7 +16,7 @@ const ENDPOINT_DEFAULTS = {
     burstPerMin: 5,
     dailyQuota: 20,
     hourlyQuota: 10,
-    maxOutputTokens: 4096,
+    maxOutputTokens: 1500,
   },
   summarize: {
     rateLimitPerMin: 5,
