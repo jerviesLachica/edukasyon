@@ -24,7 +24,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 
 <script type="application/ld+json" id="ldjson">
 {
@@ -43,18 +43,27 @@
 
 <style>
 :root {
-  --bg: #0B0F17;
-  --surface: #121826;
-  --surface-2: #182130;
-  --border: #24304a;
-  --border-soft: #1c2740;
-  --text: #E9EEF7;
-  --muted: #97A3B8;
+  --bg: #07090F;
+  --bg-2: #0B0F17;
+  --surface: #101622;
+  --surface-2: #161E2F;
+  --surface-3: #1C2438;
+  --border: #283450;
+  --border-soft: #1C2740;
+  --text: #ECF1FA;
+  --muted: #95A3BC;
+  --muted-2: #6B7A95;
   --accent: #FF7A1A;
   --accent-strong: #F26800;
+  --accent-soft: rgba(255, 122, 26, 0.14);
+  --accent-glow: rgba(255, 122, 26, 0.45);
+  --amber: #FFB347;
+  --rose: #FF5B6B;
+  --teal: #4AD4C0;
   --ok: #3ECf8E;
   --radius: 14px;
   --radius-lg: 20px;
+  --radius-xl: 28px;
   --container: 1120px;
   --pad-x: clamp(16px, 4vw, 32px);
 }
@@ -68,10 +77,46 @@ html {
 
 body {
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
   background: var(--bg);
   color: var(--text);
   line-height: 1.65;
   overflow-x: hidden;
+  position: relative;
+}
+
+/* Scroll progress bar */
+.scroll-progress {
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent), var(--amber));
+  z-index: 100;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+/* Aurora ambient background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 15% 10%, rgba(255,122,26,0.10), transparent 70%),
+    radial-gradient(45% 45% at 85% 20%, rgba(74,212,192,0.08), transparent 70%),
+    radial-gradient(50% 50% at 50% 100%, rgba(255,91,107,0.06), transparent 70%);
+}
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 section[id] { scroll-margin-top: 92px; }
@@ -202,10 +247,16 @@ a { color: inherit; }
   font-weight: 600;
   color: var(--muted);
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(255,122,26,0.08), rgba(255,122,26,0.02));
   border-radius: 999px;
-  padding: 6px 14px;
+  padding: 7px 16px;
   margin-bottom: 22px;
+  box-shadow: 0 0 0 1px rgba(255,122,26,0.08) inset, 0 4px 20px rgba(255,122,26,0.10);
+  animation: badgePulse 3s ease-in-out infinite;
+}
+@keyframes badgePulse {
+  0%,100% { box-shadow: 0 0 0 1px rgba(255,122,26,0.08) inset, 0 4px 20px rgba(255,122,26,0.10); }
+  50% { box-shadow: 0 0 0 1px rgba(255,122,26,0.18) inset, 0 4px 28px rgba(255,122,26,0.22); }
 }
 .badge i {
   width: 7px;
@@ -220,6 +271,10 @@ a { color: inherit; }
   font-weight: 800;
   letter-spacing: -.02em;
   margin-bottom: 18px;
+  background: linear-gradient(135deg, var(--text) 30%, var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 .hero-sub {
   color: var(--muted);
@@ -257,6 +312,7 @@ a { color: inherit; }
 .phone-wrap {
   display: flex;
   justify-content: center;
+  perspective: 1400px;
 }
 .phone {
   width: clamp(230px, 24vw, 290px);
@@ -266,6 +322,11 @@ a { color: inherit; }
   border-radius: clamp(28px, 3vw, 38px);
   padding: 8px;
   box-shadow: 0 24px 60px -24px rgba(0, 0, 0, .7);
+  transition: transform 0.6s cubic-bezier(.2,.8,.2,1), box-shadow 0.6s ease;
+}
+.phone-wrap:hover .phone {
+  transform: rotateY(8deg) rotateX(3deg) scale(1.03);
+  box-shadow: 0 32px 80px -20px rgba(255, 122, 26, 0.25), 0 24px 60px -24px rgba(0, 0, 0, .7);
 }
 .screen {
   position: relative;
@@ -444,15 +505,22 @@ a { color: inherit; }
 .grid-cards .card:hover { border-color: #33436b; transform: translateY(-3px); }
 .section-alt .card { background: var(--surface-2); }
 .card-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: rgba(255, 122, 26, .12);
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent-soft), rgba(255,122,26,.06));
   color: var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 18px;
+  transition: transform .3s ease, color .3s ease, background .3s ease;
+  flex: 0 0 auto;
+}
+.card:hover .card-icon {
+  transform: scale(1.15) rotate(4deg);
+  color: var(--amber);
+  background: linear-gradient(135deg, var(--accent-glow), rgba(255,195,71,.12));
 }
 .card h3 {
   font-size: 1.06rem;
