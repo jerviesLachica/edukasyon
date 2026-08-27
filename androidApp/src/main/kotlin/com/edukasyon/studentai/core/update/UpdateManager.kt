@@ -59,6 +59,19 @@ class UpdateManager @Inject constructor(
         _uiState.value = UpdateUiState.Downloading(0f)
 
         val url = updateInfo.apkUrl
+
+        // Hardening: only allow HTTPS downloads for the self-update path. The URL
+        // comes from a developer-controlled version.json over HTTPS
+        // (UpdateChecker) — but defence-in-depth against an attacker who
+        // somehow controls that document (or any future FCM-injected URL)
+        // must not let them ship a cleartext APK. Android's same-signature
+        // update gate mitigates pure RCE, but cleartext lets an on-path
+        // attacker substitute a malformed/older APK to grief the user.
+        if (!isAllowedDownloadUrl(url)) {
+            _uiState.value = UpdateUiState.Error("Update download URL must use HTTPS")
+            return
+        }
+
         val fileName = "schedmate-${updateInfo.versionName}.apk"
 
         try {
@@ -129,6 +142,27 @@ class UpdateManager @Inject constructor(
             }
             cursor.close()
             delay(500)
+        }
+    }
+
+    private fun isAllowedDownloadUrl(url: String): Boolean {
+        val parsed = runCatching { Uri.parse(url) }.getOrNull() ?: return false
+        val scheme = parsed.scheme?.lowercase() ?: return false
+        if (scheme != "https") return false
+        val host = parsed.host?.lowercase() ?: return false
+        // Only allow hosts that the developer controls. This prevents an
+        // attacker who manages to inject a foreign URL into the update
+        // document (or future FCM payload) from having a stolen code-signing
+        // cert signed APK on a hostile domain installed as a "legitimate"
+        // update. Add hosts here when expanding the distribution surface.
+        val allowedHosts = setOf(
+            "edukasyon-studentai.web.app",
+            "edukasyon-studentai.firebaseapp.com",
+            "studentai-backend-ha0z.onrender.com",
+        )
+        // Exact match or any subdomain of an allowed parent domain.
+        return allowedHosts.any { allowed ->
+            host == allowed || host.endsWith(".$allowed")
         }
     }
 

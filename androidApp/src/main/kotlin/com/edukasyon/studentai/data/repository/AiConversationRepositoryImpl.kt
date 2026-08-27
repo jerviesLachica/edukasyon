@@ -80,7 +80,7 @@ class AiConversationRepositoryImpl @Inject constructor(
     private fun ConversationEntity.toDomain(): AiConversation = AiConversation(
         id = id,
         title = title,
-        type = AiConversationType.valueOf(conversationType ?: AiConversationType.TUTOR.name),
+        type = AiConversationType.entries.find { it.name == conversationType } ?: AiConversationType.TUTOR,
         backendConversationId = backendConversationId,
         createdAt = createdAt,
         updatedAt = updatedAt,

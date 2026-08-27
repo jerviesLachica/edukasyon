@@ -33,8 +33,26 @@ class MlKitTextRecognizer @Inject constructor() {
 
     suspend fun recognizeFromBitmap(bitmap: Bitmap): MlKitTextResult = withContext(Dispatchers.Default) {
         runCatching {
-            val image = InputImage.fromBitmap(bitmap, 0)
+            // Upscale small images for better OCR accuracy on dense text (e.g., schedules)
+            val processedBitmap = if (bitmap.width < MIN_OCR_DIMENSION || bitmap.height < MIN_OCR_DIMENSION) {
+                val scale = maxOf(
+                    MIN_OCR_DIMENSION.toFloat() / bitmap.width,
+                    MIN_OCR_DIMENSION.toFloat() / bitmap.height
+                )
+                val scaledW = (bitmap.width * scale).toInt()
+                val scaledH = (bitmap.height * scale).toInt()
+                Bitmap.createScaledBitmap(bitmap, scaledW, scaledH, true)
+            } else {
+                bitmap
+            }
+
+            val image = InputImage.fromBitmap(processedBitmap, 0)
             val visionText = recognizer.process(image).await()
+
+            if (processedBitmap !== bitmap) {
+                processedBitmap.recycle()
+            }
+
             MlKitTextResult(
                 text = visionText.text.trim(),
                 blockCount = visionText.textBlocks.size,
@@ -94,5 +112,10 @@ class MlKitTextRecognizer @Inject constructor() {
             success = combined.isNotEmpty(),
             error = if (combined.isEmpty()) "No text detected on pages" else null,
         )
+    }
+
+    private companion object {
+        /** ML Kit performs better on larger images for small text recognition. */
+        private const val MIN_OCR_DIMENSION = 1200
     }
 }

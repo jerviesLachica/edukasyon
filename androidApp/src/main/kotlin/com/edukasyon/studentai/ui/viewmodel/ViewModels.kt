@@ -2257,7 +2257,14 @@ class ProfileViewModel @Inject constructor(
     fun importJson(uri: android.net.Uri, replace: Boolean) {
         viewModelScope.launch {
             dataBackupManager.importJson(uri, replace)
-                .onSuccess { count -> _uiState.update { it.copy(backupMessage = "Imported $count items") } }
+                .onSuccess { result ->
+                    val msg = if (result.skipped > 0) {
+                        "Imported ${result.imported} items (${result.skipped} skipped)"
+                    } else {
+                        "Imported ${result.imported} items"
+                    }
+                    _uiState.update { it.copy(backupMessage = msg) }
+                }
                 .onFailure { e -> _uiState.update { it.copy(backupMessage = e.message) } }
         }
     }

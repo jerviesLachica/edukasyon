@@ -14,7 +14,10 @@ object GradeCalculator {
         var weightedSum = 0.0
         categoryGroups.forEach { (_, categoryEntries) ->
             val categoryWeight = categoryEntries.first().weight
-            val avgPercentage = categoryEntries.map { (it.score / it.maxScore) * 100 }.average()
+            val validPercentages = categoryEntries
+                .filter { it.maxScore > 0 }
+                .map { (it.score / it.maxScore) * 100 }
+            val avgPercentage = if (validPercentages.isNotEmpty()) validPercentages.average() else 0.0
             weightedSum += avgPercentage * categoryWeight
             totalWeight += categoryWeight
         }

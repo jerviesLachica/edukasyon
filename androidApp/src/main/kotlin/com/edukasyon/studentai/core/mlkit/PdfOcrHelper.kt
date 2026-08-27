@@ -49,6 +49,7 @@ class PdfOcrHelper @Inject constructor(
             val ocrResult = textRecognizer.recognizeFromPageImages(pageImages)
             ocrResult.text.takeIf { it.isNotBlank() && it.length >= MIN_USABLE_TEXT_LENGTH }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             null
         }
     }
@@ -67,6 +68,7 @@ class PdfOcrHelper @Inject constructor(
             val result = textRecognizer.recognizeFromBytes(bytes)
             result.text.takeIf { it.isNotBlank() && result.success }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             null
         }
     }

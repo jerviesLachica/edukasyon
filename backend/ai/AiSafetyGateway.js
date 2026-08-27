@@ -46,7 +46,7 @@ class AiSafetyGateway {
 
     try {
       // 1. Authenticate
-      const authResult = this.auth.authenticate(req);
+      const authResult = await this.auth.authenticate(req);
       if (!authResult.ok) {
         return this.sendError(res, authResult.status, authResult.code, authResult.message);
       }

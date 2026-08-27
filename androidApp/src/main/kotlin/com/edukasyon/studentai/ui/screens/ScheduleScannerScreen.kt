@@ -22,26 +22,19 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DocumentScanner
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -292,30 +285,6 @@ fun ScheduleScannerScreen(
                             },
                             modifier = Modifier.fillMaxSize(),
                         )
-                        // Scan frame guide overlay
-                        Canvas(Modifier.fillMaxSize()) {
-                            val w = size.width
-                            val h = size.height
-                            val frameW = w * 0.82f
-                            val frameH = h * 0.5f
-                            val left = (w - frameW) / 2f
-                            val top = (h - frameH) / 2f
-                            val color = androidx.compose.ui.graphics.Color(0xFFF97316)
-                            val stroke = 4.dp.toPx()
-                            val len = 28.dp.toPx()
-                            // top-left
-                            drawLine(color = color, start = Offset(left, top), end = Offset(left + len, top), strokeWidth = stroke)
-                            drawLine(color = color, start = Offset(left, top), end = Offset(left, top + len), strokeWidth = stroke)
-                            // top-right
-                            drawLine(color = color, start = Offset(left + frameW, top), end = Offset(left + frameW - len, top), strokeWidth = stroke)
-                            drawLine(color = color, start = Offset(left + frameW, top), end = Offset(left + frameW, top + len), strokeWidth = stroke)
-                            // bottom-left
-                            drawLine(color = color, start = Offset(left, top + frameH), end = Offset(left + len, top + frameH), strokeWidth = stroke)
-                            drawLine(color = color, start = Offset(left, top + frameH), end = Offset(left, top + frameH - len), strokeWidth = stroke)
-                            // bottom-right
-                            drawLine(color = color, start = Offset(left + frameW, top + frameH), end = Offset(left + frameW - len, top + frameH), strokeWidth = stroke)
-                            drawLine(color = color, start = Offset(left + frameW, top + frameH), end = Offset(left + frameW, top + frameH - len), strokeWidth = stroke)
-                        }
                         if (isScanning) {
                             ScanningOverlay(
                                 imageBytes = pendingScanImageBytes,
@@ -395,61 +364,40 @@ fun ScheduleScannerScreen(
                     )
                 }
                 if (showCamera) {
-                    Surface(
-                        tonalElevation = 6.dp,
-                        shadowElevation = 8.dp,
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                        modifier = Modifier.fillMaxWidth(),
+                    Column(
+                        Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            // Gallery
-                            IconButton(
+                            OutlinedButton(
                                 onClick = { galleryLauncher.launch("image/*") },
                                 enabled = !scanBlocked,
-                                modifier = Modifier.size(48.dp),
+                                modifier = Modifier.weight(1f),
                             ) {
-                                Icon(
-                                    Icons.Default.PhotoLibrary,
-                                    contentDescription = "Pick from Gallery",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                )
+                                Icon(Icons.Default.PhotoLibrary, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Gallery")
                             }
-
-                                    // Center shutter
-                            Button(
-                                onClick = { captureAndAnalyze() },
-                                enabled = !scanBlocked && cameraReady,
-                                shape = CircleShape,
-                                modifier = Modifier
-                                    .size(72.dp),
-                                contentPadding = PaddingValues(0.dp),
-                            ) {
-                                Icon(
-                                    Icons.Default.CameraAlt,
-                                    contentDescription = if (isScanning) "Scanning" else "Capture",
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(34.dp),
-                                )
-                            }
-
-                            // Doc scan
-                            IconButton(
+                            OutlinedButton(
                                 onClick = launchDocumentScan,
                                 enabled = !scanBlocked,
-                                modifier = Modifier.size(48.dp),
+                                modifier = Modifier.weight(1f),
                             ) {
-                                Icon(
-                                    Icons.Default.DocumentScanner,
-                                    contentDescription = "Scan document",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                )
+                                Icon(Icons.Default.DocumentScanner, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Doc scan")
                             }
+                        }
+                        Button(
+                            onClick = { captureAndAnalyze() },
+                            enabled = !scanBlocked && cameraReady,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Default.CameraAlt, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (isScanning) "Scanning…" else "Capture & Analyze")
                         }
                     }
                     TextButton(
@@ -535,10 +483,24 @@ private fun userFacingCameraError(@Suppress("UNUSED_PARAMETER") error: Exception
     "Camera unavailable — use Gallery instead"
 
 private fun imageProxyToJpeg(image: ImageProxy): ByteArray {
+    val rotationDegrees = image.imageInfo.rotationDegrees
+
     if (image.format == ImageFormat.JPEG) {
         val buffer = image.planes[0].buffer
         val bytes = ByteArray(buffer.remaining())
         buffer.get(bytes)
+        // Apply rotation for JPEG format as well - critical for scan accuracy
+        if (rotationDegrees != 0) {
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                ?: return bytes
+            val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height,
+                Matrix().apply { postRotate(rotationDegrees.toFloat()) }, true)
+            bitmap.recycle()
+            return ByteArrayOutputStream().use { stream ->
+                rotated.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+                stream.toByteArray()
+            }
+        }
         return bytes
     }
 
@@ -559,8 +521,8 @@ private fun imageProxyToJpeg(image: ImageProxy): ByteArray {
     var bitmap = BitmapFactory.decodeByteArray(jpegStream.toByteArray(), 0, jpegStream.size())
         ?: throw IllegalStateException("Could not decode captured image")
 
-    if (image.imageInfo.rotationDegrees != 0) {
-        val matrix = Matrix().apply { postRotate(image.imageInfo.rotationDegrees.toFloat()) }
+    if (rotationDegrees != 0) {
+        val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
         bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
 

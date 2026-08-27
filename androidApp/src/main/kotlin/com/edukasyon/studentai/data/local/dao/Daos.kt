@@ -63,6 +63,9 @@ interface ScheduleDao {
     @Query("UPDATE schedule_items SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: String, deletedAt: Long, updatedAt: Long)
 
+    @Query("UPDATE schedule_items SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE deletedAt IS NULL")
+    suspend fun softDeleteAll(deletedAt: Long, updatedAt: Long)
+
     @Query("SELECT * FROM schedule_items WHERE deletedAt IS NULL AND (subjectName LIKE '%' || :query || '%' OR teacher LIKE '%' || :query || '%' OR room LIKE '%' || :query || '%')")
     fun search(query: String): Flow<List<ScheduleItemEntity>>
 
@@ -89,6 +92,9 @@ interface TaskDao {
 
     @Query("UPDATE tasks SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: String, deletedAt: Long, updatedAt: Long)
+
+    @Query("UPDATE tasks SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE deletedAt IS NULL")
+    suspend fun softDeleteAll(deletedAt: Long, updatedAt: Long)
 
     @Query("SELECT * FROM tasks WHERE deletedAt IS NULL AND title LIKE '%' || :query || '%'")
     fun search(query: String): Flow<List<TaskEntity>>
@@ -147,6 +153,9 @@ interface ExamDao {
     @Query("UPDATE exams SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: String, deletedAt: Long, updatedAt: Long)
 
+    @Query("UPDATE exams SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE deletedAt IS NULL")
+    suspend fun softDeleteAll(deletedAt: Long, updatedAt: Long)
+
     @Query("SELECT * FROM exams WHERE deletedAt IS NULL AND title LIKE '%' || :query || '%'")
     fun search(query: String): Flow<List<ExamEntity>>
 
@@ -164,6 +173,9 @@ interface NoteDao {
 
     @Query("UPDATE notes SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: String, deletedAt: Long, updatedAt: Long)
+
+    @Query("UPDATE notes SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE deletedAt IS NULL")
+    suspend fun softDeleteAll(deletedAt: Long, updatedAt: Long)
 
     @Query("SELECT * FROM notes WHERE deletedAt IS NULL AND (title LIKE '%' || :query || '%' OR content LIKE '%' || :query || '%')")
     fun search(query: String): Flow<List<NoteEntity>>
@@ -289,6 +301,12 @@ interface FlashcardDao {
     @Query("UPDATE flashcards SET deckId = :deckId, updatedAt = :updatedAt WHERE id = :id")
     suspend fun assignDeck(id: String, deckId: String, updatedAt: Long)
 
+    @Query("UPDATE flashcards SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun softDelete(id: String, deletedAt: Long, updatedAt: Long)
+
+    @Query("UPDATE flashcards SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE deletedAt IS NULL")
+    suspend fun softDeleteAll(deletedAt: Long, updatedAt: Long)
+
     @Query("UPDATE flashcards SET deckId = :deckId, updatedAt = :updatedAt WHERE deckId IS NULL AND deletedAt IS NULL")
     suspend fun assignOrphansToDeck(deckId: String, updatedAt: Long)
 
@@ -380,6 +398,9 @@ interface GradeEntryDao {
 
     @Query("UPDATE grade_entries SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: String, deletedAt: Long, updatedAt: Long)
+
+    @Query("UPDATE grade_entries SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE deletedAt IS NULL")
+    suspend fun softDeleteAll(deletedAt: Long, updatedAt: Long)
 
     @Query("SELECT * FROM grade_entries")
     suspend fun getAllForSync(): List<GradeEntryEntity>

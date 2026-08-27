@@ -45,8 +45,10 @@ fun ScheduleItem.toEntity(now: Long = System.currentTimeMillis()) = ScheduleItem
 
 fun TaskEntity.toDomain(subtasks: List<Subtask> = emptyList()) = Task(
     id = id, title = title, description = description, subjectId = subjectId,
-    priority = Priority.valueOf(priority), dueDate = dueDate, dueTime = dueTime,
-    status = TaskStatus.valueOf(status), category = category, reminderAt = reminderAt,
+    priority = Priority.entries.find { it.name == priority } ?: Priority.MEDIUM,
+    dueDate = dueDate, dueTime = dueTime,
+    status = TaskStatus.entries.find { it.name == status } ?: TaskStatus.PENDING,
+    category = category, reminderAt = reminderAt,
     createdAt = createdAt, updatedAt = updatedAt, completedAt = completedAt, subtasks = subtasks
 )
 
@@ -63,7 +65,8 @@ fun SubtaskEntity.toDomain() = Subtask(id = id, taskId = taskId, title = title, 
 fun AssignmentEntity.toDomain() = Assignment(
     id = id, title = title, subjectId = subjectId, description = description,
     dueDate = dueDate, dueTime = dueTime, attachmentUri = attachmentUri,
-    priority = Priority.valueOf(priority), status = TaskStatus.valueOf(status),
+    priority = Priority.entries.find { it.name == priority } ?: Priority.MEDIUM,
+    status = TaskStatus.entries.find { it.name == status } ?: TaskStatus.PENDING,
     grade = grade, notes = notes, reminderAt = reminderAt
 )
 
@@ -182,7 +185,7 @@ fun CalendarEvent.toEntity(now: Long = System.currentTimeMillis()) = CalendarEve
 )
 
 fun QuizQuestionEntity.toDomain() = QuizQuestion(
-    id = id, quizId = quizId, type = QuestionType.valueOf(type),
+    id = id, quizId = quizId, type = QuestionType.entries.find { it.name == type } ?: QuestionType.MULTIPLE_CHOICE,
     question = question, options = json.decodeFromString<List<String>>(optionsJson),
     correctAnswer = correctAnswer
 )

@@ -17,6 +17,10 @@ object ExamReadinessCalculator {
     ): Int {
         if (cards.isEmpty() && context.subjectNotes.isEmpty()) return 0
 
+        // If there are cards but none have been reviewed, we have no performance
+        // data — return 0 to avoid fabricating a readiness number.
+        if (cards.isNotEmpty() && cards.all { it.reviewCount == 0 }) return 0
+
         val mastery = if (cards.isNotEmpty()) deckMasteryScore(cards) else 0.0
         val quizProxy = if (cards.isNotEmpty()) quizPerformanceProxy(cards) else 50.0
         val dueHealth = if (cards.isNotEmpty()) dueHealthScore(cards, nowMillis) else 0.0
@@ -202,7 +206,7 @@ object ExamReadinessCalculator {
 
     private fun quizPerformanceProxy(cards: List<Flashcard>): Double {
         val reviewed = cards.filter { it.reviewCount > 0 }
-        if (reviewed.isEmpty()) return 50.0
+        if (reviewed.isEmpty()) return 0.0
         return reviewed.map { accuracyRatio(it) * 100.0 }.average()
     }
 

@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.edukasyon.studentai.domain.model.SyncState
 
 @Entity(tableName = "users")
 data class UserEntity(
@@ -98,7 +99,9 @@ data class SubtaskEntity(
     val taskId: String,
     val title: String,
     val isCompleted: Boolean,
-    val sortOrder: Int
+    val sortOrder: Int,
+    val updatedAt: Long = 0L,
+    val deletedAt: Long? = null
 )
 
 @Entity(tableName = "assignments")
@@ -168,7 +171,10 @@ data class NoteEntity(
 data class NoteTagEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val noteId: String,
-    val tag: String
+    val tag: String,
+    val updatedAt: Long = 0L,
+    val deletedAt: Long? = null,
+    val syncState: String = SyncState.LOCAL_ONLY.name
 )
 
 @Entity(

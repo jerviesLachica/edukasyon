@@ -12,6 +12,8 @@ import com.edukasyon.studentai.domain.model.SyncSummary
 import com.edukasyon.studentai.domain.model.UserProfile
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -42,53 +44,24 @@ class FirestoreSyncService @Inject constructor(
     private val subjectDao: SubjectDao,
     private val gradeEntryDao: GradeEntryDao,
 ) {
-    suspend fun syncUserProfile(user: UserProfile): Result<Unit> = runCatching {
-        val uid = authManager.currentUserId ?: return@runCatching
-        firestore.collection(COLLECTION_USERS)
-            .document(uid)
-            .set(user.toFirestoreMap(), SetOptions.merge())
-            .await()
-    }.onFailure { Log.w(TAG, "User profile sync failed", it) }
+    private val syncMutex = kotlinx.coroutines.sync.Mutex()
 
-    /**
-     * Fetches the cloud profile for the currently signed-in user, or null when there is none
-     * (brand-new account) or it can't be reached. Used on onboarding completion so a returning
-     * user's saved profile is restored instead of being overwritten with fresh defaults.
-     */
-    suspend fun fetchCloudProfile(): UserProfile? = runCatching {
-        val uid = authManager.currentUserId ?: return@runCatching null
-        val doc = firestore.collection(COLLECTION_USERS).document(uid).get().await()
-        if (!doc.exists()) return@runCatching null
-        val map = doc.data ?: return@runCatching null
-        UserProfile(
-            id = uid,
-            displayName = (map["displayName"] as? String).orEmpty().ifBlank { "Student" },
-            email = map["email"] as? String,
-            school = (map["school"] as? String).orEmpty(),
-            gradeLevel = (map["gradeLevel"] as? String).orEmpty(),
-            section = (map["section"] as? String).orEmpty(),
-            schoolYear = (map["schoolYear"] as? String).orEmpty().ifBlank { "2025-2026" },
-            semester = (map["semester"] as? String).orEmpty().ifBlank { "1st" },
-            isGuest = map["isGuest"] as? Boolean ?: false,
-            avatarUri = map["avatarUri"] as? String,
-            bio = (map["bio"] as? String).orEmpty(),
-            preferredStatus = (map["preferredStatus"] as? String).orEmpty(),
-            lastProfileEditAt = (map["lastProfileEditAt"] as? Number)?.toLong(),
-        )
-    }.onFailure { Log.w(TAG, "Cloud profile fetch failed", it) }.getOrNull()
+    suspend fun syncAll(): SyncResult = syncMutex.withLock {
+        syncAllInternal()
+    }
 
-    suspend fun syncAll(): SyncResult {
+    private suspend fun syncAllInternal(): SyncResult {
         if (!connectivity.isCurrentlyOnline()) {
             return SyncResult.Offline
         }
-        if (authManager.currentUserId == null || !authManager.isGoogleSignedIn) {
+        val uid = authManager.currentUserId
+        if (uid == null || !authManager.isGoogleSignedIn) {
             return SyncResult.NotAuthenticated
         }
 
         return runCatching {
             var pushed = 0
             var pulled = 0
-            val uid = authManager.currentUserId!!
 
             userDao.getUser()?.toDomain()?.let { syncUserProfile(it) }
 
@@ -134,6 +107,42 @@ class FirestoreSyncService @Inject constructor(
         }
     }
 
+    suspend fun syncUserProfile(user: UserProfile): Result<Unit> = runCatching {
+        val uid = authManager.currentUserId ?: return@runCatching
+        firestore.collection(COLLECTION_USERS)
+            .document(uid)
+            .set(user.toFirestoreMap(), SetOptions.merge())
+            .await()
+    }.onFailure { Log.w(TAG, "User profile sync failed", it) }
+
+    /**
+     * Fetches the cloud profile for the currently signed-in user, or null when there is none
+     * (brand-new account) or it can't be reached. Used on onboarding completion so a returning
+     * user's saved profile is restored instead of being overwritten with fresh defaults.
+     */
+    suspend fun fetchCloudProfile(): UserProfile? = runCatching {
+        val uid = authManager.currentUserId ?: return@runCatching null
+        val doc = firestore.collection(COLLECTION_USERS).document(uid).get().await()
+        if (!doc.exists()) return@runCatching null
+        val map = doc.data ?: return@runCatching null
+        UserProfile(
+            id = uid,
+            displayName = (map["displayName"] as? String).orEmpty().ifBlank { "Student" },
+            email = map["email"] as? String,
+            school = (map["school"] as? String).orEmpty(),
+            gradeLevel = (map["gradeLevel"] as? String).orEmpty(),
+            section = (map["section"] as? String).orEmpty(),
+            schoolYear = (map["schoolYear"] as? String).orEmpty().ifBlank { "2025-2026" },
+            semester = (map["semester"] as? String).orEmpty().ifBlank { "1st" },
+            isGuest = map["isGuest"] as? Boolean ?: false,
+            avatarUri = map["avatarUri"] as? String,
+            bio = (map["bio"] as? String).orEmpty(),
+            preferredStatus = (map["preferredStatus"] as? String).orEmpty(),
+            lastProfileEditAt = (map["lastProfileEditAt"] as? Number)?.toLong(),
+        )
+    }.onFailure { Log.w(TAG, "Cloud profile fetch failed", it) }.getOrNull()
+
+    
     private suspend fun syncJeviDecks(uid: String): Pair<Int, Int> =
         syncWithUpdatedAt(
             uid = uid,
@@ -205,8 +214,16 @@ class FirestoreSyncService @Inject constructor(
                     pushed++
                 }
                 local != null && remote != null -> {
-                    pushRemote(uid, COLLECTION_NOTE_TAGS, key, local.toFirestoreMap())
-                    pushed++
+                    // Both sides have the tag. NoteTagEntity has no updatedAt
+                    // column to do proper LWW, and unconditionally pushing
+                    // local here would race two devices' identical tag-add
+                    // actions into ping-pong writes. Accept the remote copy
+                    // so the two devices converge; the "lose" is bounded
+                    // (a tag the local user just added) and preferable to
+                    // perpetual overwrites. A proper tombstone + updatedAt
+                    // migration is tracked in the audit backlog.
+                    noteTagDao.insert(remote.second.toNoteTagEntity())
+                    pulled++
                 }
             }
         }
@@ -250,15 +267,17 @@ class FirestoreSyncService @Inject constructor(
         )
 
     private suspend fun syncSubtasks(uid: String): Pair<Int, Int> {
-        val now = System.currentTimeMillis()
+        // SubtaskEntity now carries updatedAt + deletedAt (schema v10), so
+        // we can do real LWW like every other entity and tombstone-deleted
+        // rows propagate correctly instead of resurrecting.
         return syncWithTimestamp(
             uid = uid,
             collection = COLLECTION_SUBTASKS,
             localItems = subtaskDao.getAllForSync(),
             getId = { it.id },
-            getTimestamp = { now },
+            getTimestamp = { it.updatedAt },
             mapTimestampKey = "updatedAt",
-            toMap = { it.toFirestoreMap(now) },
+            toMap = { it.toFirestoreMap() },
             fromMap = { _, map -> map.toSubtaskEntity() },
             upsertLocal = { subtaskDao.insert(it) },
         )
@@ -355,11 +374,18 @@ class FirestoreSyncService @Inject constructor(
                 local != null && remote != null -> {
                     val localTs = getTimestamp(local)
                     val remoteTs = remote.second.long(mapTimestampKey) ?: 0L
-                    if (localTs >= remoteTs) {
+                    if (localTs > remoteTs) {
                         pushRemote(uid, collection, id, toMap(local))
                         upsertLocal(local)
                         pushed++
                     } else {
+                        // remote is newer or equal — pull it. Note: the
+                        // subtask collection calls into this with
+                        // getTimestamp = { now } which makes local always
+                        // appear "newer" than the cloud; that bias is
+                        // handled at the call site (see syncSubtasks) so
+                        // this generic branch still picks the right side
+                        // for everything else.
                         upsertLocal(fromMap(remote.first, remote.second))
                         pulled++
                     }
