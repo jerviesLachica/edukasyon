@@ -252,17 +252,37 @@ function createAiProvider(config = {}) {
   }
 
   function extractJson(text) {
-    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    let raw = fenced ? fenced[1].trim() : text.trim();
+    const fenced = text && text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    let raw = fenced ? fenced[1] : text;
+    if (typeof raw !== 'string') {
+      throw new Error('extractJson received non-string input');
+    }
+    raw = raw.trim();
     try {
       return JSON.parse(raw);
     } catch (_) {
       // Reasoning-style models often prepend prose before the JSON object.
-      // Salvage from the first "{" to the matching last "}" before giving up.
       const start = raw.indexOf('{');
       const end = raw.lastIndexOf('}');
       if (start >= 0 && end > start) {
-        return JSON.parse(raw.slice(start, end + 1));
+        const candidate = raw.slice(start, end + 1);
+        let depth = 0, inStr = false, esc = false, last = '';
+        for (let i = 0; i < candidate.length; i++) {
+          const ch = candidate[i];
+          if (esc) { esc = false; continue; }
+          if (ch === '\\') { esc = true; continue; }
+          if (ch === '"' && last !== '\\') inStr = !inStr;
+          last = ch;
+          if (!inStr) {
+            if (ch === '{') depth++;
+            if (ch === '}') depth--;
+            if (depth === 0 && i > 0) {
+              try { return JSON.parse(candidate.slice(0, i + 1)); } catch (_) {}
+              break;
+            }
+          }
+        }
+        try { return JSON.parse(candidate); } catch (_) {}
       }
       throw new Error('AI returned no parsable JSON');
     }

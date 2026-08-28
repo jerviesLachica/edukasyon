@@ -1797,8 +1797,8 @@ class AiViewModel @Inject constructor(
                 if (attemptId != scheduleScanAttemptCounter) return@launch
 
                 when {
-                    result == null -> registerScheduleScanFailure(attemptId)
-                    result.classes.isEmpty() -> registerScheduleScanFailure(attemptId)
+                    result == null -> registerScheduleScanFailure(attemptId, "No response — the server may be busy. Try again.")
+                    result.classes.isEmpty() -> registerScheduleScanFailure(attemptId, "No classes found in the image. Make sure the schedule is clear and legible.")
                     else -> _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -1815,7 +1815,10 @@ class AiViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 if (attemptId != scheduleScanAttemptCounter) return@launch
-                registerScheduleScanFailure(attemptId)
+                val msg = (e as? com.edukasyon.studentai.core.ai.AiException)?.message
+                    ?: e.message
+                    ?: "Scan failed"
+                registerScheduleScanFailure(attemptId, msg)
             }
         }
     }
@@ -1864,7 +1867,7 @@ class AiViewModel @Inject constructor(
         }
     }
 
-    private fun registerScheduleScanFailure(attemptId: Long) {
+    private fun registerScheduleScanFailure(attemptId: Long, reason: String? = null) {
         if (attemptId != scheduleScanAttemptCounter) return
         val newCount = _uiState.value.scheduleScanRetryCount + 1
         if (newCount >= SCHEDULE_SCAN_MAX_RETRIES) {
@@ -1884,7 +1887,7 @@ class AiViewModel @Inject constructor(
                     scheduleScanStatus = ScheduleScanStatus.RETRY_LATER,
                     scheduleScanRetryCount = newCount,
                     scheduleScanRetryAfterMillis = retryAt,
-                    error = null,
+                    error = reason,
                 )
             }
         } else {
@@ -1894,6 +1897,7 @@ class AiViewModel @Inject constructor(
                     loadingTool = null,
                     scheduleScanStatus = ScheduleScanStatus.UNREADABLE,
                     scheduleScanRetryCount = newCount,
+                    error = reason,
                     error = null,
                 )
             }
