@@ -1,11 +1,11 @@
 {
-    "versionCode":  6,
-    "versionName":  "1.2.2",
-    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.2/schedmate-1.2.2.apk",
-    "releaseNotes":  "Schedule scanning fixed and more accurate, faster widget backgrounds, and version-aware What\u0027s New badges in the Features Guide.",
+    "versionCode":  7,
+    "versionName":  "1.2.3",
+    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.3/androidApp-release.apk",
+    "releaseNotes":  "Schedule scanning fixed and more accurate, faster widget backgrounds, version-aware What's New badges, plus CRITICAL auth bypass fixed (verifyIdToken now called), 4 audit fixes applied across auth/backup/sync/updates, and the Android build is clean with DocumentScanner and Icon references corrected.",
     "mandatoryUpdate":  false,
-    "apkFile":  "schedmate-1.2.2.apk",
-    "sha256":  "c8c2108a42204941868c3ab0df903c82ee5e331a5c6df974c0cec05ef06e2332",
-    "sizeBytes":  50362361,
-    "releaseDate":  "2026-08-24"
+    "apkFile":  "androidApp-release.apk",
+    "sha256":  "1745468b6bcfa0f7e64f27690ecc4a869375b5ddba403dbcce2b9fb0a4726134",
+    "sizeBytes":  50378749,
+    "releaseDate":  "2026-08-28"
 }
