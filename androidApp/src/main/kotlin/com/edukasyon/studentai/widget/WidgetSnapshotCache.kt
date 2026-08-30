@@ -25,6 +25,10 @@ object WidgetSnapshotCache {
         val raw = prefs(context).getString(key(appWidgetId), null) ?: return null
         return runCatching {
             val cached = json.decodeFromString<CachedWidgetSnapshot>(raw)
+            // Reject cross-midnight cache hits — cachedDate is epoch day, so a midnight
+            // boundary changes the day and invalidates yesterday's schedule/tasks.
+            val todayEpochDay = System.currentTimeMillis() / (24 * 60 * 60 * 1000)
+            if (cached.cachedDate != todayEpochDay) return null
             CacheEntry(cached.savedAtMs, cached.toSnapshot())
         }.getOrNull()
     }
@@ -62,6 +66,7 @@ object WidgetSnapshotCache {
 @Serializable
 private data class CachedWidgetSnapshot(
     val savedAtMs: Long,
+    val cachedDate: Long, // epoch day — invalidates cache across midnight boundaries
     val dayName: String,
     val monthName: String,
     val dayOfMonth: Int,
@@ -109,6 +114,7 @@ private data class CachedCalendarDay(
 
 private fun WidgetSnapshot.toCached(): CachedWidgetSnapshot = CachedWidgetSnapshot(
     savedAtMs = System.currentTimeMillis(),
+    cachedDate = System.currentTimeMillis() / (24 * 60 * 60 * 1000),
     dayName = dayName,
     monthName = monthName,
     dayOfMonth = dayOfMonth,
