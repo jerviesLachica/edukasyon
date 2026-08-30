@@ -1898,7 +1898,6 @@ class AiViewModel @Inject constructor(
                     scheduleScanStatus = ScheduleScanStatus.UNREADABLE,
                     scheduleScanRetryCount = newCount,
                     error = reason,
-                    error = null,
                 )
             }
         }

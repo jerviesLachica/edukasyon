@@ -1,11 +1,11 @@
 {
-    "versionCode":  7,
-    "versionName":  "1.2.3",
-    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.3/androidApp-release.apk",
-    "releaseNotes":  "Schedule scanning fixed and more accurate, faster widget backgrounds, version-aware What's New badges, plus CRITICAL auth bypass fixed (verifyIdToken now called), 4 audit fixes applied across auth/backup/sync/updates, and the Android build is now clean.",
-    "mandatoryUpdate":  false,
-    "apkFile":  "androidApp-release.apk",
-    "sha256":  "1745468b6bcfa0f7e64f27690ecc4a869375b5ddba403dbcce2b9fb0a4726134",
-    "sizeBytes":  50378749,
-    "releaseDate":  "2026-08-28"
+    "versionCode": 7,
+    "versionName": "1.2.4",
+    "apkUrl": "https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.4/androidApp-release.apk",
+    "releaseNotes": "Fix schedule scan: real backend error now shown instead of generic UNREADABLE; JSON parsing hardened for reasoning-model output.",
+    "mandatoryUpdate": false,
+    "apkFile": "androidApp-release.apk",
+    "sha256": "f18e4677890e3252bc09c51dea0fa12e9dabf10db5a84a89ecdc35ae1eeaa917",
+    "sizeBytes": 50378745,
+    "releaseDate": "2026-08-28"
 }
