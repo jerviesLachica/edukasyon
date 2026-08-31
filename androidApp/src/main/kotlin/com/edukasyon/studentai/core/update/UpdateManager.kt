@@ -159,6 +159,7 @@ class UpdateManager @Inject constructor(
             "edukasyon-studentai.web.app",
             "edukasyon-studentai.firebaseapp.com",
             "studentai-backend-ha0z.onrender.com",
+            "github.com",
         )
         // Exact match or any subdomain of an allowed parent domain.
         return allowedHosts.any { allowed ->

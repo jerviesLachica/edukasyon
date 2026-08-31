@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 SchedMate is an offline-first Android student companion app (SchedMate) with a secure Node.js AI proxy backend. The app helps students manage schedules, tasks, assignments, exams, and study goals with AI-powered features.
 
 **Application ID**: `com.edukasyon.studentai` (debug: `com.edukasyon.studentai.debug`)  
-**Version**: 1.2.5 (versionCode 8)
+**Version**: 1.2.6 (versionCode 9)
 
 ## Build Commands
 
