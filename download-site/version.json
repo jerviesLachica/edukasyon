@@ -1,11 +1,11 @@
 {
-    "versionCode": 8,
-    "versionName": "1.2.5",
-    "apkUrl": "https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.5/androidApp-release.apk",
-    "releaseNotes": "Performance optimizations: instant widget loading (<200ms target achieved), 60% faster schedule scanning (20-25s target achieved with image compression and timeout optimization). Improved image handling with JPEG compression and smart ML Kit OCR timeout fallback.",
+    "versionCode": 9,
+    "versionName": "1.2.6",
+    "apkUrl": "https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.6/androidApp-release.apk",
+    "releaseNotes": "Hotfix: Fixed update download URL allowlist — GitHub releases are now allowed. Widget + scanning performance improvements included.",
     "mandatoryUpdate": false,
     "apkFile": "androidApp-release.apk",
-    "sha256": "622F7AD5C2D5DFD1A015C4A1CC923D2003C47D47032F16DD289A0CEF880AFFE5",
-    "sizeBytes": 50378741,
+    "sha256": "22EA09071B597F32AFA297374F1A825EF7197A4CEFFDD61C7EE97A03D1F6CDAA",
+    "sizeBytes": 50378745,
     "releaseDate": "2026-08-31"
 }
