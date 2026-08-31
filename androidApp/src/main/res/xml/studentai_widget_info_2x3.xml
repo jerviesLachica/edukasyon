@@ -2,7 +2,7 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:configure="com.edukasyon.studentai.widget.WidgetConfigureActivity2x3"
     android:description="@string/widget_2x3_description"
-    android:initialLayout="@layout/widget_loading"
+    android:initialLayout="@layout/widget_preview"
     android:minWidth="110dp"
     android:minHeight="180dp"
     android:minResizeWidth="110dp"

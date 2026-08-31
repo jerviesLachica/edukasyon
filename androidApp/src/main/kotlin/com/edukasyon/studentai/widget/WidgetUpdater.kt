@@ -72,7 +72,7 @@ object WidgetUpdater {
         WorkManager.getInstance(context.applicationContext)
             .enqueueUniqueWork(
                 ON_DEMAND_WORK_NAME,
-                ExistingWorkPolicy.KEEP,
+                ExistingWorkPolicy.REPLACE,
                 OneTimeWorkRequestBuilder<WidgetRefreshWorker>().build()
             )
     }

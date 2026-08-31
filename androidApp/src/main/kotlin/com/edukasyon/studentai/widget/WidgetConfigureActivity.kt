@@ -123,8 +123,16 @@ open class WidgetConfigureActivity(
                         )
                         WidgetBackgroundGenerator.invalidateCache()
                         WidgetSnapshotCache.invalidate(this, appWidgetId)
+                        // Pre-seed snapshot cache synchronously so Glance's cache-first
+                        // provideGlance hits instantly on first composition.
+                        kotlinx.coroutines.runBlocking {
+                            WidgetDataProvider.loadSnapshotFresh(
+                                this@WidgetConfigureActivity,
+                                appWidgetId,
+                                widgetSize
+                            )
+                        }
                         scope.launch {
-                            WidgetDataProvider.loadSnapshotFresh(this@WidgetConfigureActivity, appWidgetId, widgetSize)
                             WidgetUpdater.updateAppWidget(this@WidgetConfigureActivity, appWidgetId)
                             val saveResult = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                             setResult(RESULT_OK, saveResult)

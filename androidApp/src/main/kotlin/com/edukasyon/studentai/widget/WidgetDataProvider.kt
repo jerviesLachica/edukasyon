@@ -1,6 +1,7 @@
 package com.edukasyon.studentai.widget
 
 import android.content.Context
+import androidx.compose.ui.graphics.Color
 import com.edukasyon.studentai.core.util.DateUtils
 import com.edukasyon.studentai.core.util.TaskSorter
 import com.edukasyon.studentai.data.mapper.toDomain
@@ -31,6 +32,127 @@ object WidgetDataProvider {
         return WidgetSnapshotCache.read(context, appWidgetId)?.takeIf { cached ->
             cached.widgetSize == widgetSize
         }
+    }
+
+    /**
+     * Creates a skeleton/placeholder snapshot that loads instantly.
+     * Shows empty state while fresh data loads in background.
+     * Preserves user design preferences without blocking on DB queries.
+     */
+    fun createSkeletonSnapshot(
+        context: Context,
+        appWidgetId: Int,
+        widgetSize: WidgetSize
+    ): WidgetSnapshot {
+        try {
+            val entryPoint = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java)
+            val userPreferences = entryPoint.userPreferences()
+
+            val defaultType = when (widgetSize) {
+                WidgetSize.SMALL_2X2 -> WidgetDisplayType.TASKS
+                WidgetSize.TALL_2X3 -> WidgetDisplayType.COMBINED
+            }
+            val displayType = WidgetPreferences.getDisplayType(context, appWidgetId, defaultType)
+
+            val widgetAccent = WidgetPreferences.getAccentColorHex(context, appWidgetId)
+            val accentHex = widgetAccent
+                ?: UserPreferences.DEFAULT_PRIMARY_COLOR
+
+            val designPreset = WidgetPreferences.getDesignPreset(context, appWidgetId)
+            val designColors = WidgetPreferences.getResolvedDesignColors(context, appWidgetId)
+            val themeColors = widgetThemeFor(designPreset, designColors)
+
+            val today = Calendar.getInstance()
+            val dayName = SimpleDateFormat("EEEE", Locale.getDefault()).format(today.time)
+            val monthName = SimpleDateFormat("MMM", Locale.getDefault()).format(today.time)
+            val dayOfMonth = today.get(Calendar.DAY_OF_MONTH)
+
+            val taskLimit = when (widgetSize) {
+                WidgetSize.SMALL_2X2 -> 3
+                WidgetSize.TALL_2X3 -> 5
+            }
+            val scheduleLimit = when (widgetSize) {
+                WidgetSize.SMALL_2X2 -> 4
+                WidgetSize.TALL_2X3 -> 6
+            }
+
+            // Empty placeholders — UI shows loading shimmer
+            val taskItems = (0 until taskLimit).map { index ->
+                WidgetTaskItem(
+                    id = "skeleton_task_$index",
+                    title = "Loading...",
+                    subtitle = "",
+                    accentHex = accentForIndex(index, accentHex),
+                    isHighlighted = index == 0
+                )
+            }
+
+            val scheduleItems = (0 until scheduleLimit).map { index ->
+                WidgetScheduleItem(
+                    id = "skeleton_schedule_$index",
+                    title = "Loading...",
+                    timeRange = "",
+                    accentHex = accentForIndex(index, accentHex),
+                    isCurrent = false
+                )
+            }
+
+            return WidgetSnapshot(
+                dayName = dayName,
+                monthName = monthName,
+                dayOfMonth = dayOfMonth,
+                tasks = taskItems,
+                schedule = scheduleItems,
+                calendarDays = emptyList(),
+                calendarWeekdayLabels = listOf("S", "M", "T", "W", "T", "F", "S"),
+                moreCount = 0,
+                accentColorHex = accentHex,
+                isDarkTheme = false,
+                displayType = displayType,
+                widgetSize = widgetSize,
+                designPreset = designPreset,
+                designColors = designColors,
+                themeColors = themeColors,
+                currentTaskProgress = null,
+                currentTaskTimeLeft = null
+            )
+        } catch (e: Exception) {
+            // Fallback if preferences fail to load
+            return createEmptySnapshot(widgetSize)
+        }
+    }
+
+    private fun createEmptySnapshot(widgetSize: WidgetSize): WidgetSnapshot {
+        val today = Calendar.getInstance()
+        val dayName = SimpleDateFormat("EEEE", Locale.getDefault()).format(today.time)
+        val monthName = SimpleDateFormat("MMM", Locale.getDefault()).format(today.time)
+        return WidgetSnapshot(
+            dayName = dayName,
+            monthName = monthName,
+            dayOfMonth = today.get(Calendar.DAY_OF_MONTH),
+            tasks = emptyList(),
+            schedule = emptyList(),
+            calendarDays = emptyList(),
+            calendarWeekdayLabels = listOf("S", "M", "T", "W", "T", "F", "S"),
+            moreCount = 0,
+            accentColorHex = UserPreferences.DEFAULT_PRIMARY_COLOR,
+            isDarkTheme = false,
+            displayType = when (widgetSize) {
+                WidgetSize.SMALL_2X2 -> WidgetDisplayType.TASKS
+                WidgetSize.TALL_2X3 -> WidgetDisplayType.COMBINED
+            },
+            widgetSize = widgetSize,
+            designPreset = WidgetDesignPreset.MINIMAL,
+            designColors = WidgetDesignPreset.MINIMAL.defaultColors(),
+            themeColors = WidgetThemeColors(
+                onSurface = Color(0xFF1A1A1A),
+                muted = Color(0xFF6B7280),
+                card = Color.White,
+                isLightBackground = true
+            ),
+            currentTaskProgress = null,
+            currentTaskTimeLeft = null
+        )
     }
 
     private suspend fun buildSnapshot(

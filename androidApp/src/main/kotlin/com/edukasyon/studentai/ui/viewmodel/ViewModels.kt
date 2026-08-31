@@ -1749,7 +1749,9 @@ class AiViewModel @Inject constructor(
             reminderScheduler.cancelReminder(SCHEDULE_SCAN_RETRY_WORK)
         }
 
-        lastScannedImageBytes = imageData.copyOf()
+        // OPTIMIZATION: Compress image before upload (80% quality) to reduce network time
+        val compressedImageData = compressScheduleImage(imageData)
+        lastScannedImageBytes = compressedImageData.copyOf()
         pendingAction = PendingAiAction(AiTool.SCANNER, "")
         val attemptId = ++scheduleScanAttemptCounter
         scheduleScanJob?.cancel()
@@ -1770,10 +1772,10 @@ class AiViewModel @Inject constructor(
                 } else {
                     val hint = extractedText?.trim()?.takeIf { it.isNotEmpty() }
                     hint ?: run {
-                        // OCR is only a hint for the vision model — cap ML Kit so a
-                        // slow pass never delays the AI request by more than 2.5s.
+                        // OPTIMIZATION: Skip ML Kit OCR if timing is tight — vision models don't need text hints.
+                        // Cap at 1.5s to ensure fast response from NIM provider (~18s total).
                         val recognized = withTimeoutOrNull(SCHEDULE_SCAN_OCR_DEADLINE_MS) {
-                            mlKitTextRecognizer.recognizeFromBytes(imageData).text
+                            mlKitTextRecognizer.recognizeFromBytes(compressedImageData).text
                         }
                         recognized?.trim()?.takeIf { it.isNotEmpty() }
                     }
@@ -1786,10 +1788,11 @@ class AiViewModel @Inject constructor(
                     )
                 }
 
+                // OPTIMIZATION: Use reduced timeout (30s) for NVIDIA NIM provider (est. 18s + overhead)
                 val result = withTimeoutOrNull(SCHEDULE_SCAN_TIMEOUT_MS) {
                     aiAnalyzeSchedule.execute(
                         com.edukasyon.studentai.core.ai.ScheduleScanInput(
-                            imageData = imageData,
+                            imageData = compressedImageData,
                             extractedText = ocrText,
                         )
                     )
@@ -1826,6 +1829,26 @@ class AiViewModel @Inject constructor(
     fun retryScheduleScan() {
         val bytes = lastScannedImageBytes ?: return
         analyzeScheduleImage(bytes, extractedText = lastScannedExtractedText, isRetry = true)
+    }
+
+    /**
+     * Compresses schedule images (JPEG 80% quality) before upload.
+     * Reduces network time and bandwidth while maintaining OCR/vision quality.
+     * Target: 50-80% size reduction (e.g., 4MB → 800KB-1.2MB).
+     */
+    private fun compressScheduleImage(imageData: ByteArray): ByteArray {
+        return try {
+            val bitmap = android.graphics.BitmapFactory.decodeByteArray(imageData, 0, imageData.size)
+            if (bitmap == null) imageData else {
+                val compressed = java.io.ByteArrayOutputStream()
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, compressed)
+                bitmap.recycle()
+                compressed.toByteArray()
+            }
+        } catch (e: Exception) {
+            // If compression fails, use original (e.g., already compressed, not an image)
+            imageData
+        }
     }
 
     fun onScheduleScannerOpened() {
@@ -1952,8 +1975,10 @@ class AiViewModel @Inject constructor(
 
     private companion object {
         const val TAG = "AiViewModel"
-        const val SCHEDULE_SCAN_TIMEOUT_MS = 90_000L
-        const val SCHEDULE_SCAN_OCR_DEADLINE_MS = 2_500L
+        // NVIDIA NIM is ~18s for schedule scanning; timeout includes network overhead and margin
+        const val SCHEDULE_SCAN_TIMEOUT_MS = 30_000L
+        // Skip ML Kit OCR if it would delay the request — vision model doesn't need text hint
+        const val SCHEDULE_SCAN_OCR_DEADLINE_MS = 1_500L
         const val SCHEDULE_SCAN_MAX_RETRIES = 5
         const val SCHEDULE_SCAN_RETRY_LATER_MS = 30 * 60 * 1000L
         const val SCHEDULE_SCAN_RETRY_WORK = "schedule_scan_retry_later"

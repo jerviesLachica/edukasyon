@@ -32,8 +32,10 @@ abstract class BaseStudentAiWidget(
         WidgetPreferences.setWidgetSize(context, appWidgetId, widgetSize)
 
         val cached = WidgetDataProvider.loadCachedSnapshot(context, appWidgetId, widgetSize)
-        val snapshot = cached ?: WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
-
+        
+        // INSTANT LOAD: Show cached or skeleton immediately, load fresh data in background
+        val snapshot = cached ?: WidgetDataProvider.createSkeletonSnapshot(context, appWidgetId, widgetSize)
+        
         // Render the design bitmap off the main thread BEFORE composition — otherwise
         // WidgetBackgroundLayer draws pattern bitmaps synchronously during first paint.
         withContext(Dispatchers.Default) {
@@ -52,7 +54,8 @@ abstract class BaseStudentAiWidget(
             }
         }
 
-        if (cached != null && shouldRefreshCachedSnapshot(context, appWidgetId)) {
+        // Load fresh data in background if not cached or stale
+        if (cached == null || shouldRefreshCachedSnapshot(context, appWidgetId)) {
             WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
             update(context, id)
         }
