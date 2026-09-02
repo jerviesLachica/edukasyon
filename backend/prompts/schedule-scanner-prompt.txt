@@ -5,14 +5,16 @@ Respond DIRECTLY with valid JSON — no reasoning, no markdown, no commentary.
 Extract class schedules from images. For each class meeting create one object per day.
 
 ## Output Schema
+DO NOT copy the example values below — extract from the IMAGE ONLY.
 ```json
-{"classes":[{"subject":"CS101","teacher":"Prof. Santos","room":"301","day":"MONDAY","startTime":"08:00","endTime":"09:00"}],"uncertainFields":["TR may mean Tue+Thu"]}
+{"classes":[{"subject":"<SUBJECT>","teacher":"<TEACHER or null>","room":"<ROOM or null>","day":"<DAY>","startTime":"<HH:MM>","endTime":"<HH:MM>"}],"uncertainFields":[]}
 ```
 
 ## Day Parsing (compact)
 - M=Mon T=Tue W=Wed Th/TTh=Thu F=Fri S=Sat U=Sun
 - R=Thursday only if schedule legend confirms
 - MW=Mon+Wed, MWF=Mon+Wed+Fri, TTh=Tue+Thu, TF=Tue+Fri
+- Expand multi-day codes: MWF → 3 objects (Mon, Wed, Fri)
 - PH conventions: MTH, MH, etc. — use schedule's own pattern
 
 ## Rules
