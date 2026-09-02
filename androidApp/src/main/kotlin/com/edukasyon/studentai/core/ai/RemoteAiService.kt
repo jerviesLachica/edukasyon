@@ -11,6 +11,9 @@ import com.edukasyon.studentai.domain.model.Quiz
 import com.edukasyon.studentai.domain.model.StudyPlan
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import javax.inject.Inject
@@ -114,20 +117,22 @@ class RemoteAiService @Inject constructor(
         val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOpts)
             ?: return bytes
         return try {
+            // Fix EXIF rotation so gallery images are upright for the vision model.
+            val rotated = applyExifRotation(decoded, bytes)
             val ratio = min(
-                SCAN_MAX_DIMENSION.toFloat() / decoded.width,
-                SCAN_MAX_DIMENSION.toFloat() / decoded.height,
+                SCAN_MAX_DIMENSION.toFloat() / rotated.width,
+                SCAN_MAX_DIMENSION.toFloat() / rotated.height,
             )
             if (ratio >= 1f) {
                 // Decoded size is already under cap — re-encode at lower quality.
                 ByteArrayOutputStream().use { stream ->
-                    decoded.compress(Bitmap.CompressFormat.JPEG, SCAN_JPEG_QUALITY, stream)
+                    rotated.compress(Bitmap.CompressFormat.JPEG, SCAN_JPEG_QUALITY, stream)
                     stream.toByteArray()
                 }
             } else {
-                val newW = max(1, (decoded.width * ratio).toInt())
-                val newH = max(1, (decoded.height * ratio).toInt())
-                val scaled = Bitmap.createScaledBitmap(decoded, newW, newH, true)
+                val newW = max(1, (rotated.width * ratio).toInt())
+                val newH = max(1, (rotated.height * ratio).toInt())
+                val scaled = Bitmap.createScaledBitmap(rotated, newW, newH, true)
                 ByteArrayOutputStream().use { stream ->
                     scaled.compress(Bitmap.CompressFormat.JPEG, SCAN_JPEG_QUALITY, stream)
                     stream.toByteArray()
@@ -136,6 +141,37 @@ class RemoteAiService @Inject constructor(
         } finally {
             decoded.recycle()
         }
+    }
+
+    /**
+     * Reads the EXIF orientation tag from [bytes] and rotates [bitmap] accordingly.
+     * This fixes gallery images that are stored sideways due to camera sensor orientation.
+     */
+    private fun applyExifRotation(bitmap: Bitmap, bytes: ByteArray): Bitmap {
+        val orientation = try {
+            val exif = ExifInterface(ByteArrayInputStream(bytes))
+            exif.getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL
+            )
+        } catch (_: Exception) {
+            ExifInterface.ORIENTATION_NORMAL
+        }
+        if (orientation == ExifInterface.ORIENTATION_NORMAL) return bitmap
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90  -> matrix.postRotate(90f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.preScale(-1f, 1f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL   -> matrix.preScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE      -> { matrix.postRotate(90f); matrix.preScale(-1f, 1f) }
+            ExifInterface.ORIENTATION_TRANSVERSE     -> { matrix.postRotate(270f); matrix.preScale(-1f, 1f) }
+            else -> return bitmap
+        }
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        if (rotated !== bitmap) bitmap.recycle()
+        return rotated
     }
 
     /**
