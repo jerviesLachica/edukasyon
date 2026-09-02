@@ -411,9 +411,9 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
   }
 
   if (!parsed) {
-    console.error('[schedule-analysis] Parsing failed.');
     const full = (completion.reply || completion.reasoning || '');
-    console.error('[schedule-analysis] RAW OUTPUT:', full);
+    console.error('[schedule-analysis] Parsing failed. RAW OUTPUT:', full);
+    console.error('[schedule-analysis] model:', completion.model, 'reasoning present:', !!completion.reasoning, 'reply length:', (completion.reply || '').length);
     throw lastErr || new Error('AI returned no parsable JSON');
   }
   return {
