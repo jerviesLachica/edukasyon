@@ -10,13 +10,15 @@ const ENDPOINT_DEFAULTS = {
     dailyQuota: 100,
     hourlyQuota: 30,
     maxOutputTokens: 2048,
+    requestTimeoutMs: 90_000,
   },
   'schedule-analysis': {
     rateLimitPerMin: 3,
     burstPerMin: 5,
     dailyQuota: 20,
     hourlyQuota: 10,
-    maxOutputTokens: 1500,
+    maxOutputTokens: 8192,
+    requestTimeoutMs: 300_000,
   },
   summarize: {
     rateLimitPerMin: 5,

@@ -162,7 +162,8 @@ class AiSafetyGateway {
       );
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), this.policy.requestTimeoutMs);
+      const timeoutMs = endpointPolicy.requestTimeoutMs ?? this.policy.requestTimeoutMs;
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       let result;
       try {
