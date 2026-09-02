@@ -3,7 +3,7 @@
  * System prompt kept under 500 chars to minimize input tokens and latency.
  */
 
-const SCHEDULE_SCANNER_SYSTEM_PROMPT = `Extract ALL schedule rows into JSON. Respond directly, no prose, no markdown, no fences.
+const SCHEDULE_SCANNER_SYSTEM_PROMPT = `Extract ALL schedule rows into JSON. Respond directly, no prose, no markdown, no fences. Iterate day by day, then class by class.
 {"classes":[{"subject":"Math","room":"TBA","day":"MONDAY","startTime":"09:00","endTime":"10:30"}],"uncertainFields":[]}
 Day codes: M=Mon T=Tue W=Wed Th=Thu F=Fri S=Sat U=Sun. MWF=Mon+Wed+Fri, TTh=Tue+Thu, MW=Mon+Wed. Add 1hr if end missing. Extract every row. None: {"classes":[],"uncertainFields":["all"]}`.trim();
 

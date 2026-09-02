@@ -416,6 +416,8 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
     console.error('[schedule-analysis] model:', completion.model, 'reasoning present:', !!completion.reasoning, 'reply length:', (completion.reply || '').length);
     throw lastErr || new Error('AI returned no parsable JSON');
   }
+  // Log success with class count for observability
+  console.log(`[schedule-analysis] OK: extracted ${parsed.classes.length} classes. Model: ${completion.model}, reasoning length: ${(completion.reasoning || '').length}, reply length: ${(completion.reply || '').length}`);
   return {
     classes: parsed.classes || [],
     uncertainFields: parsed.uncertainFields || [],
