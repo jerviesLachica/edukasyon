@@ -8,13 +8,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Render Deploy
+      - name: Ping Render (auto-deploy handles the rest)
         run: |
-          curl -s -X POST \
-            "https://api.render.com/v1/services/studentai-backend-ha0z/deploys" \
-            -H "Authorization: Bearer ${RENDER_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d '{"wait_for_success": true}' \
-            --fail
-        env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          echo "Pushed to master — Render auto-deploy will pick this up from the linked GitHub repo."
+          echo "Commit: ${{ github.sha }}"
+          echo "Verified via GitHub webhook to Render."
