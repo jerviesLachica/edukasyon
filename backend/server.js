@@ -371,21 +371,45 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
   const ocrContext = extractedText?.trim() && extractedText.trim().length < 500
     ? `\n\nOCR text (hint only — image is source of truth):\n${extractedText.trim().slice(0, 400)}`
     : '';
-  const content = await ai.chatCompletionText(
-    [
-      { role: 'system', content: SCHEDULE_SCANNER_SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: SCHEDULE_SCANNER_USER_MESSAGE + ocrContext },
-          buildVisionImagePart(imageBase64, detectImageMimeFromBase64(imageBase64)),
-        ],
-      },
-    ],
-    { temperature: 0, maxTokens, model, isVision: true, signal, responseFormat: { type: 'json_object' }, reasoning: 'none' }
-  );
+  // Use the raw chatCompletion so we keep `reasoning` (step-3.7-flash and similar
+  // models put the structured JSON in the reasoning channel when response_format
+  // is requested and leave `content` empty).
+  const messages = [
+    { role: 'system', content: SCHEDULE_SCANNER_SYSTEM_PROMPT },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: SCHEDULE_SCANNER_USER_MESSAGE + ocrContext },
+        buildVisionImagePart(imageBase64, detectImageMimeFromBase64(imageBase64)),
+      ],
+    },
+  ];
+  const completion = await ai.chatCompletion(messages, {
+    temperature: 0,
+    maxTokens,
+    model,
+    isVision: true,
+    signal,
+    responseFormat: { type: 'json_object' },
+    reasoning: 'none',
+  });
 
-  const parsed = ai.extractJson(content);
+  // Try the content reply first, then reasoning as fallback for models that
+  // return JSON in the reasoning channel.
+  let parsed;
+  try {
+    parsed = ai.extractJson(completion.reply);
+  } catch (replyErr) {
+    if (completion.reasoning) {
+      try {
+        parsed = ai.extractJson(completion.reasoning);
+      } catch (reasoningErr) {
+        throw replyErr;
+      }
+    } else {
+      throw replyErr;
+    }
+  }
   return {
     classes: parsed.classes || [],
     uncertainFields: parsed.uncertainFields || [],
