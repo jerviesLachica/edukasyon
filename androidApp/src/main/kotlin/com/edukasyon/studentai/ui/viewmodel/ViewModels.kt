@@ -349,6 +349,7 @@ class ScheduleViewModel @Inject constructor(
     private val deleteScheduleItem: DeleteScheduleItemUseCase,
     private val holidayRepo: com.edukasyon.studentai.data.repository.HolidayRepository,
     private val saveCalendarEvent: SaveCalendarEventUseCase,
+    private val syncScheduler: com.edukasyon.studentai.core.sync.SyncScheduler,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ScheduleUiState())
     val uiState: StateFlow<ScheduleUiState> = _uiState.asStateFlow()
@@ -405,13 +406,23 @@ class ScheduleViewModel @Inject constructor(
 
     fun selectDay(day: DayOfWeek) { _uiState.update { it.copy(selectedDay = day) } }
     fun setViewMode(mode: String) { _uiState.update { it.copy(viewMode = mode) } }
-    fun addClass(item: ScheduleItem) { viewModelScope.launch { addScheduleItem.execute(item) } }
-    fun updateClass(item: ScheduleItem) { viewModelScope.launch { updateScheduleItem.execute(item) } }
-    fun deleteClass(id: String) { viewModelScope.launch { deleteScheduleItem.execute(id) } }
+    fun addClass(item: ScheduleItem) {
+        viewModelScope.launch { addScheduleItem.execute(item) }
+        syncScheduler.scheduleImmediateSync()
+    }
+    fun updateClass(item: ScheduleItem) {
+        viewModelScope.launch { updateScheduleItem.execute(item) }
+        syncScheduler.scheduleImmediateSync()
+    }
+    fun deleteClass(id: String) {
+        viewModelScope.launch { deleteScheduleItem.execute(id) }
+        syncScheduler.scheduleImmediateSync()
+    }
 
     fun moveClassToDay(item: ScheduleItem, targetDay: DayOfWeek): String? {
         if (item.dayOfWeek == targetDay) return null
         viewModelScope.launch { updateScheduleItem.execute(item.copy(dayOfWeek = targetDay)) }
+        syncScheduler.scheduleImmediateSync()
         return "Moved to ${targetDay.displayName}"
     }
 
@@ -421,6 +432,7 @@ class ScheduleViewModel @Inject constructor(
             dayOfWeek = targetDay,
         )
         viewModelScope.launch { addScheduleItem.execute(copy) }
+        syncScheduler.scheduleImmediateSync()
         return if (targetDay == item.dayOfWeek) {
             "Class duplicated — drag to move"
         } else {
