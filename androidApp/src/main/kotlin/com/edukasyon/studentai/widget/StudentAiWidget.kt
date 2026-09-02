@@ -54,10 +54,12 @@ abstract class BaseStudentAiWidget(
             }
         }
 
-        // Load fresh data in background if not cached or stale
+        // Load fresh data in background if cached is null or stale. Re-render the widget
+        // once the fresh snapshot is ready using updateAll (reliable across glance versions)
+        // rather than calling update() against the original GlanceId, which can be a no-op
+        // or race with the just-finished provideContent call.
         if (cached == null || shouldRefreshCachedSnapshot(context, appWidgetId)) {
-            WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
-            update(context, id)
+            WidgetUpdater.notifyDataChanged(context)
         }
     }
 
