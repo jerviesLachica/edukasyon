@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,6 +24,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -150,18 +153,36 @@ fun ProfileScreen(
         contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // ===== HERO GRADIENT CARD =====
         item {
             val profileSubtitle = buildList {
                 state.user?.school?.takeIf { it.isNotBlank() }?.let { add(it) }
                 state.user?.preferredStatus?.takeIf { it.isNotBlank() }?.let { add(it) }
             }.joinToString(" · ").ifBlank { "SchedMate profile" }
+            val displayName = state.user?.displayName ?: "Guest Student"
+            val initial = displayName.firstOrNull()?.uppercase() ?: "S"
 
             GradientHeader(
                 modifier = Modifier.clickable(onClick = viewModel::openEditSheet),
-                title = state.user?.displayName ?: "Guest Student",
+                title = displayName,
                 subtitle = profileSubtitle,
                 trailing = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Version pill
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.22f),
+                        ) {
+                            Text(
+                                text = "v${com.edukasyon.studentai.BuildConfig.VERSION_NAME}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            )
+                        }
                         IconButton(onClick = viewModel::openEditSheet) {
                             Icon(
                                 Icons.Default.Edit,
@@ -169,54 +190,181 @@ fun ProfileScreen(
                                 tint = MaterialTheme.colorScheme.onPrimary,
                             )
                         }
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Default.Person,
-                                    null,
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(22.dp),
-                                )
-                            }
-                        }
                     }
                 },
                 bottomContent = {
-                    state.user?.bio?.takeIf { it.isNotBlank() }?.let { bio ->
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = bio,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    if (!state.canEditProfile) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = "You can update your profile again in ${state.daysUntilNextEdit} day(s)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f),
-                        )
+                    Row(
+                        modifier = Modifier.padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Avatar circle with initial
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = initial,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            state.user?.bio?.takeIf { it.isNotBlank() }?.let { bio ->
+                                Text(
+                                    text = bio,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (!state.canEditProfile) {
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    text = "Next edit in ${state.daysUntilNextEdit}d",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f),
+                                )
+                            }
+                        }
                     }
                 }
             )
         }
 
+        // ===== QUICK ACTIONS ROW =====
         item {
-            SettingsRow(
-                title = "Settings",
-                subtitle = "App preferences, notifications, and version",
-                trailing = {
-                    TextButton(onClick = onNavigateSettings) {
-                        Text("Open")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                QuickActionCard(
+                    icon = Icons.Default.Settings,
+                    label = "Settings",
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateSettings,
+                )
+                QuickActionCard(
+                    icon = Icons.Default.Notifications,
+                    label = "Alerts",
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateNotificationSettings,
+                )
+                QuickActionCard(
+                    icon = Icons.Default.HelpOutline,
+                    label = "Help",
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateFeaturesGuide,
+                )
+            }
+        }
+
+        // ===== ACCOUNT SECTION =====
+        item {
+            SettingsGroup(title = "Account") {
+                SettingsRow(
+                    title = "Sync to Google Calendar",
+                    subtitle = "Push your schedule to your default calendar",
+                    trailing = {
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
+                )
+                androidx.compose.material3.HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+                SettingsRow(
+                    title = "Backup & restore",
+                    subtitle = "Export or import your data (JSON)",
+                    trailing = {
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                )
+                androidx.compose.material3.HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+                SettingsRow(
+                    title = if (state.isGoogleSignedIn) "Google account linked" else "Sign in with Google",
+                    subtitle = state.firebaseEmail ?: "Sync across devices",
+                    trailing = {
+                        Icon(
+                            if (state.isGoogleSignedIn) Icons.Default.CheckCircle else Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = if (state.isGoogleSignedIn) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                )
+            }
+        }
+
+        // ===== FOOTER =====
+        item {
+            Text(
+                text = "SchedMate v${com.edukasyon.studentai.BuildConfig.VERSION_NAME} · made for students",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuickActionCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier.clickable(onClick = onClick),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                modifier = Modifier.size(40.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
                 }
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
     }

@@ -22,24 +22,32 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import com.edukasyon.studentai.ui.components.StarfieldScaffold
-import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,15 +57,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.edukasyon.studentai.ui.components.StarfieldScaffold
+import com.edukasyon.studentai.ui.theme.StudentAiGradients
+import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import com.edukasyon.studentai.ui.theme.StudentAiTheme
 import com.edukasyon.studentai.domain.model.ThemeMode
 import com.edukasyon.studentai.ui.theme.parseHexColor
 import kotlinx.coroutines.launch
+
+// ─── Simple vector icons (avoids adding material-icons-extended dep) ───────────
+
+// ─── Result & Activity ─────────────────────────────────────────────────────────
 
 data class WidgetConfigureResult(
     val displayType: WidgetDisplayType,
@@ -123,8 +141,6 @@ open class WidgetConfigureActivity(
                         )
                         WidgetBackgroundGenerator.invalidateCache()
                         WidgetSnapshotCache.invalidate(this, appWidgetId)
-                        // Pre-seed snapshot cache synchronously so Glance's cache-first
-                        // provideGlance hits instantly on first composition.
                         kotlinx.coroutines.runBlocking {
                             WidgetDataProvider.loadSnapshotFresh(
                                 this@WidgetConfigureActivity,
@@ -149,6 +165,8 @@ open class WidgetConfigureActivity(
 class WidgetConfigureActivity2x2 : WidgetConfigureActivity(WidgetSize.SMALL_2X2)
 
 class WidgetConfigureActivity2x3 : WidgetConfigureActivity(WidgetSize.TALL_2X3)
+
+// ─── Screen ────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -184,12 +202,78 @@ private fun WidgetConfigureScreen(
             containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    title = { Text("Configure Widget") },
+                    title = {
+                        Text(
+                            "Configure Widget",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = onCancel,
+                            colors = IconButtonDefaults.iconButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onBackground
+                            )
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                    },
+                    actions = {
+                        TextButton(
+                            onClick = {
+                                onSave(
+                                    WidgetConfigureResult(
+                                        displayType = selectedType,
+                                        accentHex = selectedAccent,
+                                        designPreset = selectedDesign,
+                                        designColor1 = designColor1,
+                                        designColor2 = designColor2,
+                                        designColor3 = designColor3
+                                    )
+                                )
+                            },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Text("Save", style = MaterialTheme.typography.labelLarge)
+                        }
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
-                        titleContentColor = MaterialTheme.colorScheme.onBackground,
                     ),
                 )
+            },
+            bottomBar = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(StudentAiGradients.meshBackgroundBrush())
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            onSave(
+                                WidgetConfigureResult(
+                                    displayType = selectedType,
+                                    accentHex = selectedAccent,
+                                    designPreset = selectedDesign,
+                                    designColor1 = designColor1,
+                                    designColor2 = designColor2,
+                                    designColor3 = designColor3
+                                )
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = StudentAiShapes.button,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        ),
+                    ) {
+                        Text("Save widget", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
             }
         ) { padding ->
             Column(
@@ -200,7 +284,8 @@ private fun WidgetConfigureScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                ConfigureSectionCard {
+                // ── Intro card with gradient tint ──────────────────────────────────
+                ConfigureSectionCard(isIntro = true) {
                     Text(
                         text = when (widgetSize) {
                             WidgetSize.SMALL_2X2 -> "2×2 widget — pick content, design, and accent"
@@ -211,6 +296,7 @@ private fun WidgetConfigureScreen(
                     )
                 }
 
+                // ── Design presets ───────────────────────────────────────────────
                 ConfigureSectionCard(title = "Design") {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -257,6 +343,7 @@ private fun WidgetConfigureScreen(
                     }
                 }
 
+                // ── Content type ───────────────────────────────────────────────
                 ConfigureSectionCard(title = "Content") {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         typeOptions.forEach { type ->
@@ -281,19 +368,26 @@ private fun WidgetConfigureScreen(
                     }
                 }
 
+                // ── Accent color ─────────────────────────────────────────────────
                 ConfigureSectionCard(title = "Accent color") {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         WidgetAccentPresets.presets.forEach { (hex, label) ->
                             val color = parseHexColor(hex) ?: Color.Gray
                             val selected = selectedAccent == hex
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Box(
                                     modifier = Modifier
-                                        .size(40.dp)
+                                        .size(42.dp)
+                                        .shadow(
+                                            elevation = if (selected) 4.dp else 1.dp,
+                                            shape = CircleShape,
+                                            ambientColor = color.copy(alpha = if (selected) 0.5f else 0f),
+                                            spotColor = color.copy(alpha = if (selected) 0.4f else 0f),
+                                        )
                                         .clip(CircleShape)
                                         .background(color)
                                         .border(
-                                            width = if (selected) 3.dp else 1.dp,
+                                            width = if (selected) 3.dp else 1.5.dp,
                                             color = if (selected) {
                                                 MaterialTheme.colorScheme.primary
                                             } else {
@@ -303,12 +397,29 @@ private fun WidgetConfigureScreen(
                                         )
                                         .clickable { selectedAccent = hex },
                                     contentAlignment = Alignment.Center
-                                ) {}
-                                Text(label, style = MaterialTheme.typography.labelSmall)
+                                ) {
+                                    if (selected) {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (selected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
                             }
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         "Minimal uses a light card layout. Pattern designs use light text on dark backgrounds for readability.",
                         style = MaterialTheme.typography.bodySmall,
@@ -316,60 +427,64 @@ private fun WidgetConfigureScreen(
                     )
                 }
 
-                Button(
-                    onClick = {
-                        onSave(
-                            WidgetConfigureResult(
-                                displayType = selectedType,
-                                accentHex = selectedAccent,
-                                designPreset = selectedDesign,
-                                designColor1 = designColor1,
-                                designColor2 = designColor2,
-                                designColor3 = designColor3
-                            )
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = StudentAiShapes.button,
-                ) {
-                    Text("Save widget")
-                }
-                OutlinedButton(
-                    onClick = onCancel,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = StudentAiShapes.button,
-                ) {
-                    Text("Cancel")
-                }
+                // Bottom spacer for the sticky bar
+                Spacer(Modifier.height(8.dp))
             }
         }
     }
 }
 
+// ─── Section Card ─────────────────────────────────────────────────────────────
+
 @Composable
 private fun ConfigureSectionCard(
     title: String? = null,
+    isIntro: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = StudentAiShapes.dashboard,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+            containerColor = when {
+                isIntro -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f)
+                else -> MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.96f)
+            },
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (title != null) {
-                Text(title, style = MaterialTheme.typography.titleSmall)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Left accent strip
+                    Box(
+                        modifier = Modifier
+                            .width(3.dp)
+                            .height(16.dp)
+                            .background(
+                                MaterialTheme.colorScheme.primary,
+                                RoundedCornerShape(2.dp)
+                            )
+                    )
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
             content()
         }
     }
 }
+
+// ─── Design Preset Card ───────────────────────────────────────────────────────
 
 @Composable
 private fun DesignPresetCard(
@@ -389,31 +504,86 @@ private fun DesignPresetCard(
         )
     }
 
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .fillMaxWidth()
+            .shadow(
+                elevation = if (selected) 4.dp else 1.dp,
+                shape = RoundedCornerShape(16.dp),
+                ambientColor = if (selected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                } else Color.Black.copy(alpha = 0.04f),
+                spotColor = if (selected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                } else Color.Black.copy(alpha = 0.06f),
+            )
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                if (selected) {
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f)
+                },
+                RoundedCornerShape(16.dp)
+            )
             .border(
                 width = if (selected) 2.dp else 1.dp,
                 color = if (selected) {
                     MaterialTheme.colorScheme.primary
                 } else {
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                 },
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             )
             .clickable(onClick = onClick)
-            .padding(8.dp)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        DesignPreviewImage(previewBitmap)
-        Spacer(Modifier.height(6.dp))
-        Text(design.displayName, style = MaterialTheme.typography.labelMedium)
-        Text(
-            design.description,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2
-        )
+        // Preview thumbnail
+        Box {
+            DesignPreviewImage(previewBitmap)
+            // Selected checkmark badge
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(20.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = Color.White,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
+        }
+
+        // Name and description
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(
+                design.displayName,
+                style = MaterialTheme.typography.titleSmall,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
+            )
+            Text(
+                design.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                modifier = Modifier.widthIn(max = 180.dp)
+            )
+        }
     }
 }
 
@@ -425,9 +595,11 @@ private fun DesignPreviewImage(bitmap: Bitmap) {
         contentScale = ContentScale.Crop,
         modifier = Modifier
             .size(72.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(12.dp))
     )
 }
+
+// ─── Design Color Overrides ───────────────────────────────────────────────────
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -444,7 +616,7 @@ private fun DesignColorOverrides(
     val defaults = design.defaultColors()
     val resolved = defaults.resolved(color1, color2, color3)
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             "Tap a swatch to customize. Defaults are restored when you pick Minimal.",
             style = MaterialTheme.typography.bodySmall,
@@ -493,24 +665,64 @@ private fun DesignColorRow(
     presets: List<String>,
     onSelected: (String?) -> Unit
 ) {
+    var currentSelected by remember(selectedHex) { mutableStateOf(selectedHex) }
+
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             presets.distinct().forEach { hex ->
                 val color = parseHexColor(hex) ?: return@forEach
-                val selected = selectedHex.equals(hex, ignoreCase = true)
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(color)
-                        .border(
-                            width = if (selected) 3.dp else 1.dp,
-                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                            shape = CircleShape
+                val isSelected = currentSelected.equals(hex, ignoreCase = true)
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .shadow(
+                                elevation = if (isSelected) 4.dp else 1.dp,
+                                shape = CircleShape,
+                                ambientColor = color.copy(alpha = if (isSelected) 0.35f else 0f),
+                                spotColor = color.copy(alpha = if (isSelected) 0.28f else 0f),
+                            )
+                            .clip(CircleShape)
+                            .background(color)
+                            .border(
+                                width = if (isSelected) 3.dp else 1.dp,
+                                color = if (isSelected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                },
+                                shape = CircleShape
+                            )
+                            .clickable {
+                                currentSelected = hex
+                                onSelected(hex)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isSelected) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    // Hex label shown only for the selected swatch
+                    if (isSelected) {
+                        Text(
+                            hex.uppercase().removePrefix("#").take(6),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.widthIn(max = 40.dp)
                         )
-                        .clickable { onSelected(hex) }
-                )
+                    }
+                }
             }
         }
     }

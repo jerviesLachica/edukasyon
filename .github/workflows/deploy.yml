@@ -9,7 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Render Deploy
-        uses: bryaneaton13/render-deploy-action@v1.0.0
-        with:
-          service-id: ${{ secrets.RENDER_SERVICE_ID }}
-          api-key: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          curl -s -X POST \
+            "https://api.render.com/v1/services/studentai-backend-ha0z/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"wait_for_success": true}' \
+            --fail
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
