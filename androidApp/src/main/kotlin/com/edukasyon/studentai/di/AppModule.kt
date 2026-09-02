@@ -160,29 +160,49 @@ object NetworkModule {
     }
 }
 
+// Hilt consumes @Module classes via the annotation processor at compile time,
+// so the IDE's "unused declaration" inspection reports false positives here.
+@Suppress("unused")
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindUserRepo(impl: UserRepositoryImpl): UserRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindScheduleRepo(impl: ScheduleRepositoryImpl): ScheduleRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindTaskRepo(impl: TaskRepositoryImpl): TaskRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindAssignmentRepo(impl: AssignmentRepositoryImpl): AssignmentRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindExamRepo(impl: ExamRepositoryImpl): ExamRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindNoteRepo(impl: NoteRepositoryImpl): NoteRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindGradeRepo(impl: GradeRepositoryImpl): GradeRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindSubjectRepo(impl: SubjectRepositoryImpl): SubjectRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindCalendarRepo(impl: CalendarRepositoryImpl): CalendarRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindFlashcardRepo(impl: FlashcardRepositoryImpl): FlashcardRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindJeviRepo(impl: JeviRepositoryImpl): JeviRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindQuizRepo(impl: QuizRepositoryImpl): QuizRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindAiConversationRepo(impl: AiConversationRepositoryImpl): AiConversationRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindSearchRepo(impl: SearchRepositoryImpl): SearchRepository
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindLectureFileRepo(impl: LectureFileRepositoryImpl): LectureFileRepository
 }
 
+@Suppress("unused")
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class AiModule {
+    @Suppress("unused")
     @Binds @Singleton abstract fun bindAiService(impl: AiServiceProvider): AiService
 }
 

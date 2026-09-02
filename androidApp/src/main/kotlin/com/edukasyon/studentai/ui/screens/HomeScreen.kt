@@ -94,12 +94,7 @@ fun HomeScreen(
                 )
             }
 
-            item {
-                AcademicOverviewCard(
-                    overview = state.academicOverview,
-                    modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 8.dp),
-                )
-            }
+            
 
             item {
                 Row(
@@ -880,3 +875,4 @@ private fun homePastelOrangeContent(isDark: Boolean): Color = if (isDark) {
 } else {
     Color(0xFFE65100)
 }
+

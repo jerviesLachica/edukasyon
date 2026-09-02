@@ -5,7 +5,8 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 
 interface HolidayApi {
-    @GET("api/v4/PublicHolidays/{year}/PH")
+    // Nager.Date serves PublicHolidays under v3 — v4 returns 404 for this endpoint.
+    @GET("api/v3/PublicHolidays/{year}/PH")
     suspend fun getPublicHolidays(@Path("year") year: Int): List<NagerHolidayDto>
 }
 

@@ -26,11 +26,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.edukasyon.studentai.core.util.DateUtils
 import com.edukasyon.studentai.domain.model.Exam
 import com.edukasyon.studentai.domain.model.JeviDeck
 import com.edukasyon.studentai.domain.model.Subject
+import com.edukasyon.studentai.ui.theme.StudentAiTheme
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -254,4 +256,52 @@ fun ExamEditDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ExamEditDialogAddPreview() {
+    StudentAiTheme {
+        ExamEditDialog(
+            subjects = listOf(
+                Subject("1", "Mathematics", "MATH101", "Dr. Smith", "#4F46E5", "1", "2024"),
+                Subject("2", "Physics", "PHYS102", "Dr. Brown", "#06B6D4", "1", "2024")
+            ),
+            decks = listOf(
+                JeviDeck("d1", "Calculus I", null, "1", null, "#4F46E5", 0L, 0L),
+                JeviDeck("d2", "Mechanics", null, "2", null, "#06B6D4", 0L, 0L)
+            ),
+            onDismiss = {},
+            onSave = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ExamEditDialogEditPreview() {
+    StudentAiTheme {
+        ExamEditDialog(
+            existingExam = Exam(
+                id = "e1",
+                title = "Midterm Exam",
+                subjectId = "1",
+                linkedDeckId = "d1",
+                examDate = System.currentTimeMillis(),
+                examTime = "10:00 AM",
+                location = "Room 302",
+                coverage = "Chapters 1-5",
+                notes = "Bring calculator",
+                reminderAt = null
+            ),
+            subjects = listOf(
+                Subject("1", "Mathematics", "MATH101", "Dr. Smith", "#4F46E5", "1", "2024")
+            ),
+            decks = listOf(
+                JeviDeck("d1", "Calculus I", null, "1", null, "#4F46E5", 0L, 0L)
+            ),
+            onDismiss = {},
+            onSave = {}
+        )
+    }
 }

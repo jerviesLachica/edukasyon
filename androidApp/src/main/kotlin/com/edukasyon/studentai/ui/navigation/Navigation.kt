@@ -69,6 +69,7 @@ object Routes {
     const val CALENDAR = "calendar"
     const val NOTES = "notes"
     const val FEATURES_GUIDE = "features-guide"
+    const val SETTINGS = "settings"
     const val SEARCH = "search"
     const val NOTIFICATION_SETTINGS = "notification_settings"
     const val NOTIFICATION_SETTINGS_DETAIL = "notification_settings_detail"
@@ -95,6 +96,7 @@ fun routeToSelectedTab(route: String?): MainTab? {
             route == Routes.JEVI_QUIZ -> MainTab.JEVI
         route.startsWith("ai_conversation_history/") -> MainTab.JEVI
         route == Routes.FEATURES_GUIDE -> MainTab.PROFILE
+        route == Routes.SETTINGS -> MainTab.PROFILE
         route == Routes.NOTIFICATION_SETTINGS || route == Routes.NOTIFICATION_SETTINGS_DETAIL -> MainTab.PROFILE
         route == Routes.CHANGELOG -> MainTab.PROFILE
         route == Routes.LECTURE_FILES || route == Routes.NOTES -> MainTab.HOME

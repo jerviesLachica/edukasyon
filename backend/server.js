@@ -112,9 +112,9 @@ const usageTracker = gateway.usageTracker;
 // Firestore → null (fall back to the default provider). Base URL and model
 // have safe defaults.
 const scanProviderConfig = require('./config/ScanProviderConfig');
-// Benchmarked 2026-08-24: ~18s with clean JSON, vs 56-101s for llama-3.2 vision models.
-const SCAN_VISION_MODEL_DEFAULT = 'nvidia/nemotron-nano-12b-v2-vl';
-const SCAN_BASE_URL_DEFAULT = 'https://integrate.api.nvidia.com/v1';
+// NVIDIA nemotron-nano-12b-v2-vl EOL 2026-08-26 → fallback to hcnsec.cn step-3.7-flash
+const SCAN_VISION_MODEL_DEFAULT = 'step-3.7-flash';
+const SCAN_BASE_URL_DEFAULT = 'https://api.hcnsec.cn/v1';
 
 async function resolveScanProvider() {
   if (process.env.SCAN_AI_API_KEY || process.env.SCAN_AI_BASE_URL) {

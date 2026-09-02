@@ -28,7 +28,10 @@ class SyncWorker @AssistedInject constructor(
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         return when (val outcome = firestoreSyncService.syncAll()) {
-            is SyncResult.Success -> Result.success()
+            is SyncResult.Success -> {
+                com.edukasyon.studentai.widget.WidgetUpdater.notifyDataChanged(applicationContext)
+                Result.success()
+            }
             is SyncResult.Offline -> Result.retry()
             is SyncResult.NotAuthenticated -> Result.success()
             is SyncResult.Error -> Result.retry()

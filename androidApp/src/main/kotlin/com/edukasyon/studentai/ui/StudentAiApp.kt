@@ -16,6 +16,7 @@ import com.edukasyon.studentai.data.preferences.UserPreferences
 import com.edukasyon.studentai.ui.adaptive.AdaptiveScaffold
 import com.edukasyon.studentai.ui.components.LoadingScreen
 import com.edukasyon.studentai.ui.components.StarfieldScaffold
+import com.edukasyon.studentai.ui.components.StudentAiSnackbarHost
 import com.edukasyon.studentai.ui.navigation.MainTab
 import com.edukasyon.studentai.ui.navigation.Routes
 import com.edukasyon.studentai.ui.navigation.mainTabComposable
@@ -100,16 +101,29 @@ fun StudentAiAppContent(
                 }
             }
             onboardingComplete -> {
-                StarfieldScaffold {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = Color.Transparent,
-                        contentColor = MaterialTheme.colorScheme.onBackground,
-                    ) {
-                        MainNavigation(
-                            initialTabRoute = initialTabRoute,
-                            onInitialTabConsumed = onInitialTabConsumed,
-                        )
+                val welcomeBackMessage by viewModel.welcomeBackMessage.collectAsStateWithLifecycle()
+                val snackbarHostState = remember { SnackbarHostState() }
+                LaunchedEffect(welcomeBackMessage) {
+                    welcomeBackMessage?.let { message ->
+                        snackbarHostState.showSnackbar(message)
+                        viewModel.dismissWelcomeBack()
+                    }
+                }
+                Scaffold(
+                    snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
+                    containerColor = Color.Transparent,
+                ) { padding ->
+                    StarfieldScaffold {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = Color.Transparent,
+                            contentColor = MaterialTheme.colorScheme.onBackground,
+                        ) {
+                            MainNavigation(
+                                initialTabRoute = initialTabRoute,
+                                onInitialTabConsumed = onInitialTabConsumed,
+                            )
+                        }
                     }
                 }
             }
@@ -210,7 +224,16 @@ fun MainNavigation(
                 ProfileScreen(
                     onNavigateFeaturesGuide = { navController.navigate(Routes.FEATURES_GUIDE) },
                     onNavigateNotificationSettings = { navController.navigate(Routes.NOTIFICATION_SETTINGS) },
+                    onNavigateSettings = { navController.navigate(Routes.SETTINGS) },
                     onRequestNotificationPermission = { /* handled in ProfileScreen */ }
+                )
+            }
+            composable(Routes.SETTINGS) {
+                SettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToFeaturesGuide = { navController.navigate(Routes.FEATURES_GUIDE) },
+                    onNavigateToNotificationSettings = { navController.navigate(Routes.NOTIFICATION_SETTINGS) },
+                    onNavigateChangelog = { navController.navigate(Routes.CHANGELOG) },
                 )
             }
             composable(Routes.NOTIFICATION_SETTINGS) {

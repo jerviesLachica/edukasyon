@@ -26,6 +26,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.provider.CalendarContract
+import com.edukasyon.studentai.BuildConfig
+import com.edukasyon.studentai.core.sync.createCalendarIntent
+import com.edukasyon.studentai.core.sync.getDummyScheduleItemsForNext7Days
 import com.edukasyon.studentai.domain.model.AiModel
 import com.edukasyon.studentai.domain.model.PreferredStudentStatus
 import com.edukasyon.studentai.domain.model.ProfileEditPolicy
@@ -48,6 +52,7 @@ fun ProfileScreen(
     onNavigateNotificationSettings: () -> Unit = {},
     onRequestNotificationPermission: () -> Unit = {},
     onNavigateChangelog: () -> Unit = {},
+    onNavigateSettings: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -82,6 +87,14 @@ fun ProfileScreen(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) { result ->
         viewModel.handleGoogleSignInResult(result.data)
+    }
+
+    val calendarSyncLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            android.widget.Toast.makeText(context, "Event added to calendar", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
     LaunchedEffect(state.notificationsEnabled) {
@@ -196,12 +209,134 @@ fun ProfileScreen(
         }
 
         item {
+            SettingsRow(
+                title = "Settings",
+                subtitle = "App preferences, notifications, and version",
+                trailing = {
+                    TextButton(onClick = onNavigateSettings) {
+                        Text("Open")
+                    }
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    onBack: () -> Unit = {},
+    onNavigateToFeaturesGuide: () -> Unit = {},
+    onNavigateToNotificationSettings: () -> Unit = {},
+    onNavigateChangelog: () -> Unit = {},
+    viewModel: ProfileViewModel = hiltViewModel(),
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val adaptiveWidth = rememberAdaptiveWidth()
+    val horizontalPadding = if (adaptiveWidth == AdaptiveWidth.Compact) 16.dp else 32.dp
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var showImportConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
+
+    val exportJsonLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> uri?.let { viewModel.exportJson(it) } }
+
+    val exportScheduleLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri -> uri?.let { viewModel.exportScheduleCsv(it) } }
+
+    val exportGradesLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri -> uri?.let { viewModel.exportGradesCsv(it) } }
+
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { showImportConfirm = it } }
+
+    val notificationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) viewModel.setNotifications(true)
+    }
+
+    val googleSignInLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        viewModel.handleGoogleSignInResult(result.data)
+    }
+
+    val calendarSyncLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { /* no result handling needed for calendar insert intent */ }
+
+    LaunchedEffect(state.notificationsEnabled) {
+        if (state.notificationsEnabled && android.os.Build.VERSION.SDK_INT >= 33) {
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    state.backupMessage?.let { msg ->
+        LaunchedEffect(msg) {
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.clearBackupMessage()
+        }
+    }
+
+    if (showImportConfirm != null) {
+        AlertDialog(
+            onDismissRequest = { showImportConfirm = null },
+            title = { Text("Import backup") },
+            text = { Text("Merge imported data with existing records?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showImportConfirm?.let { viewModel.importJson(it, replace = false) }
+                    showImportConfirm = null
+                }) { Text("Merge") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        showImportConfirm?.let { viewModel.importJson(it, replace = true) }
+                        showImportConfirm = null
+                    }) { Text("Replace") }
+                    TextButton(onClick = { showImportConfirm = null }) { Text("Cancel") }
+                }
+            }
+        )
+    }
+
+    if (state.showEditSheet) {
+        ProfileEditSheet(
+            state = state,
+            onDismiss = viewModel::dismissEditSheet,
+            onSave = viewModel::saveProfile,
+            onDisplayNameChange = viewModel::updateEditDisplayName,
+            onSchoolChange = viewModel::updateEditSchool,
+            onPreferredStatusChange = viewModel::updateEditPreferredStatus,
+            onBioChange = viewModel::updateEditBio,
+        )
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Text(
+                "Settings",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
+
+        item {
             SettingsGroup(title = "Help") {
                 SettingsRow(
                     title = "Features Guide",
                     subtitle = "Explore all app features and where to find them",
                     trailing = {
-                        TextButton(onClick = onNavigateFeaturesGuide) {
+                        TextButton(onClick = onNavigateToFeaturesGuide) {
                             Text("Open")
                         }
                     }
@@ -252,7 +387,7 @@ fun ProfileScreen(
                     title = "Notification settings",
                     subtitle = "Class alerts, DND bypass, battery optimization",
                     trailing = {
-                        TextButton(onClick = onNavigateNotificationSettings) {
+                        TextButton(onClick = onNavigateToNotificationSettings) {
                             Text("Open")
                         }
                     }
@@ -300,12 +435,12 @@ fun ProfileScreen(
             SettingsGroup(title = "Cloud Sync") {
                 val lastSyncedAt = state.lastSyncedAt
                 val syncSubtitle = when {
-                    state.isSigningInWithGoogle -> "Signing in with Google…"
+                    state.isSigningInWithGoogle -> "Signing in with Google..."
                     !state.isGoogleSignedIn -> "Use the same Google account on phone and tablet to sync decks, notes, and planner"
-                    state.isSyncing -> "Syncing your study data…"
-                    !state.isOnline -> "Offline — local data available, sync when online"
-                    state.syncStatus == SyncState.FAILED -> "Last sync failed — tap Sync now to retry"
-                    lastSyncedAt != null -> "Last synced ${formatSyncTime(lastSyncedAt)}"
+                    state.isSyncing -> "Syncing your study data..."
+                    !state.isOnline -> "Offline - local data available, sync when online"
+                    state.syncStatus == SyncState.FAILED -> "Last sync failed - tap Sync now to retry"
+                    lastSyncedAt != null -> "Last synced ${'$'}{formatSyncTime(lastSyncedAt)}"
                     else -> "Keeps decks, notes, planner, and grades in sync"
                 }
                 if (!state.isGoogleSignedIn) {
@@ -366,6 +501,21 @@ fun ProfileScreen(
                         }
                     }
                 )
+                SettingsRow(
+                    title = "Sync to Google Calendar",
+                    subtitle = "Add upcoming classes to your device calendar",
+                    trailing = {
+                        TextButton(
+                            onClick = {
+                                getDummyScheduleItemsForNext7Days().forEach { item ->
+                                    calendarSyncLauncher.launch(createCalendarIntent(context, item))
+                                }
+                            },
+                        ) {
+                            Text("Sync")
+                        }
+                    }
+                )
             }
         }
 
@@ -387,7 +537,7 @@ fun ProfileScreen(
             SettingsGroup(title = "AI Settings") {
                 SettingsRow(
                     title = "Connection status",
-                    subtitle = if (state.isOnline) "Connected to AI backend" else "Offline — local AI fallback active",
+                    subtitle = if (state.isOnline) "Connected to AI backend" else "Offline - local AI fallback active",
                     trailing = {
                         Text(
                             text = if (state.isOnline) "Online" else "Offline",
@@ -411,8 +561,8 @@ fun ProfileScreen(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = when (state.aiModel) {
-                        AiModel.AUTO -> "Current: Auto — fast general answers"
-                        AiModel.REASONING -> "Current: Step 3.7 Flash — stronger reasoning (limited)"
+                        AiModel.AUTO -> "Current: Auto - fast general answers"
+                        AiModel.REASONING -> "Current: Step 3.7 Flash - stronger reasoning (limited)"
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
@@ -426,6 +576,16 @@ fun ProfileScreen(
                     text = "Data is stored locally on your device. AI features send only the content you select to the backend. No API keys are stored in the app.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        item {
+            SettingsGroup(title = "About") {
+                SettingsRow(
+                    title = "SchedMate",
+                    subtitle = "Version ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+                    trailing = {}
                 )
             }
         }

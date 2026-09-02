@@ -10,7 +10,7 @@ function envModelList(name) {
     .filter(Boolean);
 }
 
-const BASE_ALLOWED_MODELS = ['auto', 'step-3.7-flash', 'nvidia/nemotron-nano-12b-v2-vl'];
+const BASE_ALLOWED_MODELS = ['auto', 'step-3.7-flash'];
 // Operators extend the catalog via env (e.g. NVIDIA NIM ids) without code changes.
 const CONFIGURED_MODELS = envModelList('ALLOWED_MODELS');
 const ALLOWED_MODELS = [...new Set([...BASE_ALLOWED_MODELS, ...CONFIGURED_MODELS])];
@@ -18,7 +18,6 @@ const VISION_CAPABLE_MODELS = [
   ...new Set([
     'step-3.7-flash',
     'auto',
-    'nvidia/nemotron-nano-12b-v2-vl',
     ...envModelList('VISION_CAPABLE_MODELS'),
     ...CONFIGURED_MODELS,
   ]),
@@ -87,7 +86,7 @@ function createAiProvider(config = {}) {
   }
 
   function isRetryableModelError(message) {
-    return /503|502|429|NO_UPSTREAM|empty response|timeout|rate limit/i.test(String(message || ''));
+    return /503|502|429|410|404|400|NO_UPSTREAM|empty response|timeout|rate limit/i.test(String(message || ''));
   }
 
   function modelFallbackChain(primaryModel, { isVision = false } = {}) {

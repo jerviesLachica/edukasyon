@@ -11,6 +11,45 @@ data class ChangelogEntry(
 object ChangelogRepository {
     val changelog = listOf(
         ChangelogEntry(
+            versionName = "1.2.6",
+            versionCode = 9,
+            releaseDate = "2026-08-31",
+            isMandatory = false,
+            notes = listOf(
+                "Fixed the in-app update downloader — GitHub release URLs are now allowed.",
+                "Includes all v1.2.5 improvements: instant widget loading and faster schedule scanning.",
+            ),
+        ),
+        ChangelogEntry(
+            versionName = "1.2.5",
+            versionCode = 8,
+            releaseDate = "2026-08-31",
+            isMandatory = false,
+            notes = listOf(
+                "Instant widget loading — the home-screen widget refreshes without opening the app.",
+                "Schedule scanning is now up to 60% faster.",
+            ),
+        ),
+        ChangelogEntry(
+            versionName = "1.2.4",
+            versionCode = 7,
+            releaseDate = "2026-08-30",
+            isMandatory = false,
+            notes = listOf(
+                "Schedule scans now surface the real backend error instead of a generic \"unreadable\" message.",
+                "JSON parsing hardened for reasoning-model output — fewer scan failures.",
+            ),
+        ),
+        ChangelogEntry(
+            versionName = "1.2.3",
+            versionCode = 7,
+            releaseDate = "2026-08-28",
+            isMandatory = false,
+            notes = listOf(
+                "Fixed build issues and corrected the update download URL and checksum.",
+            ),
+        ),
+        ChangelogEntry(
             versionName = "1.2.2",
             versionCode = 6,
             releaseDate = "2026-08-24",

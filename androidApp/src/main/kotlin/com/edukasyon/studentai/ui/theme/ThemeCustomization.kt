@@ -18,7 +18,7 @@ data class ThemePreferences(
 )
 
 object ThemePresets {
-    const val DEFAULT_PRIMARY = "#3949AB"
+    const val DEFAULT_PRIMARY = "#F97316"
 
     val presets = listOf(
         ThemePreset("Indigo", "#3949AB"),
@@ -79,3 +79,4 @@ fun buildColorScheme(
         )
     }
 }
+

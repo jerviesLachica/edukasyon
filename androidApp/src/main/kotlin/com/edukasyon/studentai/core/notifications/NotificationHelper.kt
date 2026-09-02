@@ -34,10 +34,10 @@ class NotificationHelper @Inject constructor(
             val channel = NotificationChannel(type.channelId, type.channelName, NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "SchedMate "
                 setSound(
-                    Settings.System.DEFAULT_NOTIFICATION_URI,
+                    Settings.System.DEFAULT_ALARM_ALERT_URI,
                     AudioAttributes.Builder()
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .setUsage(AudioAttributes.USAGE_ALARM)
                         .build()
                 )
                 enableVibration(true)
@@ -69,8 +69,10 @@ class NotificationHelper @Inject constructor(
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setContentIntent(pending)
+            .setFullScreenIntent(pending, true)
             .setAutoCancel(true)
             .build()
         NotificationManagerCompat.from(context).notify(notificationId, notification)

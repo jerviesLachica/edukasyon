@@ -26,6 +26,7 @@ class HolidaySyncWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         return try {
             holidayRepository.refreshOnAppStart()
+            com.edukasyon.studentai.widget.WidgetUpdater.notifyDataChanged(applicationContext)
             Result.success()
         } catch (e: Exception) {
             Result.retry()

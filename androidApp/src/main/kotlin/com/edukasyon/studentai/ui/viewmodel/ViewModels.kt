@@ -2837,7 +2837,17 @@ class MainViewModel @Inject constructor(
     private val preferences: com.edukasyon.studentai.data.preferences.UserPreferences,
     private val authManager: com.edukasyon.studentai.core.firebase.FirebaseAuthManager,
     private val googleSignInHelper: com.edukasyon.studentai.core.firebase.GoogleSignInHelper,
+    private val saveUser: com.edukasyon.studentai.domain.usecase.SaveUserUseCase,
+    private val firestoreSyncService: com.edukasyon.studentai.core.firebase.FirestoreSyncService,
 ) : ViewModel() {
+
+    private val _welcomeBackMessage = MutableStateFlow<String?>(null)
+    val welcomeBackMessage: StateFlow<String?> = _welcomeBackMessage.asStateFlow()
+
+    fun dismissWelcomeBack() {
+        _welcomeBackMessage.value = null
+    }
+
     private val onboardingFinishedLocally = MutableStateFlow(false)
 
     val onboardingComplete: StateFlow<Boolean> = combine(
@@ -2916,6 +2926,19 @@ class MainViewModel @Inject constructor(
                     preferences.setAuthStrategy(
                         com.edukasyon.studentai.data.preferences.UserPreferences.AuthStrategy.GOOGLE,
                     )
+                    // Check if a cloud profile already exists for this returning user.
+                    // If so, bypass onboarding entirely and sync their data.
+                    try {
+                        val existingProfile = firestoreSyncService.fetchCloudProfile()
+                        if (existingProfile != null) {
+                            preferences.setOnboardingComplete(true)
+                            saveUser.execute(existingProfile)
+                            firestoreSyncService.syncAll()
+                            _welcomeBackMessage.value = "Welcome back, ${existingProfile.displayName}! Synced your data."
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to check existing cloud profile on sign-in", e)
+                    }
                     onSuccess(it.email)
                 }
                 .onFailure { e -> onFailure(e.message ?: "Google sign-in failed.") }

@@ -60,8 +60,8 @@ android {
         }
         debug {
             isMinifyEnabled = false
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
+            // No applicationIdSuffix / versionNameSuffix so debug builds replace
+            // release builds 1:1 on device and report the real version (1.2.6).
         }
     }
     
