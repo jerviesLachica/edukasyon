@@ -49,6 +49,7 @@ import com.edukasyon.studentai.ui.components.ScanningOverlay
 import com.edukasyon.studentai.ui.components.ScheduleScanFailureOverlay
 import com.edukasyon.studentai.ui.components.StudentAiCard
 import com.edukasyon.studentai.ui.components.StudentAiSnackbarHost
+import com.edukasyon.studentai.ui.components.TimetablePopulateAnimation
 import com.edukasyon.studentai.core.mlkit.rememberDocumentScanLauncher
 import com.edukasyon.studentai.ui.viewmodel.AiViewModel
 import com.edukasyon.studentai.ui.viewmodel.ScheduleScanStatus
@@ -109,11 +110,13 @@ fun ScheduleScannerScreen(
     val scope = rememberCoroutineScope()
     val showCamera = state.scannedClasses.isEmpty()
     val isScanning = state.scheduleScanStatus == ScheduleScanStatus.SCANNING
+    val isConfirming = state.scheduleScanStatus == ScheduleScanStatus.CONFIRMING
     val isImageOnlyRetry = state.scheduleScanRetryCount == 2
     val showScanFailure = state.scheduleScanStatus == ScheduleScanStatus.UNREADABLE ||
         state.scheduleScanStatus == ScheduleScanStatus.RETRY_LATER
     val cooldownActive = state.scheduleScanRetryAfterMillis?.let { System.currentTimeMillis() < it } == true
     val scanBlocked = isScanning || showScanFailure || cooldownActive
+    val showPopulateAnimation = isConfirming && (state.classesBeingImported.isNotEmpty() || state.scannedClasses.isNotEmpty())
 
     fun submitScanImage(bytes: ByteArray) {
         pendingScanImageBytes = bytes
@@ -439,24 +442,39 @@ fun ScheduleScannerScreen(
                                     bindRetryCount++
                                 },
                                 modifier = Modifier.weight(1f),
+                                enabled = !isConfirming,
                             ) {
                                 Text("Rescan")
                             }
                             Button(
                                 onClick = {
                                     viewModel.confirmScannedClasses()
-                                    onBack()
+                                    // onBack() is deferred until the populate animation
+                                    // completes (handled by showPopulateAnimation / onComplete)
                                 },
                                 modifier = Modifier.weight(1f),
+                                enabled = !isConfirming,
                             ) {
                                 Icon(Icons.Default.Check, null)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Import")
+                                Text(if (isConfirming) "Adding…" else "Import")
                             }
                         }
                     }
                 }
             }
+        }
+
+        if (showPopulateAnimation) {
+            TimetablePopulateAnimation(
+                classes = state.classesBeingImported.ifEmpty { state.scannedClasses },
+                modifier = Modifier.fillMaxSize(),
+                onComplete = {
+                    pendingScanImageBytes = null
+                    viewModel.dismissPopulateAnimation()
+                    onBack()
+                },
+            )
         }
     }
 }

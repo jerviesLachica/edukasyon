@@ -810,6 +810,7 @@ data class AiUiState(
     val quizSaved: Boolean = false,
     val studyPlan: StudyPlan? = null,
     val scannedClasses: List<com.edukasyon.studentai.core.ai.ExtractedClass> = emptyList(),
+    val classesBeingImported: List<com.edukasyon.studentai.core.ai.ExtractedClass> = emptyList(),
     val statusMessage: String? = null,
     val xpEarnedThisSession: Int = 0,
     val activeLocalConversationId: String? = null,
@@ -829,6 +830,7 @@ data class AiUiState(
 enum class ScheduleScanStatus {
     IDLE,
     SCANNING,
+    CONFIRMING,
     UNREADABLE,
     RETRY_LATER,
 }
@@ -1933,6 +1935,7 @@ class AiViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 scannedClasses = emptyList(),
+                classesBeingImported = emptyList(),
                 error = null,
                 scheduleScanStatus = ScheduleScanStatus.IDLE,
                 scheduleScanRetryCount = 0,
@@ -1941,9 +1944,27 @@ class AiViewModel @Inject constructor(
         }
     }
 
+    /** Called by the ScheduleScannerScreen after the timetable-populate animation finishes. */
+    fun dismissPopulateAnimation() {
+        _uiState.update {
+            it.copy(
+                classesBeingImported = emptyList(),
+                scheduleScanStatus = ScheduleScanStatus.IDLE,
+            )
+        }
+    }
+
     fun confirmScannedClasses() {
         val classes = _uiState.value.scannedClasses
         if (classes.isEmpty()) return
+        // Emit CONFIRMING first so the UI can show the timetable-populate animation
+        // while classes are being persisted in the background.
+        _uiState.update {
+            it.copy(
+                scheduleScanStatus = ScheduleScanStatus.CONFIRMING,
+                classesBeingImported = classes,
+            )
+        }
         viewModelScope.launch {
             try {
                 classes.forEach { cls ->
@@ -1968,7 +1989,12 @@ class AiViewModel @Inject constructor(
                 awardXp(GizmoConstants.XP_CHAT, "Imported ${classes.size} classes to schedule")
                 _uiState.update { it.copy(scannedClasses = emptyList()) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message ?: "Failed to import classes") }
+                _uiState.update {
+                    it.copy(
+                        error = e.message ?: "Failed to import classes",
+                        scheduleScanStatus = ScheduleScanStatus.IDLE,
+                    )
+                }
             }
         }
     }

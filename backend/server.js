@@ -396,19 +396,25 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
 
   // Try the content reply first, then reasoning as fallback for models that
   // return JSON in the reasoning channel.
-  let parsed;
-  try {
-    parsed = ai.extractJson(completion.reply);
-  } catch (replyErr) {
-    if (completion.reasoning) {
-      try {
-        parsed = ai.extractJson(completion.reasoning);
-      } catch (reasoningErr) {
-        throw replyErr;
+  let parsed = null;
+  let lastErr;
+  for (const src of [completion.reply, completion.reasoning].filter(Boolean)) {
+    try {
+      const p = ai.extractJson(src);
+      if (p && Array.isArray(p.classes) && p.classes.length > 0) {
+        parsed = p;
+        break;
       }
-    } else {
-      throw replyErr;
+      if (!parsed) parsed = p;
+    } catch (e) {
+      lastErr = e;
     }
+  }
+
+  if (!parsed) {
+    console.error('[schedule-analysis] Parsing failed. Reply sample:', (completion.reply || '').slice(0, 200));
+    if (completion.reasoning) console.error('[schedule-analysis] Reasoning sample:', completion.reasoning.slice(0, 200));
+    throw lastErr || new Error('AI returned no parsable JSON');
   }
   return {
     classes: parsed.classes || [],
