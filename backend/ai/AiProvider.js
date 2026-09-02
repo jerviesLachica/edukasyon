@@ -207,10 +207,14 @@ function createAiProvider(config = {}) {
     };
   }
 
-  async function chatCompletionOnce(messages, { temperature = 0.7, maxTokens = 2048, model, signal, responseFormat } = {}) {
+  async function chatCompletionOnce(messages, { temperature = 0.7, maxTokens = 2048, model, signal, responseFormat, reasoning } = {}) {
     const payload = { model, messages, temperature, max_tokens: maxTokens };
     // Structured-output hint; providers that don't support it are handled by the caller's fallback.
     if (responseFormat) payload.response_format = responseFormat;
+    // step-3.7-flash and similar models support a `reasoning` parameter to control
+    // thinking mode. Passing 'none' should disable reasoning output and return JSON
+    // directly in `content` instead of `reasoning`.
+    if (reasoning) payload.reasoning = reasoning;
     const res = await fetch(`${AI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: providerHeaders(AI_API_KEY),
@@ -225,7 +229,7 @@ function createAiProvider(config = {}) {
     return parseChatCompletionResult(data);
   }
 
-  async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, signal, responseFormat } = {}) {
+  async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, signal, responseFormat, reasoning } = {}) {
     if (!hasAiKey) throw new Error('AI provider not configured (set AI_API_KEY)');
     const models = modelFallbackChain(model || (isVision ? VISION_MODEL : TEXT_MODEL), { isVision });
     let lastError;
@@ -233,7 +237,7 @@ function createAiProvider(config = {}) {
       const candidate = models[i];
       try {
         if (i > 0) console.warn(`[ai] Retrying with fallback model=${candidate}`);
-        const result = await chatCompletionOnce(messages, { temperature, maxTokens, model: candidate, signal, responseFormat });
+        const result = await chatCompletionOnce(messages, { temperature, maxTokens, model: candidate, signal, responseFormat, reasoning });
         return { ...result, model: result.model || candidate };
       } catch (err) {
         // Some providers reject response_format outright — drop it and retry the same model once.
@@ -257,37 +261,64 @@ function createAiProvider(config = {}) {
   }
 
   function extractJson(text) {
-    const fenced = text && text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    let raw = fenced ? fenced[1] : text;
-    if (typeof raw !== 'string') {
-      throw new Error('extractJson received non-string input');
+    if (typeof text !== 'string') throw new Error('extractJson received non-string input');
+    let raw = text.trim();
+    // Unwrap all fences, keep inner content (global)
+    raw = raw.replace(/```(?:json)?\s*([\s\S]*?)```/gi, (_, inner) => inner.trim());
+    // Strip everything before the first '{' to handle leading prose
+    const firstBrace = raw.indexOf('{');
+    if (firstBrace > 0) {
+      raw = raw.slice(firstBrace);
     }
     raw = raw.trim();
     try {
       return JSON.parse(raw);
     } catch (_) {
-      // Reasoning-style models often prepend prose before the JSON object.
-      const start = raw.indexOf('{');
-      const end = raw.lastIndexOf('}');
-      if (start >= 0 && end > start) {
-        const candidate = raw.slice(start, end + 1);
-        let depth = 0, inStr = false, esc = false, last = '';
-        for (let i = 0; i < candidate.length; i++) {
-          const ch = candidate[i];
-          if (esc) { esc = false; continue; }
-          if (ch === '\\') { esc = true; continue; }
-          if (ch === '"' && last !== '\\') inStr = !inStr;
-          last = ch;
-          if (!inStr) {
-            if (ch === '{') depth++;
-            if (ch === '}') depth--;
-            if (depth === 0 && i > 0) {
-              try { return JSON.parse(candidate.slice(0, i + 1)); } catch (_) {}
-              break;
+      // Balanced-brace scan for candidates containing "classes" or "cards" etc.
+      const candidates = [];
+      let depth = 0;
+      let inStr = false;
+      let esc = false;
+      let start = -1;
+      for (let i = 0; i < raw.length; i++) {
+        const ch = raw[i];
+        if (esc) {
+          esc = false;
+          continue;
+        }
+        if (ch === '\\') {
+          esc = true;
+          continue;
+        }
+        if (ch === '"') inStr = !inStr;
+        if (!inStr) {
+          if (ch === '{') {
+            if (depth === 0) start = i;
+            depth++;
+          } else if (ch === '}') {
+            depth--;
+            if (depth === 0 && start >= 0) {
+              candidates.push(raw.slice(start, i + 1));
+              start = -1;
             }
           }
         }
-        try { return JSON.parse(candidate); } catch (_) {}
+      }
+      // Sort candidates by length (prefer larger objects)
+      for (const cand of candidates.sort((a, b) => b.length - a.length)) {
+        try {
+          const p = JSON.parse(cand);
+          // Prefer objects with expected keys for our endpoints
+          if (p && (Array.isArray(p.classes) || Array.isArray(p.cards) || Array.isArray(p.questions) || p.items)) return p;
+        } catch (__) {}
+      }
+      // Last resort: find first { to last } and try parsing
+      const s = raw.indexOf('{');
+      const e = raw.lastIndexOf('}');
+      if (s >= 0 && e > s) {
+        try {
+          return JSON.parse(raw.slice(s, e + 1));
+        } catch (__) {}
       }
       throw new Error('AI returned no parsable JSON');
     }
