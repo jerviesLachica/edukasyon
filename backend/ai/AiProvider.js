@@ -211,10 +211,9 @@ function createAiProvider(config = {}) {
     const payload = { model, messages, temperature, max_tokens: maxTokens };
     // Structured-output hint; providers that don't support it are handled by the caller's fallback.
     if (responseFormat) payload.response_format = responseFormat;
-    // step-3.7-flash and similar models support a `reasoning` parameter to control
-    // thinking mode. Passing 'none' should disable reasoning output and return JSON
-    // directly in `content` instead of `reasoning`.
-    if (reasoning) payload.reasoning = reasoning;
+    // reasoning parameter (e.g. for step-3.7-flash or OpenRouter thinking)
+    // Only pass if it is an object (e.g. { effort: 'medium' }) or boolean
+    if (reasoning && typeof reasoning !== 'string') payload.reasoning = reasoning;
     const res = await fetch(`${AI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: providerHeaders(AI_API_KEY),

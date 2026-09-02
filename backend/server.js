@@ -391,7 +391,6 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
     isVision: true,
     signal,
     responseFormat: { type: 'json_object' },
-    reasoning: 'none',
   });
 
   // Try the content reply first, then reasoning as fallback for models that
