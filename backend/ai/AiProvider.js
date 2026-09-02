@@ -192,7 +192,13 @@ function createAiProvider(config = {}) {
     const embedded = splitEmbeddedReasoning(rawContent);
     const reasoningParts = [providerReasoning, embedded.reasoning].filter(Boolean);
     const reasoning = reasoningParts.join('\n\n').trim() || null;
-    const reply = embedded.reply.trim();
+    // Some models (e.g. step-3.7-flash) put the structured answer in `reasoning`
+    // and leave `content` empty when response_format=json_object is requested.
+    // Use reasoning as a fallback so downstream extractJson can still parse JSON.
+    let reply = embedded.reply.trim();
+    if (!reply && reasoning) {
+      reply = reasoning;
+    }
     if (!reply && !reasoning) throw new Error('AI API returned empty response');
     return {
       reply: reply || (reasoning ? '' : '(No response text)'),
