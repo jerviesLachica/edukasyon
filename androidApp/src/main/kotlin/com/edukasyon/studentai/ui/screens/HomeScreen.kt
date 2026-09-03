@@ -125,7 +125,6 @@ fun HomeScreen(
             item {
                 HomeCompactQuickActions(
                     onAskAi = onAskAi,
-                    onScanSchedule = { onNavigateToRoute(Routes.SCHEDULE_SCANNER) },
                     onAddTask = onAddTask,
                     onFocus = onNavigateFocus,
                     modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 12.dp),
@@ -392,7 +391,6 @@ private fun HomeActivityStatCard(
 @Composable
 private fun HomeCompactQuickActions(
     onAskAi: () -> Unit,
-    onScanSchedule: () -> Unit,
     onAddTask: () -> Unit,
     onFocus: () -> Unit,
     modifier: Modifier = Modifier,
@@ -411,12 +409,6 @@ private fun HomeCompactQuickActions(
             label = "Jevi",
             icon = Icons.Default.Psychology,
             onClick = onAskAi,
-            modifier = Modifier.weight(1f),
-        )
-        HomeQuickActionChip(
-            label = "Scan",
-            icon = Icons.Default.DocumentScanner,
-            onClick = onScanSchedule,
             modifier = Modifier.weight(1f),
         )
         HomeQuickActionChip(

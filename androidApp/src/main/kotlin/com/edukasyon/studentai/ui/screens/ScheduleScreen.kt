@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -56,6 +55,7 @@ fun ScheduleScreen(
     var editingItem by remember { mutableStateOf<ScheduleItem?>(null) }
     var showTemplateSheet by remember { mutableStateOf(false) }
     var createEventDateMillis by remember { mutableStateOf<Long?>(null) }
+    var showQuickActions by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val horizontalPadding = rememberAdaptiveHorizontalPadding()
     val twoPaneDaily = isMediumOrExpandedWidth()
@@ -64,22 +64,11 @@ fun ScheduleScreen(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StudentAiFab(
-                    onClick = onOpenScanner,
-                    icon = Icons.Default.CameraAlt,
-                    contentDescription = "Scan schedule",
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-                StudentAiAddFab(
-                    onClick = {
-                        addForDay = state.selectedDay
-                        showAddDialog = true
-                    },
-                    contentDescription = "Add class",
-                )
-            }
+            StudentAiFab(
+                onClick = { showQuickActions = true },
+                icon = Icons.Default.Add,
+                contentDescription = "Add or scan schedule",
+            )
         }
     ) { padding ->
         AdaptiveContentContainer(Modifier.padding(padding)) { contentModifier ->
@@ -201,6 +190,21 @@ fun ScheduleScreen(
                 viewModel.createCalendarEvent(title, description, dateMillis)
                 createEventDateMillis = null
             }
+        )
+    }
+
+    if (showQuickActions) {
+        QuickActionsSheet(
+            onDismiss = { showQuickActions = false },
+            onScanSchedule = {
+                showQuickActions = false
+                onOpenScanner()
+            },
+            onAddClass = {
+                showQuickActions = false
+                addForDay = state.selectedDay
+                showAddDialog = true
+            },
         )
     }
 }

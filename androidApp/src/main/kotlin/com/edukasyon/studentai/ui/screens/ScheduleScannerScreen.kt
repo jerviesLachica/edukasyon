@@ -407,7 +407,7 @@ fun ScheduleScannerScreen(
                         onClick = onBack,
                         modifier = Modifier.padding(bottom = 12.dp),
                     ) {
-                        Text("Skip scan — enter classes manually")
+                        Text("Cancel")
                     }
                 }
             }
