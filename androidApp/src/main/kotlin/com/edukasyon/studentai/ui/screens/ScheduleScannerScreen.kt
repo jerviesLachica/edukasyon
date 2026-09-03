@@ -276,7 +276,7 @@ fun ScheduleScannerScreen(
             } else {
                 if (showCamera) {
                     Box(
-                        Modifier.weight(1f).fillMaxWidth(),
+                        Modifier.weight(1f).fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
                         AndroidView(
