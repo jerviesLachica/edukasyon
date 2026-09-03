@@ -23,7 +23,7 @@ const VISION_CAPABLE_MODELS = [
   ]),
 ];
 const DEFAULT_TEXT_MODEL = 'auto';
-const DEFAULT_VISION_MODEL = 'step-3.7-flash';
+const DEFAULT_VISION_MODEL = 'auto';
 
 function envModel(name, fallback) {
   const value = process.env[name];
