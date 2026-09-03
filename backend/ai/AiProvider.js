@@ -17,7 +17,7 @@ const ALLOWED_MODELS = [...new Set([...BASE_ALLOWED_MODELS, ...CONFIGURED_MODELS
 const VISION_CAPABLE_MODELS = [
   ...new Set([
     'step-3.7-flash',
-    'auto',
+    'agnes-2.5-flash',
     ...envModelList('VISION_CAPABLE_MODELS'),
     ...CONFIGURED_MODELS,
   ]),
@@ -95,8 +95,7 @@ function createAiProvider(config = {}) {
       for (const candidate of VISION_CAPABLE_MODELS) {
         if (candidate !== primaryModel && !chain.includes(candidate)) chain.push(candidate);
       }
-      // hcnsec.cn proxy: auto may route to an available vision backend when step-3.7-flash is unavailable
-      if (!chain.includes('auto')) chain.push('auto');
+      // auto does NOT support vision/multimodal — never add it to vision fallback chain
       return chain;
     }
     if (primaryModel !== TEXT_MODEL && !chain.includes(TEXT_MODEL)) chain.push(TEXT_MODEL);
