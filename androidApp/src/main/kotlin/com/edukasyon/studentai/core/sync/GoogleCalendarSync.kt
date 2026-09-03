@@ -7,14 +7,8 @@ import android.content.Intent
 import android.provider.CalendarContract
 import com.edukasyon.studentai.domain.model.DayOfWeek
 import com.edukasyon.studentai.domain.model.ScheduleItem
-import java.time.DayOfWeek as JdkDayOfWeek
-import java.time.Instant
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalAdjusters
+import java.util.Calendar
+import java.util.TimeZone
 
 // Helper function to create calendar intents from schedule data (manual approval path)
 fun createCalendarIntent(context: Context, scheduleItem: ScheduleItem): Intent {
@@ -32,15 +26,12 @@ fun createCalendarIntent(context: Context, scheduleItem: ScheduleItem): Intent {
     }
 }
 
-// Overload for DummyScheduleItem (legacy Instant-based, used in settings UI)
+// Overload for DummyScheduleItem (legacy epoch-millis based, used in settings UI)
 fun createCalendarIntent(context: Context, scheduleItem: DummyScheduleItem): Intent {
-    val startMillis: Long = scheduleItem.startTime.toEpochMilli()
-    val endMillis: Long = scheduleItem.endTime.toEpochMilli()
-
     return Intent(Intent.ACTION_INSERT).apply {
         setData(CalendarContract.Events.CONTENT_URI)
-        putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startMillis)
-        putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endMillis)
+        putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, scheduleItem.startMillis)
+        putExtra(CalendarContract.EXTRA_EVENT_END_TIME, scheduleItem.endMillis)
         putExtra(CalendarContract.Events.TITLE, scheduleItem.title)
         putExtra(CalendarContract.Events.DESCRIPTION, scheduleItem.description)
         putExtra(CalendarContract.Events.EVENT_LOCATION, scheduleItem.location)
@@ -67,7 +58,7 @@ fun insertCalendarEventAutomatically(context: Context, scheduleItem: ScheduleIte
             put(CalendarContract.Events.EVENT_LOCATION, scheduleItem.room)
             put(CalendarContract.Events.DTSTART, startMillis)
             put(CalendarContract.Events.DTEND, endMillis)
-            put(CalendarContract.Events.EVENT_TIMEZONE, ZoneId.systemDefault().id)
+            put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
             put(CalendarContract.Events.HAS_ALARM, 1)
             put(CalendarContract.Events.RRULE, buildRRule(scheduleItem))
             put(CalendarContract.Events.UID_2445, uid) // Stable ID for deduplication (RFC 2445)
@@ -145,84 +136,114 @@ fun getPrimaryCalendarId(context: Context): Long? {
     }
 }
 
+private fun domainDayToCalendarConstant(day: DayOfWeek): Int = when (day) {
+    DayOfWeek.MONDAY -> Calendar.MONDAY
+    DayOfWeek.TUESDAY -> Calendar.TUESDAY
+    DayOfWeek.WEDNESDAY -> Calendar.WEDNESDAY
+    DayOfWeek.THURSDAY -> Calendar.THURSDAY
+    DayOfWeek.FRIDAY -> Calendar.FRIDAY
+    DayOfWeek.SATURDAY -> Calendar.SATURDAY
+    DayOfWeek.SUNDAY -> Calendar.SUNDAY
+}
+
+private fun parseHhMmToMinutes(hhmm: String): Pair<Int, Int> {
+    val parts = hhmm.split(":")
+    return (parts.getOrNull(0)?.toIntOrNull() ?: 0) to (parts.getOrNull(1)?.toIntOrNull() ?: 0)
+}
+
 /**
  * Compute the next future occurrence of a schedule item (HH:mm + dayOfWeek) as epoch millis.
- * If today is the day and the time has passed, returns next week's instance.
+ * Uses java.util.Calendar (API 1+) so it works on minSdk 24.
  */
 private fun ScheduleItem.nextOccurrenceStartMillis(): Long {
-    val zone = ZoneId.systemDefault()
-    val today = LocalDate.now(zone)
-    val jdkDow = toJdkDayOfWeek(dayOfWeek)
-    val candidate = if (today.dayOfWeek == jdkDow) {
-        today
-    } else {
-        today.with(TemporalAdjusters.next(jdkDow))
+    val targetDow = domainDayToCalendarConstant(dayOfWeek)
+    val (hour, minute) = parseHhMmToMinutes(startTime)
+    val cal = Calendar.getInstance().apply {
+        // Walk forward to the target day of week
+        while (get(Calendar.DAY_OF_WEEK) != targetDow) {
+            add(Calendar.DAY_OF_MONTH, 1)
+        }
+        set(Calendar.HOUR_OF_DAY, hour)
+        set(Calendar.MINUTE, minute)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+        // If today's occurrence already passed, push to next week
+        if (timeInMillis <= System.currentTimeMillis()) {
+            add(Calendar.WEEK_OF_YEAR, 1)
+        }
     }
-    val time = LocalTime.parse(this.startTime, DateTimeFormatter.ofPattern("HH:mm"))
-    return candidate.atTime(time).atZone(zone).toInstant().toEpochMilli()
+    return cal.timeInMillis
 }
 
 private fun ScheduleItem.nextOccurrenceEndMillis(): Long {
-    val zone = ZoneId.systemDefault()
-    val today = LocalDate.now(zone)
-    val jdkDow = toJdkDayOfWeek(dayOfWeek)
-    val candidate = if (today.dayOfWeek == jdkDow) {
-        today
-    } else {
-        today.with(TemporalAdjusters.next(jdkDow))
+    val targetDow = domainDayToCalendarConstant(dayOfWeek)
+    val (hour, minute) = parseHhMmToMinutes(endTime)
+    val cal = Calendar.getInstance().apply {
+        while (get(Calendar.DAY_OF_WEEK) != targetDow) {
+            add(Calendar.DAY_OF_MONTH, 1)
+        }
+        set(Calendar.HOUR_OF_DAY, hour)
+        set(Calendar.MINUTE, minute)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+        if (timeInMillis <= System.currentTimeMillis()) {
+            add(Calendar.WEEK_OF_YEAR, 1)
+        }
     }
-    val time = LocalTime.parse(this.endTime, DateTimeFormatter.ofPattern("HH:mm"))
-    return candidate.atTime(time).atZone(zone).toInstant().toEpochMilli()
+    return cal.timeInMillis
 }
 
-private fun toJdkDayOfWeek(day: DayOfWeek): JdkDayOfWeek = when (day) {
-    DayOfWeek.MONDAY -> JdkDayOfWeek.MONDAY
-    DayOfWeek.TUESDAY -> JdkDayOfWeek.TUESDAY
-    DayOfWeek.WEDNESDAY -> JdkDayOfWeek.WEDNESDAY
-    DayOfWeek.THURSDAY -> JdkDayOfWeek.THURSDAY
-    DayOfWeek.FRIDAY -> JdkDayOfWeek.FRIDAY
-    DayOfWeek.SATURDAY -> JdkDayOfWeek.SATURDAY
-    DayOfWeek.SUNDAY -> JdkDayOfWeek.SUNDAY
-}
-
-// Dummy data for testing (next 7 days of classes) — uses Instant for legacy callers
+// Dummy data for testing (next 7 days of classes) — uses epoch millis for API 24 compat
 data class DummyScheduleItem(
     val title: String,
     val description: String?,
     val location: String?,
-    val startTime: Instant,
-    val endTime: Instant
+    val startMillis: Long,
+    val endMillis: Long
 )
 
 fun getDummyScheduleItemsForNext7Days(): List<DummyScheduleItem> {
     val scheduleItems = mutableListOf<DummyScheduleItem>()
-    val now = Instant.now()
-    val zoneId = ZoneId.systemDefault()
+    val now = System.currentTimeMillis()
 
     for (i in 0 until 7) {
-        val date = now.plus(i.toLong(), ChronoUnit.DAYS)
-
-        val mathStartTime = date.atZone(zoneId).withHour(9).withMinute(0).toInstant()
-        val mathEndTime = date.atZone(zoneId).withHour(10).withMinute(0).toInstant()
+        val dayBase = Calendar.getInstance().apply {
+            timeInMillis = now
+            add(Calendar.DAY_OF_MONTH, i)
+        }
+        val mathStart = (dayBase.clone() as Calendar).apply {
+            set(Calendar.HOUR_OF_DAY, 9); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val mathEnd = (dayBase.clone() as Calendar).apply {
+            set(Calendar.HOUR_OF_DAY, 10); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
         scheduleItems.add(
             DummyScheduleItem(
                 title = "Math Class",
                 description = "Algebra 101",
                 location = "Room 101",
-                startTime = mathStartTime,
-                endTime = mathEndTime
+                startMillis = mathStart,
+                endMillis = mathEnd
             )
         )
 
-        val scienceStartTime = date.atZone(zoneId).withHour(11).withMinute(0).toInstant()
-        val scienceEndTime = date.atZone(zoneId).withHour(12).withMinute(0).toInstant()
+        val sciStart = (dayBase.clone() as Calendar).apply {
+            set(Calendar.HOUR_OF_DAY, 11); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val sciEnd = (dayBase.clone() as Calendar).apply {
+            set(Calendar.HOUR_OF_DAY, 12); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
         scheduleItems.add(
             DummyScheduleItem(
                 title = "Science Lab",
                 description = "Chemistry practical",
                 location = "Lab 203",
-                startTime = scienceStartTime,
-                endTime = scienceEndTime
+                startMillis = sciStart,
+                endMillis = sciEnd
             )
         )
     }
