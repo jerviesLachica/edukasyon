@@ -1,13 +1,17 @@
 package com.edukasyon.studentai.core.update
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.edukasyon.studentai.MainActivity
 import com.edukasyon.studentai.R
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -30,11 +34,18 @@ class AppUpdateMessagingService : FirebaseMessagingService() {
         showUpdateNotification(versionName, notes)
     }
 
+    @SuppressLint("MissingPermission")
     private fun showUpdateNotification(versionName: String, notes: String) {
         val manager = NotificationManagerCompat.from(this)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !manager.areNotificationsEnabled()) {
-            Log.i(TAG, "Notifications disabled — skipping update broadcast")
-            return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (!manager.areNotificationsEnabled()) {
+                Log.i(TAG, "Notifications disabled — skipping update broadcast")
+                return
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                Log.i(TAG, "POST_NOTIFICATIONS permission not granted — skipping update broadcast")
+                return
+            }
         }
         createChannel(manager)
 

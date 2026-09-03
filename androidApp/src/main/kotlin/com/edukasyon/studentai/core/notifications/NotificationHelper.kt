@@ -1,15 +1,20 @@
 package com.edukasyon.studentai.core.notifications
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.media.AudioAttributes
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.edukasyon.studentai.MainActivity
 import com.edukasyon.studentai.R
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -22,6 +27,7 @@ class NotificationHelper @Inject constructor(
 ) {
     companion object {
         const val REFERENCE_ID_EXTRA = "reference_id"
+        private const val TAG = "NotificationHelper"
     }
     init {
         createChannels()
@@ -47,6 +53,7 @@ class NotificationHelper @Inject constructor(
         }
     }
 
+    @SuppressLint("MissingPermission")
     fun showReminder(
         notificationId: Int,
         type: ReminderType,
@@ -54,6 +61,12 @@ class NotificationHelper @Inject constructor(
         message: String,
         referenceId: String? = null
     ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                Log.w(TAG, "POST_NOTIFICATIONS not granted — skipping reminder $notificationId")
+                return
+            }
+        }
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             referenceId?.let { putExtra(REFERENCE_ID_EXTRA, it) }

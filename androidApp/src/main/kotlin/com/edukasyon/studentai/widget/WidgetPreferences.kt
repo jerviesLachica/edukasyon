@@ -46,7 +46,7 @@ object WidgetPreferences {
     }
 
     fun setDesignPreset(context: Context, appWidgetId: Int, preset: WidgetDesignPreset) {
-        prefs(context).edit().putString(key(appWidgetId, KEY_DESIGN), preset.name).commit()
+        prefs(context).edit().putString(key(appWidgetId, KEY_DESIGN), preset.name).apply()
     }
 
     /**
