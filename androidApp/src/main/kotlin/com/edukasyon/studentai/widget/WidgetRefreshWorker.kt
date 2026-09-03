@@ -15,6 +15,17 @@ class WidgetRefreshWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return runCatching {
+            // Load fresh snapshots into cache for ALL active widgets before refreshing,
+            // so the widget shows real data instead of stuck skeleton "Loading..." rows.
+            val ids = WidgetUpdater.widgetIds(applicationContext)
+            if (ids.isNotEmpty()) {
+                ids.forEach { appWidgetId ->
+                    val widgetSize = WidgetPreferences.getWidgetSize(applicationContext, appWidgetId)
+                    if (widgetSize != null) {
+                        WidgetDataProvider.loadSnapshotFresh(applicationContext, appWidgetId, widgetSize)
+                    }
+                }
+            }
             WidgetUpdater.refreshAll(applicationContext)
             Result.success()
         }.getOrElse { Result.retry() }

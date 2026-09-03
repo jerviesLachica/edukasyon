@@ -114,7 +114,8 @@ object WidgetDataProvider {
                 designColors = designColors,
                 themeColors = themeColors,
                 currentTaskProgress = null,
-                currentTaskTimeLeft = null
+                currentTaskTimeLeft = null,
+                isLoading = true
             )
         } catch (e: Exception) {
             // Fallback if preferences fail to load
@@ -275,7 +276,8 @@ object WidgetDataProvider {
             designColors = designColors,
             themeColors = themeColors,
             currentTaskProgress = progressInfo?.first,
-            currentTaskTimeLeft = progressInfo?.second
+            currentTaskTimeLeft = progressInfo?.second,
+            isLoading = false
         )
     }
 

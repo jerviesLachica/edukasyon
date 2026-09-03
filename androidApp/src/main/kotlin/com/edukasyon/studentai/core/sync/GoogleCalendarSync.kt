@@ -1,5 +1,6 @@
 package com.edukasyon.studentai.core.sync
 
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -47,12 +48,18 @@ fun createCalendarIntent(context: Context, scheduleItem: DummyScheduleItem): Int
     }
 }
 
-// Automatic calendar sync: directly insert event via ContentResolver without user confirmation
+// Automatic calendar sync: directly insert or update event via ContentResolver
+// Uses scheduleItem.id as UID to prevent duplicates and enable updates
 fun insertCalendarEventAutomatically(context: Context, scheduleItem: ScheduleItem): Long? {
     return try {
         val calendarId = getPrimaryCalendarId(context) ?: return null
         val startMillis = scheduleItem.nextOccurrenceStartMillis()
         val endMillis = scheduleItem.nextOccurrenceEndMillis()
+        val uid = "schedmate-${scheduleItem.id}@studentai.local"
+
+        // Check if event already exists
+        val existingId = findEventByUid(context, calendarId, uid)
+
         val values = ContentValues().apply {
             put(CalendarContract.Events.CALENDAR_ID, calendarId)
             put(CalendarContract.Events.TITLE, scheduleItem.subjectName)
@@ -63,15 +70,35 @@ fun insertCalendarEventAutomatically(context: Context, scheduleItem: ScheduleIte
             put(CalendarContract.Events.EVENT_TIMEZONE, ZoneId.systemDefault().id)
             put(CalendarContract.Events.HAS_ALARM, 1)
             put(CalendarContract.Events.RRULE, buildRRule(scheduleItem))
+            put(CalendarContract.Events.UID_2445, uid) // Stable ID for deduplication (RFC 2445)
         }
-        val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-        uri?.let {
-            android.content.ContentUris.parseId(it)
+
+        if (existingId != null) {
+            // Update existing event
+            val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, existingId)
+            context.contentResolver.update(uri, values, null, null)
+            existingId
+        } else {
+            // Insert new event
+            val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+            uri?.let { ContentUris.parseId(it) }
         }
     } catch (e: SecurityException) {
         null
     } catch (e: Exception) {
         null
+    }
+}
+
+// Find existing event by UID to prevent duplicates
+private fun findEventByUid(context: Context, calendarId: Long, uid: String): Long? {
+    val uri = CalendarContract.Events.CONTENT_URI
+    val projection = arrayOf(CalendarContract.Events._ID)
+    val selection = "${CalendarContract.Events.CALENDAR_ID}=? AND ${CalendarContract.Events.UID_2445}=?"
+    val selectionArgs = arrayOf(calendarId.toString(), uid)
+
+    return context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+        if (cursor.moveToFirst()) cursor.getLong(0) else null
     }
 }
 

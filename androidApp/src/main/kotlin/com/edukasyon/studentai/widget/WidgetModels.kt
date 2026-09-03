@@ -133,7 +133,8 @@ data class WidgetSnapshot(
     val designColors: WidgetDesignColors = WidgetDesignPreset.MINIMAL.defaultColors(),
     val themeColors: WidgetThemeColors = widgetThemeFor(WidgetDesignPreset.MINIMAL, WidgetDesignPreset.MINIMAL.defaultColors()),
     val currentTaskProgress: Float? = null,
-    val currentTaskTimeLeft: String? = null
+    val currentTaskTimeLeft: String? = null,
+    val isLoading: Boolean = false
 )
 
 fun widgetThemeFor(design: WidgetDesignPreset, colors: WidgetDesignColors): WidgetThemeColors {
