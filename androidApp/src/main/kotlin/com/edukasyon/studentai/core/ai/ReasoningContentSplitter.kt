@@ -3,7 +3,7 @@ package com.edukasyon.studentai.core.ai
 /**
  * Separates model chain-of-thought from the user-visible Jevi reply.
  *
- * Reasoning models (e.g. step-3.7-flash) may return thinking in [content] without tags,
+ * Reasoning models (e.g. agnes-2.5-flash) may return thinking in [content] without tags,
  * in tagged blocks (`<think>`, `<reasoning>`, fences), or in a separate provider field.
  */
 object ReasoningContentSplitter {

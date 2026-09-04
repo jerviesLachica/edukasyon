@@ -702,7 +702,7 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "Selected on the Jevi AI screen. Auto is fast and unlimited; Step 3.7 Flash is stronger and allows 25 requests every 10 minutes.",
+                    "Selected on the Jevi AI screen. Auto is fast and unlimited; Agnes 2.5 Flash is stronger and allows 25 requests every 10 minutes.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -710,7 +710,7 @@ fun SettingsScreen(
                 Text(
                     text = when (state.aiModel) {
                         AiModel.AUTO -> "Current: Auto - fast general answers"
-                        AiModel.REASONING -> "Current: Step 3.7 Flash - stronger reasoning (limited)"
+                        AiModel.REASONING -> "Current: Agnes 2.5 Flash - stronger reasoning (limited)"
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,

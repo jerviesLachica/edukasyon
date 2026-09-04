@@ -78,9 +78,9 @@ object AiSafetyMessages {
         val minutes = retryAfterMs?.let { ((it + 59_999) / 60_000).toInt() }
         return when {
             minutes == null || minutes <= 0 ->
-                "Step 3.7 Flash limit reached — switched to Auto."
+                "Agnes 2.5 Flash limit reached — switched to Auto."
             else ->
-                "Step 3.7 Flash limit reached — switched to Auto. Try again in ${minutes}m."
+                "Agnes 2.5 Flash limit reached — switched to Auto. Try again in ${minutes}m."
         }
     }
 }

@@ -86,7 +86,16 @@ class RemoteAiService @Inject constructor(
                 },
                 uncertainFields = response.uncertainFields
             )
+        } catch (e: IOException) {
+            throw AiException("Internet connection required for this AI feature.", e)
+        } catch (e: HttpException) {
+            val rawBody = e.response()?.errorBody()?.string()
+            val message = AiSafetyErrorParser.userMessage(e.code(), rawBody)
+            throw AiException(message, e)
         } catch (e: Exception) {
+            // Preserve already-parsed safety messages (e.g. quota/rate-limit)
+            // instead of collapsing everything to a generic failure.
+            if (e is AiException) throw e
             throw AiException("Failed to analyze schedule image.", e)
         }
     }

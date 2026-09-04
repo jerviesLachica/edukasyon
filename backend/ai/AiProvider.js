@@ -22,10 +22,39 @@ const VISION_CAPABLE_MODELS = [
   ]),
 ];
 const DEFAULT_TEXT_MODEL = 'auto';
+// NOTE (2026-09-04, verified by direct upstream probe): hcnsec.cn's
+// distributor has NO working channel for the explicit `agnes-2.5-flash` slug
+// ("model_not_found ... No available channel ... under group default") for
+// both text and vision, while `auto` routes to a working channel (upstream
+// even self-reports model `agnes-2.5-flash` on `auto` vision calls). So the
+// default — and the wire model — must be `auto`, not the explicit slug.
 const DEFAULT_VISION_MODEL = 'auto';
 
+// Legacy slug from before the agnes migration. Old clients / Render envs may
+// still send `step-3.7-flash` — normalize it to `agnes-2.5-flash` so quota
+// attribution and logs stay consistent; the wire layer maps it to `auto`.
+const LEGACY_VISION_ALIASES = {
+  'step-3.7-flash': 'agnes-2.5-flash',
+};
+
+function normalizeModelSlug(slug) {
+  if (typeof slug !== 'string') return slug;
+  const trimmed = slug.trim();
+  return LEGACY_VISION_ALIASES[trimmed] || trimmed;
+}
+
+// Maps a resolved slug to the model id actually sent upstream. The explicit
+// `agnes-2.5-flash` slug has no distributor channel (503 model_not_found),
+// so it goes out as `auto`, which the distributor routes to a working
+// vision-capable channel. Identity for everything else.
+function toWireModelSlug(slug) {
+  const normalized = normalizeModelSlug(slug);
+  if (normalized === 'agnes-2.5-flash') return 'auto';
+  return normalized;
+}
+
 function envModel(name, fallback) {
-  const value = process.env[name];
+  const value = normalizeModelSlug(process.env[name]);
   return ALLOWED_MODELS.includes(value) ? value : fallback;
 }
 
@@ -51,14 +80,16 @@ function createAiProvider(config = {}) {
   const hasAiKey = Boolean(AI_API_KEY);
 
   function resolveModel(requestedModel, defaultModel = DEFAULT_MODEL) {
-    if (requestedModel && ALLOWED_MODELS.includes(requestedModel)) return requestedModel;
+    const normalized = normalizeModelSlug(requestedModel);
+    if (normalized && ALLOWED_MODELS.includes(normalized)) return normalized;
     if (requestedModel) console.warn(`Ignoring invalid model override: ${requestedModel}`);
     return defaultModel;
   }
 
   function resolveVisionModel(requestedModel) {
-    if (requestedModel && VISION_CAPABLE_MODELS.includes(requestedModel)) return requestedModel;
-    if (requestedModel && requestedModel !== TEXT_MODEL && requestedModel !== 'auto') {
+    const normalized = normalizeModelSlug(requestedModel);
+    if (normalized && VISION_CAPABLE_MODELS.includes(normalized)) return normalized;
+    if (normalized && normalized !== TEXT_MODEL && normalized !== 'auto') {
       console.warn(`Ignoring non-vision model override for vision request: ${requestedModel}`);
     }
     return VISION_MODEL;
@@ -70,10 +101,13 @@ function createAiProvider(config = {}) {
 
   function resolveChatModel(requestedModel, hasVisionAttachment) {
     if (hasVisionAttachment) {
+      const normalized = normalizeModelSlug(requestedModel);
       // All vision requests route to agnes-2.5-flash (most reliable for images).
+      // Legacy `step-3.7-flash` clients also land here via normalizeModelSlug.
+      if (normalized && VISION_CAPABLE_MODELS.includes(normalized)) return normalized;
       return 'agnes-2.5-flash';
     }
-    return resolveTextModel(requestedModel);
+    return resolveTextModel(normalizeModelSlug(requestedModel));
   }
 
   function providerHeaders(apiKey) {
@@ -88,13 +122,16 @@ function createAiProvider(config = {}) {
   }
 
   function modelFallbackChain(primaryModel, { isVision = false } = {}) {
-    const chain = [primaryModel];
+    const normalizedPrimary = normalizeModelSlug(primaryModel);
+    // `auto` IS vision-capable via the distributor (verified 2026-09-04), so
+    // it stays in the vision chain as the reliable route; explicit slugs are
+    // wire-mapped below and deduped (agnes → auto).
+    const chain = [normalizedPrimary];
     if (isVision) {
       for (const candidate of VISION_CAPABLE_MODELS) {
-        if (candidate !== primaryModel && !chain.includes(candidate)) chain.push(candidate);
+        if (candidate !== normalizedPrimary && !chain.includes(candidate)) chain.push(candidate);
       }
-      // auto does NOT support vision/multimodal — never add it to vision fallback chain
-      return chain;
+      if (!chain.includes('auto')) chain.push('auto');
     }
     if (primaryModel !== TEXT_MODEL && !chain.includes(TEXT_MODEL)) chain.push(TEXT_MODEL);
     if (primaryModel !== DEFAULT_MODEL && !chain.includes(DEFAULT_MODEL)) chain.push(DEFAULT_MODEL);
@@ -189,7 +226,7 @@ function createAiProvider(config = {}) {
     const embedded = splitEmbeddedReasoning(rawContent);
     const reasoningParts = [providerReasoning, embedded.reasoning].filter(Boolean);
     const reasoning = reasoningParts.join('\n\n').trim() || null;
-    // Some models (e.g. step-3.7-flash) put the structured answer in `reasoning`
+    // Some models (e.g. agnes-2.5-flash) put the structured answer in `reasoning`
     // and leave `content` empty when response_format=json_object is requested.
     // Use reasoning as a fallback so downstream extractJson can still parse JSON.
     let reply = embedded.reply.trim();
@@ -208,7 +245,7 @@ function createAiProvider(config = {}) {
     const payload = { model, messages, temperature, max_tokens: maxTokens };
     // Structured-output hint; providers that don't support it are handled by the caller's fallback.
     if (responseFormat) payload.response_format = responseFormat;
-    // reasoning parameter (e.g. for step-3.7-flash or OpenRouter thinking)
+    // reasoning parameter (e.g. for agnes-2.5-flash or OpenRouter thinking)
     // Only pass if it is an object (e.g. { effort: 'medium' }) or boolean
     if (reasoning && typeof reasoning !== 'string') payload.reasoning = reasoning;
     const res = await fetch(`${AI_BASE_URL}/chat/completions`, {
@@ -227,7 +264,12 @@ function createAiProvider(config = {}) {
 
   async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, signal, responseFormat, reasoning } = {}) {
     if (!hasAiKey) throw new Error('AI provider not configured (set AI_API_KEY)');
-    const models = modelFallbackChain(model || (isVision ? VISION_MODEL : TEXT_MODEL), { isVision });
+    const wireModels = [];
+    for (const candidate of modelFallbackChain(model || (isVision ? VISION_MODEL : TEXT_MODEL), { isVision })) {
+      const wire = toWireModelSlug(candidate);
+      if (wire && !wireModels.includes(wire)) wireModels.push(wire);
+    }
+    const models = wireModels.length ? wireModels : ['auto'];
     let lastError;
     for (let i = 0; i < models.length; i += 1) {
       const candidate = models[i];
@@ -350,6 +392,7 @@ function createAiProvider(config = {}) {
     resolveChatModel,
     resolveVisionModel,
     resolveTextModel,
+    modelFallbackChain,
     chatCompletion,
     chatCompletionText,
     extractJson,
@@ -357,4 +400,4 @@ function createAiProvider(config = {}) {
   };
 }
 
-module.exports = { createAiProvider, ALLOWED_MODELS, VISION_CAPABLE_MODELS };
+module.exports = { createAiProvider, ALLOWED_MODELS, VISION_CAPABLE_MODELS, normalizeModelSlug, toWireModelSlug };

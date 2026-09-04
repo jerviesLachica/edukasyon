@@ -112,8 +112,11 @@ const usageTracker = gateway.usageTracker;
 // Firestore → null (fall back to the default provider). Base URL and model
 // have safe defaults.
 const scanProviderConfig = require('./config/ScanProviderConfig');
-// NVIDIA nemotron-nano-12b-v2-vl EOL 2026-08-26 → fallback to hcnsec.cn step-3.7-flash
-const SCAN_VISION_MODEL_DEFAULT = 'agnes-2.5-flash';
+// hcnsec.cn distributor has no channel for the explicit agnes slug
+// (503 model_not_found, verified 2026-09-04) — `auto` routes to a working
+// vision channel, so it is the scan default. Explicit slugs are wire-mapped
+// to `auto` in AiProvider regardless of this default.
+const SCAN_VISION_MODEL_DEFAULT = 'auto';
 const SCAN_BASE_URL_DEFAULT = 'https://api.hcnsec.cn/v1';
 
 async function resolveScanProvider() {
@@ -371,7 +374,7 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
   const ocrContext = extractedText?.trim() && extractedText.trim().length < 500
     ? `\n\nOCR text (hint only — image is source of truth):\n${extractedText.trim().slice(0, 400)}`
     : '';
-  // Use the raw chatCompletion so we keep `reasoning` (step-3.7-flash and similar
+  // Use the raw chatCompletion so we keep `reasoning` (agnes-2.5-flash and similar
   // models put the structured JSON in the reasoning channel when response_format
   // is requested and leave `content` empty).
   const messages = [
@@ -393,7 +396,7 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
     responseFormat: { type: 'json_object' },
   });
 
-  // Try reasoning first (models like step-3.7-flash put the full JSON there),
+  // Try reasoning first (models like agnes-2.5-flash put the full JSON there),
   // then content reply as fallback. Reasoning is typically the complete response
   // while reply may be truncated.
   let parsed = null;
@@ -630,7 +633,7 @@ async function handleAssignmentBreakdown({ body, provider: ai, maxTokens, signal
   const imageMime = hasImage ? detectImageMimeFromBase64(imageBase64) : null;
 
   // Vision + JSON in one call fails on some providers for image-only requests.
-  // Route: image-only → vision OCR (step-3.7-flash), then text model (auto) for JSON breakdown.
+  // Route: image-only → vision OCR (agnes-2.5-flash), then text model (auto) for JSON breakdown.
   if (hasImage && !documentText) {
     const extracted = await extractTextFromAssignmentImage({
       imageBase64,
@@ -882,7 +885,7 @@ app.get('/health', (_, res) =>
     safetyEnabled: true,
     usage: usageTracker.snapshot(),
     routingPolicy:
-      'Jarvis chat: user-selected auto → auto (text and vision). User-selected step-3.7-flash → step (25 req / 10 min). Prefix a message with /search to use configured web search.',
+      'Jarvis chat: user-selected auto → auto (text). Vision (image/scan) routes via auto — the distributor has no channel for the explicit agnes-2.5-flash slug (wire-mapped to auto). User-selected agnes-2.5-flash → agnes quota (25 req / 10 min). Prefix a message with /search to use configured web search.',
   })
 );
 

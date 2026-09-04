@@ -43,7 +43,7 @@ npm test         # Run tests
 - `/api/ai/*` - AI proxy endpoints (chat, schedule-analysis, summarize, flashcards, quiz, study-plan, assignment-breakdown, focus-plan)
 - `/health` - Health check with provider and routing info
 - Security layers: AiSafetyGateway, rate limiting, abuse detection, input/output moderation
-- AI provider: Routes to hcnsec.cn (OpenAI-compatible) with model routing (`auto` for text, `step-3.7-flash` for vision)
+- AI provider: Routes to hcnsec.cn (OpenAI-compatible) with model routing (`auto` for text, `agnes-2.5-flash` for vision)
 
 ## Key Technologies
 
@@ -67,7 +67,7 @@ npm test         # Run tests
 | `AI_API_KEY` | — | hcnsec.cn API key |
 | `AI_BASE_URL` | `https://api.hcnsec.cn/v1` | API endpoint |
 | `TEXT_MODEL` | `auto` | Text chat model |
-| `VISION_MODEL` | `step-3.7-flash` | Vision/image model |
+| `VISION_MODEL` | `agnes-2.5-flash` | Vision/image model |
 | `PORT` | `8080` | Server port |
 | `TAVILY_API_KEY` | — | Web search (use `/search` in chat) |
 

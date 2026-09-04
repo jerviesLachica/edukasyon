@@ -1,7 +1,7 @@
 package com.edukasyon.studentai.core.ai
 
 /**
- * Client-side sliding window for Step 3.7 Flash chat usage (mirrors backend: 25 req / 10 min).
+ * Client-side sliding window for Agnes 2.5 Flash chat usage (mirrors backend: 25 req / 10 min).
  */
 object StepModelQuotaTracker {
     const val LIMIT = 25

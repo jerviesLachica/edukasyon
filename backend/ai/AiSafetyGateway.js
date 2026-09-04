@@ -77,18 +77,20 @@ class AiSafetyGateway {
         }
       }
 
-      // 3b. Step model chat quota (only when client explicitly requests step-3.7-flash)
-      if (endpoint === 'chat' && req.body?.model === 'step-3.7-flash') {
+      // 3b. Reasoning/vision model chat quota (only when client explicitly requests agnes-2.5-flash;
+      // legacy step-3.7-flash slug is also honored for old app versions)
+      if (endpoint === 'chat' && (req.body?.model === 'agnes-2.5-flash' || req.body?.model === 'step-3.7-flash')) {
         const stepPolicy = this.policy.stepModelChat || { limit: 25, windowMs: 600_000 };
-        const stepResult = this.rateLimiter.checkModel(identity, 'step-3.7-flash', stepPolicy);
+        const requestedSlug = req.body.model === 'step-3.7-flash' ? 'step-3.7-flash' : 'agnes-2.5-flash';
+        const stepResult = this.rateLimiter.checkModel(identity, requestedSlug, stepPolicy);
         if (!stepResult.allowed) {
-          this.logEvent('rate_limited', identity, endpoint, { scope: 'step_model', model: 'step-3.7-flash' });
+          this.logEvent('rate_limited', identity, endpoint, { scope: 'step_model', model: requestedSlug });
           return this.sendError(
             res,
             429,
             'RATE_LIMIT_EXCEEDED',
-            'Step 3.7 Flash limit reached (25 requests every 10 minutes). Switched to Auto is recommended.',
-            { retryAfterMs: stepResult.retryAfterMs, model: 'step-3.7-flash' }
+            'Agnes 2.5 Flash limit reached (25 requests every 10 minutes). Switched to Auto is recommended.',
+            { retryAfterMs: stepResult.retryAfterMs, model: requestedSlug }
           );
         }
       }

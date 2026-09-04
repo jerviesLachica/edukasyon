@@ -64,7 +64,7 @@ const ENDPOINT_DEFAULTS = {
   },
 };
 
-/** Premium step model chat quota (when client sends model=step-3.7-flash). */
+/** Premium reasoning/vision model chat quota (when client sends model=agnes-2.5-flash; legacy step-3.7-flash also counted). */
 const STEP_MODEL_CHAT_DEFAULTS = {
   limit: 25,
   windowMs: 10 * 60 * 1000,

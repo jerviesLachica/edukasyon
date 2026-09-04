@@ -91,7 +91,7 @@ Set on **studentai-backend** service:
 | `AI_API_KEY` | *(secret)* | hcnsec.cn key — **Secret** |
 | `AI_BASE_URL` | `https://api.hcnsec.cn/v1` | |
 | `TEXT_MODEL` | `auto` | |
-| `VISION_MODEL` | `step-3.7-flash` | |
+| `VISION_MODEL` | `agnes-2.5-flash` | |
 
 ### Safety (new — optional, defaults shown)
 

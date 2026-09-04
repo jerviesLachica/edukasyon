@@ -2025,7 +2025,7 @@ class AiViewModel @Inject constructor(
         const val SCHEDULE_SCAN_RETRY_LATER_MS = 30 * 60 * 1000L
         const val SCHEDULE_SCAN_RETRY_WORK = "schedule_scan_retry_later"
         const val STEP_QUOTA_SWITCH_MESSAGE =
-            "Step 3.7 Flash limit reached — switched to Auto. Try again in a few minutes."
+            "Agnes 2.5 Flash limit reached — switched to Auto. Try again in a few minutes."
     }
 }
 

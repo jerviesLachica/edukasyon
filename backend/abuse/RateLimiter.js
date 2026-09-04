@@ -53,7 +53,7 @@ class RateLimiter {
   }
 
   /**
-   * Model-specific sliding window (e.g. step-3.7-flash chat quota).
+   * Model-specific sliding window (e.g. agnes-2.5-flash chat quota).
    * @returns {{ allowed: boolean, retryAfterMs?: number, remaining?: number }}
    */
   checkModel(identity, model, { limit, windowMs = 600_000 }) {
