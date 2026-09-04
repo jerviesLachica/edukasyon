@@ -22,9 +22,8 @@ const VISION_CAPABLE_MODELS = [
   ]),
 ];
 const DEFAULT_TEXT_MODEL = 'auto';
-// Vision requests must use agnes-2.5-flash (supports multimodal).
-// Wire layer maps agnes -> auto for text requests only (see toWireModelSlug).
-// For vision, we send agnes-2.5-flash directly upstream.
+// Vision requests use agnes-2.5-flash (multimodal-capable). It is sent directly
+// upstream via toWireModelSlug (no longer mapped to `auto`).
 const DEFAULT_VISION_MODEL = 'agnes-2.5-flash';
 
 // Legacy slug from before the agnes migration. Old clients / Render envs may
@@ -40,13 +39,11 @@ function normalizeModelSlug(slug) {
   return LEGACY_VISION_ALIASES[trimmed] || trimmed;
 }
 
-// Maps a resolved slug to the model id actually sent upstream. The explicit
-// `agnes-2.5-flash` slug has no distributor channel (503 model_not_found),
-// so it goes out as `auto`, which the distributor routes to a working
-// vision-capable channel. Identity for everything else.
+// Maps a resolved slug to the model id actually sent upstream.
+// For vision requests, send agnes-2.5-flash directly (it supports multimodal).
+// Identity for everything else.
 function toWireModelSlug(slug) {
   const normalized = normalizeModelSlug(slug);
-  if (normalized === 'agnes-2.5-flash') return 'auto';
   return normalized;
 }
 
@@ -120,9 +117,7 @@ function createAiProvider(config = {}) {
 
   function modelFallbackChain(primaryModel, { isVision = false } = {}) {
     const normalizedPrimary = normalizeModelSlug(primaryModel);
-    // `auto` IS vision-capable via the distributor (verified 2026-09-04), so
-    // it stays in the vision chain as the reliable route; explicit slugs are
-    // wire-mapped below and deduped (agnes → auto).
+    // Vision chain: try agnes-2.5-flash first (multimodal), then `auto` as fallback.
     const chain = [normalizedPrimary];
     if (isVision) {
       for (const candidate of VISION_CAPABLE_MODELS) {
