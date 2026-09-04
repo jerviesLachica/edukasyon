@@ -21,7 +21,7 @@ services:
       - key: TEXT_MODEL
         value: auto
       - key: VISION_MODEL
-        value: step-3.7-flash
+        value: agnes-2.5-flash
       # Schedule scanning routes through NVIDIA NIM when this key is present.
       # Base URL + vision model have safe defaults in server.js.
       - key: SCAN_AI_API_KEY
