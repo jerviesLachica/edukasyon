@@ -22,13 +22,10 @@ const VISION_CAPABLE_MODELS = [
   ]),
 ];
 const DEFAULT_TEXT_MODEL = 'auto';
-// NOTE (2026-09-04, verified by direct upstream probe): hcnsec.cn's
-// distributor has NO working channel for the explicit `agnes-2.5-flash` slug
-// ("model_not_found ... No available channel ... under group default") for
-// both text and vision, while `auto` routes to a working channel (upstream
-// even self-reports model `agnes-2.5-flash` on `auto` vision calls). So the
-// default — and the wire model — must be `auto`, not the explicit slug.
-const DEFAULT_VISION_MODEL = 'auto';
+// Vision requests must use agnes-2.5-flash (supports multimodal).
+// Wire layer maps agnes -> auto for text requests only (see toWireModelSlug).
+// For vision, we send agnes-2.5-flash directly upstream.
+const DEFAULT_VISION_MODEL = 'agnes-2.5-flash';
 
 // Legacy slug from before the agnes migration. Old clients / Render envs may
 // still send `step-3.7-flash` — normalize it to `agnes-2.5-flash` so quota
