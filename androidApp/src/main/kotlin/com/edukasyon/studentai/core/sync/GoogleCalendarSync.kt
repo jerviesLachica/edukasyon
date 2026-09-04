@@ -1,10 +1,13 @@
 package com.edukasyon.studentai.core.sync
 
+import android.Manifest
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.provider.CalendarContract
+import androidx.core.content.ContextCompat
 import com.edukasyon.studentai.domain.model.DayOfWeek
 import com.edukasyon.studentai.domain.model.ScheduleItem
 import java.util.Calendar
@@ -134,6 +137,125 @@ fun getPrimaryCalendarId(context: Context): Long? {
     } catch (e: Exception) {
         null
     }
+}
+
+/**
+ * Check whether the app has both READ_CALENDAR and WRITE_CALENDAR permissions
+ * required to insert events directly into the device's Google Calendar.
+ */
+fun hasCalendarPermissions(context: Context): Boolean {
+    val readGranted = ContextCompat.checkSelfPermission(
+        context, Manifest.permission.READ_CALENDAR
+    ) == PackageManager.PERMISSION_GRANTED
+    val writeGranted = ContextCompat.checkSelfPermission(
+        context, Manifest.permission.WRITE_CALENDAR
+    ) == PackageManager.PERMISSION_GRANTED
+    return readGranted && writeGranted
+}
+
+/**
+ * Required runtime permissions for inserting calendar events.
+ * Used by the ActivityResultContracts.RequestMultiplePermissions contract.
+ */
+val CALENDAR_PERMISSIONS: Array<String> = arrayOf(
+    Manifest.permission.READ_CALENDAR,
+    Manifest.permission.WRITE_CALENDAR,
+)
+
+/**
+ * Batch-sync the user's real schedule items to the device's Google Calendar.
+ * Unlike the legacy intent-launcher approach, this uses the ContentResolver
+ * directly so every item in [scheduleItems] is inserted (or updated, via
+ * UID_2445 dedup) in one shot — the previous intent-loop only inserted the
+ * first event and dropped the rest.
+ *
+ * Returns a [CalendarSyncResult] describing what happened so the caller can
+ * surface a meaningful message instead of silently swallowing errors.
+ */
+fun syncAllToGoogleCalendar(
+    context: Context,
+    scheduleItems: List<ScheduleItem>,
+): CalendarSyncResult {
+    if (!hasCalendarPermissions(context)) {
+        return CalendarSyncResult.MissingPermissions
+    }
+    if (scheduleItems.isEmpty()) {
+        return CalendarSyncResult.NoScheduleData
+    }
+    val calendarId = getPrimaryCalendarId(context)
+        ?: return CalendarSyncResult.NoCalendarAccount
+
+    var inserted = 0
+    var updated = 0
+    var failed = 0
+    for (item in scheduleItems) {
+        val outcome = insertOrUpdateEvent(context, calendarId, item)
+        when (outcome) {
+            is SingleEventOutcome.Inserted -> inserted++
+            is SingleEventOutcome.Updated -> updated++
+            SingleEventOutcome.Failed -> failed++
+            SingleEventOutcome.Skipped -> { /* already present, counted as updated */ updated++ }
+        }
+    }
+    return if (failed == 0) {
+        CalendarSyncResult.Success(inserted = inserted, updated = updated, total = scheduleItems.size)
+    } else {
+        CalendarSyncResult.PartialFailure(inserted = inserted, updated = updated, failed = failed)
+    }
+}
+
+private sealed class SingleEventOutcome {
+    data object Inserted : SingleEventOutcome()
+    data object Updated : SingleEventOutcome()
+    data object Skipped : SingleEventOutcome()
+    data object Failed : SingleEventOutcome()
+}
+
+private fun insertOrUpdateEvent(
+    context: Context,
+    calendarId: Long,
+    scheduleItem: ScheduleItem,
+): SingleEventOutcome {
+    return try {
+        val startMillis = scheduleItem.nextOccurrenceStartMillis()
+        val endMillis = scheduleItem.nextOccurrenceEndMillis()
+        val uid = "schedmate-${scheduleItem.id}@studentai.local"
+        val existingId = findEventByUid(context, calendarId, uid)
+
+        val values = ContentValues().apply {
+            put(CalendarContract.Events.CALENDAR_ID, calendarId)
+            put(CalendarContract.Events.TITLE, scheduleItem.subjectName)
+            put(CalendarContract.Events.DESCRIPTION, scheduleItem.notes)
+            put(CalendarContract.Events.EVENT_LOCATION, scheduleItem.room)
+            put(CalendarContract.Events.DTSTART, startMillis)
+            put(CalendarContract.Events.DTEND, endMillis)
+            put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+            put(CalendarContract.Events.HAS_ALARM, 1)
+            put(CalendarContract.Events.RRULE, buildRRule(scheduleItem))
+            put(CalendarContract.Events.UID_2445, uid)
+        }
+
+        if (existingId != null) {
+            val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, existingId)
+            val rows = context.contentResolver.update(uri, values, null, null)
+            if (rows > 0) SingleEventOutcome.Updated else SingleEventOutcome.Skipped
+        } else {
+            val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+            if (uri != null) SingleEventOutcome.Inserted else SingleEventOutcome.Failed
+        }
+    } catch (e: SecurityException) {
+        SingleEventOutcome.Failed
+    } catch (e: Exception) {
+        SingleEventOutcome.Failed
+    }
+}
+
+sealed class CalendarSyncResult {
+    data class Success(val inserted: Int, val updated: Int, val total: Int) : CalendarSyncResult()
+    data class PartialFailure(val inserted: Int, val updated: Int, val failed: Int) : CalendarSyncResult()
+    data object MissingPermissions : CalendarSyncResult()
+    data object NoCalendarAccount : CalendarSyncResult()
+    data object NoScheduleData : CalendarSyncResult()
 }
 
 private fun domainDayToCalendarConstant(day: DayOfWeek): Int = when (day) {

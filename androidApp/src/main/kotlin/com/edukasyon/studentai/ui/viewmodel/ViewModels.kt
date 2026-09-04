@@ -2061,6 +2061,8 @@ data class ProfileUiState(
     val isSyncing: Boolean = false,
     val lastSyncedAt: Long? = null,
     val syncStatus: SyncState = SyncState.LOCAL_ONLY,
+    val isSyncingCalendar: Boolean = false,
+    val calendarSyncMessage: String? = null,
 )
 
 @HiltViewModel
@@ -2075,6 +2077,7 @@ class ProfileViewModel @Inject constructor(
     private val firebaseAuthManager: com.edukasyon.studentai.core.firebase.FirebaseAuthManager,
     private val googleSignInHelper: com.edukasyon.studentai.core.firebase.GoogleSignInHelper,
     private val syncMetadataDao: com.edukasyon.studentai.data.local.dao.SyncMetadataDao,
+    private val scheduleRepository: ScheduleRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
@@ -2287,6 +2290,33 @@ class ProfileViewModel @Inject constructor(
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Called from the UI after the user grants calendar permissions.
+     * Reads real schedule items from the database and batch-inserts them
+     * into the device's Google Calendar via ContentResolver — unlike the legacy
+     * intent-loop which dropped all but the first event.
+     */
+    fun onCalendarPermissionsGranted(context: android.content.Context) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSyncingCalendar = true) }
+            val items = scheduleRepository.observeSchedule().first()
+            val result = com.edukasyon.studentai.core.sync.syncAllToGoogleCalendar(context, items)
+            val message = when (result) {
+                is com.edukasyon.studentai.core.sync.CalendarSyncResult.Success ->
+                    "Calendar synced: ${result.inserted} added, ${result.updated} updated"
+                is com.edukasyon.studentai.core.sync.CalendarSyncResult.PartialFailure ->
+                    "Calendar partially synced: ${result.inserted} added, ${result.updated} updated, ${result.failed} failed"
+                is com.edukasyon.studentai.core.sync.CalendarSyncResult.MissingPermissions ->
+                    "Calendar permission required — please grant and try again"
+                is com.edukasyon.studentai.core.sync.CalendarSyncResult.NoCalendarAccount ->
+                    "No Google Calendar found on this device"
+                is com.edukasyon.studentai.core.sync.CalendarSyncResult.NoScheduleData ->
+                    "No schedule items found — add classes first"
+            }
+            _uiState.update { it.copy(isSyncingCalendar = false, calendarSyncMessage = message) }
         }
     }
 

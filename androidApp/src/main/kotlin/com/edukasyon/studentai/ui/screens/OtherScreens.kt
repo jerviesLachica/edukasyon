@@ -31,8 +31,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.provider.CalendarContract
 import com.edukasyon.studentai.BuildConfig
-import com.edukasyon.studentai.core.sync.createCalendarIntent
-import com.edukasyon.studentai.core.sync.getDummyScheduleItemsForNext7Days
 import com.edukasyon.studentai.domain.model.AiModel
 import com.edukasyon.studentai.domain.model.PreferredStudentStatus
 import com.edukasyon.studentai.domain.model.ProfileEditPolicy
@@ -110,6 +108,12 @@ fun ProfileScreen(
         LaunchedEffect(msg) {
             android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
             viewModel.clearBackupMessage()
+        }
+    }
+
+    state.calendarSyncMessage?.let { msg ->
+        LaunchedEffect(msg) {
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
         }
     }
 
@@ -413,9 +417,20 @@ fun SettingsScreen(
         viewModel.handleGoogleSignInResult(result.data)
     }
 
-    val calendarSyncLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { /* no result handling needed for calendar insert intent */ }
+    val calendarPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions.values.all { it }
+        if (granted) {
+            viewModel.onCalendarPermissionsGranted(context)
+        } else {
+            android.widget.Toast.makeText(
+                context,
+                "Calendar permissions required to sync schedule",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
 
     LaunchedEffect(state.notificationsEnabled) {
         if (state.notificationsEnabled && android.os.Build.VERSION.SDK_INT >= 33) {
@@ -427,6 +442,12 @@ fun SettingsScreen(
         LaunchedEffect(msg) {
             android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
             viewModel.clearBackupMessage()
+        }
+    }
+
+    state.calendarSyncMessage?.let { msg ->
+        LaunchedEffect(msg) {
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
         }
     }
 
@@ -653,14 +674,23 @@ fun SettingsScreen(
                     title = "Sync to Google Calendar",
                     subtitle = "Add upcoming classes to your device calendar",
                     trailing = {
-                        TextButton(
-                            onClick = {
-                                getDummyScheduleItemsForNext7Days().forEach { item ->
-                                    calendarSyncLauncher.launch(createCalendarIntent(context, item))
-                                }
-                            },
-                        ) {
-                            Text("Sync")
+                        if (state.isSyncingCalendar) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            TextButton(
+                                onClick = {
+                                    if (com.edukasyon.studentai.core.sync.hasCalendarPermissions(context)) {
+                                        viewModel.onCalendarPermissionsGranted(context)
+                                    } else {
+                                        calendarPermissionLauncher.launch(com.edukasyon.studentai.core.sync.CALENDAR_PERMISSIONS)
+                                    }
+                                },
+                            ) {
+                                Text("Sync")
+                            }
                         }
                     }
                 )
