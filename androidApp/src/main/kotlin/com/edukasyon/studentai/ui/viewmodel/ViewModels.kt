@@ -10,6 +10,7 @@ import com.edukasyon.studentai.core.util.GradeCalculator
 import com.edukasyon.studentai.core.util.SubjectPickerMerger
 import com.edukasyon.studentai.core.ai.AiModelRouter
 import com.edukasyon.studentai.core.ai.StepModelQuotaTracker
+import com.edukasyon.studentai.core.mlkit.ScheduleParser
 import com.edukasyon.studentai.domain.model.*
 import com.edukasyon.studentai.domain.repository.*
 import com.edukasyon.studentai.core.firebase.FirebaseAuthManager
@@ -350,6 +351,8 @@ class ScheduleViewModel @Inject constructor(
     private val holidayRepo: com.edukasyon.studentai.data.repository.HolidayRepository,
     private val saveCalendarEvent: SaveCalendarEventUseCase,
     private val syncScheduler: com.edukasyon.studentai.core.sync.SyncScheduler,
+    private val scheduleParser: ScheduleParser,
+    private val mlKitTextRecognizer: com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ScheduleUiState())
     val uiState: StateFlow<ScheduleUiState> = _uiState.asStateFlow()
@@ -1786,8 +1789,8 @@ class AiViewModel @Inject constructor(
                 } else {
                     val hint = extractedText?.trim()?.takeIf { it.isNotEmpty() }
                     hint ?: run {
-                        // OPTIMIZATION: Skip ML Kit OCR if timing is tight — vision models don't need text hints.
-                        // Cap at 1.5s to ensure fast response from NIM provider (~18s total).
+                        // Run ML Kit on-device OCR (free, no AI needed).
+                        // Cap at 1.5s to keep the local fast-path snappy.
                         val recognized = withTimeoutOrNull(SCHEDULE_SCAN_OCR_DEADLINE_MS) {
                             mlKitTextRecognizer.recognizeFromBytes(compressedImageData).text
                         }
@@ -1802,7 +1805,8 @@ class AiViewModel @Inject constructor(
                     )
                 }
 
-                // OPTIMIZATION: Use reduced timeout (30s) for NVIDIA NIM provider (est. 18s + overhead)
+                if (attemptId != scheduleScanAttemptCounter) return@launch
+
                 val result = withTimeoutOrNull(SCHEDULE_SCAN_TIMEOUT_MS) {
                     aiAnalyzeSchedule.execute(
                         com.edukasyon.studentai.core.ai.ScheduleScanInput(
