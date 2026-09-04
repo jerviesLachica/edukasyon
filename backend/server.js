@@ -393,11 +393,12 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
     responseFormat: { type: 'json_object' },
   });
 
-  // Try the content reply first, then reasoning as fallback for models that
-  // return JSON in the reasoning channel.
+  // Try reasoning first (models like step-3.7-flash put the full JSON there),
+  // then content reply as fallback. Reasoning is typically the complete response
+  // while reply may be truncated.
   let parsed = null;
   let lastErr;
-  for (const src of [completion.reply, completion.reasoning].filter(Boolean)) {
+  for (const src of [completion.reasoning, completion.reply].filter(Boolean)) {
     try {
       const p = ai.extractJson(src);
       if (p && Array.isArray(p.classes) && p.classes.length > 0) {
