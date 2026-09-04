@@ -113,7 +113,7 @@ const usageTracker = gateway.usageTracker;
 // have safe defaults.
 const scanProviderConfig = require('./config/ScanProviderConfig');
 // NVIDIA nemotron-nano-12b-v2-vl EOL 2026-08-26 → fallback to hcnsec.cn step-3.7-flash
-const SCAN_VISION_MODEL_DEFAULT = 'step-3.7-flash';
+const SCAN_VISION_MODEL_DEFAULT = 'agnes-2.5-flash';
 const SCAN_BASE_URL_DEFAULT = 'https://api.hcnsec.cn/v1';
 
 async function resolveScanProvider() {
