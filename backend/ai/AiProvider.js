@@ -22,8 +22,9 @@ const VISION_CAPABLE_MODELS = [
   ]),
 ];
 const DEFAULT_TEXT_MODEL = 'auto';
-// Vision requests use agnes-2.5-flash (multimodal-capable). It is sent directly
-// upstream via toWireModelSlug (no longer mapped to `auto`).
+// Vision requests use agnes-2.5-flash as the logical model name.
+// The upstream distributor has no working channel for explicit agnes,
+// so toWireModelSlug maps it to step-3.7-flash for actual API calls.
 const DEFAULT_VISION_MODEL = 'agnes-2.5-flash';
 
 // Legacy slug from before the agnes migration. Old clients / Render envs may
@@ -44,6 +45,7 @@ function normalizeModelSlug(slug) {
 // Identity for everything else.
 function toWireModelSlug(slug) {
   const normalized = normalizeModelSlug(slug);
+  if (normalized === 'agnes-2.5-flash') return 'step-3.7-flash';
   return normalized;
 }
 
