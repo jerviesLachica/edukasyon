@@ -10,13 +10,12 @@ function envModelList(name) {
     .filter(Boolean);
 }
 
-const BASE_ALLOWED_MODELS = ['auto', 'step-3.7-flash'];
+const BASE_ALLOWED_MODELS = ['auto', 'agnes-2.5-flash'];
 // Operators extend the catalog via env (e.g. NVIDIA NIM ids) without code changes.
 const CONFIGURED_MODELS = envModelList('ALLOWED_MODELS');
 const ALLOWED_MODELS = [...new Set([...BASE_ALLOWED_MODELS, ...CONFIGURED_MODELS])];
 const VISION_CAPABLE_MODELS = [
   ...new Set([
-    'step-3.7-flash',
     'agnes-2.5-flash',
     ...envModelList('VISION_CAPABLE_MODELS'),
     ...CONFIGURED_MODELS,
@@ -71,9 +70,8 @@ function createAiProvider(config = {}) {
 
   function resolveChatModel(requestedModel, hasVisionAttachment) {
     if (hasVisionAttachment) {
-      // Honor explicit user choice: auto stays auto for vision; step uses step (quota applies).
-      if (requestedModel === 'step-3.7-flash') return 'step-3.7-flash';
-      return 'auto';
+      // All vision requests route to agnes-2.5-flash (most reliable for images).
+      return 'agnes-2.5-flash';
     }
     return resolveTextModel(requestedModel);
   }

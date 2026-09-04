@@ -129,8 +129,8 @@ describe('QuizValidator', () => {
 });
 
 describe('AiProvider vision routing', () => {
-  it('treats step-3.7-flash as vision-capable for proxy fallback', () => {
-    assert.ok(VISION_CAPABLE_MODELS.includes('step-3.7-flash'));
+  it('treats agnes-2.5-flash as vision-capable for proxy fallback', () => {
+    assert.ok(VISION_CAPABLE_MODELS.includes('agnes-2.5-flash'));
   });
 });
 
