@@ -85,7 +85,7 @@ fun TallWidgetContent(snapshot: WidgetSnapshot, openAction: Action) {
 private fun CombinedTallContent(snapshot: WidgetSnapshot) {
     val theme = snapshot.themeColors
     Row(modifier = GlanceModifier.fillMaxWidth()) {
-        Column(modifier = GlanceModifier.defaultWeight()) {
+        Column(modifier = GlanceModifier.width(72.dp)) {
             Text(
                 text = "Today",
                 style = TextStyle(
@@ -110,7 +110,7 @@ private fun CombinedTallContent(snapshot: WidgetSnapshot) {
             Spacer(GlanceModifier.height(4.dp))
             MoreLabel(snapshot)
         }
-        Column(modifier = GlanceModifier.defaultWeight()) {
+        Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
             MiniCalendar(snapshot)
         }
     }

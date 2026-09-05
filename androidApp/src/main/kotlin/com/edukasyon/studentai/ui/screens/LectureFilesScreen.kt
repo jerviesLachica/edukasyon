@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -130,7 +131,9 @@ fun LectureFilesScreen(
                                 state.subjectName(subjectId),
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(vertical = 8.dp)
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                         items(files, key = { it.id }) { file ->
@@ -240,43 +243,13 @@ fun LocalStorageWarningBanner(modifier: Modifier = Modifier) {
 
 @Composable
 private fun LectureFilesEmptyState(onAddFile: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Surface(
-            shape = StudentAiShapes.card,
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-            modifier = Modifier.size(96.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.Default.FolderCopy,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-        Spacer(Modifier.height(20.dp))
-        Text("No lecture files yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Add a PDF, slide deck, or photo to get started.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(20.dp))
-        Button(onClick = onAddFile, shape = StudentAiShapes.button) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Add File")
-        }
-    }
+    ModernEmptyState(
+        title = "No lecture files yet",
+        message = "Add a PDF, slide deck, or photo to get started.",
+        actionLabel = "Add File",
+        onAction = onAddFile,
+modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
@@ -292,6 +265,11 @@ private fun LectureFileCard(
         file.mimeType.contains("pdf") -> Icons.Default.PictureAsPdf
         else -> Icons.Default.InsertDriveFile
     }
+    val fileTypeDescription = when {
+        file.mimeType.startsWith("image/") -> "Image file"
+        file.mimeType.contains("pdf") -> "PDF file"
+        else -> "Document file"
+    }
 
     ModernCard(onClick = onOpen) {
         Row(
@@ -299,11 +277,31 @@ private fun LectureFileCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Column(Modifier.weight(1f)) {
-                Text(file.title, style = MaterialTheme.typography.titleSmall)
-                Text(subjectLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(dateFormat.format(Date(file.createdAt)), style = MaterialTheme.typography.labelSmall)
+            Icon(icon, contentDescription = fileTypeDescription, tint = MaterialTheme.colorScheme.primary)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    file.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    subjectLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    dateFormat.format(Date(file.createdAt)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
@@ -312,23 +310,40 @@ private fun LectureFileCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FlowRowSubjectChips(
     subjects: List<com.edukasyon.studentai.domain.model.Subject>,
     selectedId: String?,
     onSelected: (String?) -> Unit
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         FilterChip(
             selected = selectedId == null,
             onClick = { onSelected(null) },
-            label = { Text("General") }
+            label = {
+                Text(
+                    "General",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
         )
         subjects.take(4).forEach { subject ->
             FilterChip(
                 selected = selectedId == subject.id,
                 onClick = { onSelected(subject.id) },
-                label = { Text(subject.name) }
+                label = {
+                    Text(
+                        subject.name,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
             )
         }
     }

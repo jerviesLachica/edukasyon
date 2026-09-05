@@ -38,9 +38,7 @@ abstract class BaseStudentAiWidget(
         
         // Render the design bitmap off the main thread BEFORE composition — otherwise
         // WidgetBackgroundLayer draws pattern bitmaps synchronously during first paint.
-        withContext(Dispatchers.Default) {
-            WidgetDataProvider.prewarmBackground(context, snapshot)
-        }
+        WidgetDataProvider.prewarmBackground(context, snapshot)
 
         val startTab = when (snapshot.displayType) {
             WidgetDisplayType.TASKS, WidgetDisplayType.COMBINED -> "planner"

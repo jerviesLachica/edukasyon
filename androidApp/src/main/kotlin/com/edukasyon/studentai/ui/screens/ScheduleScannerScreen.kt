@@ -276,18 +276,22 @@ fun ScheduleScannerScreen(
             } else {
                 if (showCamera) {
                     Box(
-                        Modifier.weight(1f).fillMaxSize(),
+                        Modifier.weight(1f).fillMaxWidth(),
                         contentAlignment = Alignment.Center,
                     ) {
-                        AndroidView(
-                            factory = { ctx ->
-                                PreviewView(ctx).apply {
-                                    implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                                    scaleType = PreviewView.ScaleType.FILL_CENTER
-                                }.also { previewViewRef = it }
-                            },
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                        // Hide live camera preview while scanning so it doesn't show
+                        // underneath the overlay / captured image.
+                        if (!isScanning) {
+                            AndroidView(
+                                factory = { ctx ->
+                                    PreviewView(ctx).apply {
+                                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                                        scaleType = PreviewView.ScaleType.FILL_CENTER
+                                    }.also { previewViewRef = it }
+                                },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                         if (isScanning) {
                             ScanningOverlay(
                                 imageBytes = pendingScanImageBytes,

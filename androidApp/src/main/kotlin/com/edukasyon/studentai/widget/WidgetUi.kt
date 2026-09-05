@@ -166,7 +166,7 @@ internal fun TaskRow(
         Column(modifier = GlanceModifier.defaultWeight()) {
             Text(
                 text = item.title,
-                maxLines = 1,
+                maxLines = if (compact) 1 else 2,
                 style = TextStyle(
                     color = ColorProvider(WidgetColors.onSurface(theme)),
                     fontSize = if (compact) 12.sp else 13.sp,
@@ -218,17 +218,17 @@ internal fun ScheduleRow(
         Spacer(GlanceModifier.width(8.dp))
         Column(modifier = GlanceModifier.defaultWeight()) {
             Text(
-                text = item.title,
-                maxLines = 1,
-                style = TextStyle(
-                    color = ColorProvider(WidgetColors.onSurface(theme)),
-                    fontSize = if (compact) 12.sp else 13.sp,
-                    fontWeight = if (item.isCurrent) FontWeight.Medium else FontWeight.Normal
-                )
-            )
-            Text(
-                text = item.timeRange,
-                maxLines = 1,
+                            text = item.title,
+                            maxLines = if (compact) 1 else 2,
+                            style = TextStyle(
+                                color = ColorProvider(WidgetColors.onSurface(theme)),
+                                fontSize = if (compact) 12.sp else 13.sp,
+                                fontWeight = if (item.isCurrent) FontWeight.Medium else FontWeight.Normal
+                            )
+                        )
+                        Text(
+                            text = item.timeRange,
+                            maxLines = 1,
                 style = TextStyle(
                     color = ColorProvider(
                         if (item.isCurrent) accent else WidgetColors.muted(theme)

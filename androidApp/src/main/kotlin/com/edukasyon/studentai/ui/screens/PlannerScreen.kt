@@ -452,6 +452,7 @@ private fun TaskCard(
     viewModel: PlannerViewModel
 ) {
     var newSubtask by remember(task.id) { mutableStateOf("") }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     val isCompleted = task.status == TaskStatus.COMPLETED
     val contentIndent = 34.dp
 
@@ -486,7 +487,7 @@ private fun TaskCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                BouncyIconButton(onClick = { onDelete(task.id) }, modifier = Modifier.size(40.dp)) {
+                BouncyIconButton(onClick = { showDeleteDialog = true }, modifier = Modifier.size(40.dp)) {
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "Delete",
@@ -581,6 +582,25 @@ private fun TaskCard(
                 )
             }
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete task") },
+            text = { Text("Are you sure you want to delete \"${task.title}\"? This can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDelete(task.id)
+                    showDeleteDialog = false
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+            },
+        )
     }
 }
 

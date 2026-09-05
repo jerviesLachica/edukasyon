@@ -232,7 +232,7 @@ fun PlannerScheduleFields(
                     text = if (schedule.reminderCustomized) {
                         "Custom reminder: ${DateUtils.formatReminderAt(schedule.reminderAtForSave()!!)}"
                     } else {
-                        "Default: 1 day before due at 9:00 AM"
+                        "Default: 1 day before due at 9:00 AM (or same-day at 8:00 AM if sooner)"
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

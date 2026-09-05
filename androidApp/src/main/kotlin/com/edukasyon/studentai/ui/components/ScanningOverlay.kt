@@ -202,29 +202,41 @@ fun ScanningOverlay(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            StarPreloader(containerSize = 56.dp, showGlow = true)
-            Spacer(Modifier.height(20.dp))
-            Text(
-                text = if (isImageOnlyRetry) "Retrying from scratch…" else primaryMessage,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = if (isImageOnlyRetry) "Reading the image directly, no text preview" else subMessage,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.85f),
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = ScanProgressSteps[stepIndex],
-                style = MaterialTheme.typography.bodySmall,
-                color = primaryColor.copy(alpha = 0.95f),
-                textAlign = TextAlign.Center,
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.55f), shape = RoundedCornerShape(16.dp))
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    StarPreloader(containerSize = 56.dp, showGlow = true)
+                    Spacer(Modifier.height(20.dp))
+                    Text(
+                        text = if (isImageOnlyRetry) "Retrying from scratch…" else primaryMessage,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = if (isImageOnlyRetry) "Reading the image directly, no text preview" else subMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.9f),
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = ScanProgressSteps[stepIndex],
+                        style = MaterialTheme.typography.bodySmall,
+                        color = primaryColor.copy(alpha = 0.95f),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
             extractedText?.takeIf { it.isNotBlank() }?.let { text ->
                 Spacer(Modifier.height(16.dp))
                 Text(

@@ -1,7 +1,9 @@
 package com.edukasyon.studentai.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -33,6 +35,7 @@ import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
 import com.edukasyon.studentai.ui.adaptive.isMediumOrExpandedWidth
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.components.*
+import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import com.edukasyon.studentai.ui.theme.parseHexColor
 import com.edukasyon.studentai.ui.viewmodel.GradesViewModel
 import java.util.UUID
@@ -139,6 +142,7 @@ fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
                             .padding(horizontal = horizontalPadding),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
@@ -175,7 +179,7 @@ fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
                     )
                 }
                 } else {
-                    item { SectionHeader("BY SUBJECT", modifier = Modifier.padding(horizontal = horizontalPadding)) }
+                    item { SectionHeader("BY SUBJECT") }
                     if (useGrid) {
                         item {
                             LazyVerticalGrid(
@@ -324,9 +328,13 @@ private fun GradeEntryRow(
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(
                 text = entry.assessment,
                 style = MaterialTheme.typography.bodyLarge,
@@ -337,10 +345,15 @@ private fun GradeEntryRow(
             Text(
                 text = "${entry.category} · ${entry.term} · weight ${entry.weight}",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
-        Column(horizontalAlignment = Alignment.End) {
+        Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(
                 text = "${entry.score.toInt()}/${entry.maxScore.toInt()}",
                 style = MaterialTheme.typography.labelLarge,
@@ -362,7 +375,7 @@ private fun GradeEntryRow(
 private fun GradeBadge(percent: Double, compact: Boolean = false) {
     val color = gradeColorForPercent(percent)
     Surface(
-        shape = RoundedCornerShape(8.dp),
+        shape = StudentAiShapes.chip,
         color = color.copy(alpha = 0.15f)
     ) {
         Text(
@@ -408,7 +421,7 @@ private fun AddGradeBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 16.dp)
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -566,7 +579,9 @@ private fun AddGradeBottomSheet(
                     )
                 },
                 enabled = isValid,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
             ) {
                 Text("Save Grade")
             }

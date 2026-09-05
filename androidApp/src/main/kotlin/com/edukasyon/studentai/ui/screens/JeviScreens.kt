@@ -128,7 +128,7 @@ fun JeviHubScreen(
                                 modifier = Modifier.weight(1f),
                                 icon = Icons.Outlined.Style,
                                 label = "Decks",
-                                subtitle = "${dashboard?.deckCount ?: 0} decks",
+                                subtitle = "${dashboard?.deckCount ?: 0} ${if ((dashboard?.deckCount ?: 0) == 1) "deck" else "decks"}",
                                 onClick = onOpenDecks,
                             )
                             JeviQuickAction(

@@ -20,6 +20,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -177,27 +179,34 @@ private fun InputContent(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         state.breakdown?.let { breakdown ->
-            StudentAiCard(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ModernCard(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
                         "Unsaved breakdown",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         "\"${breakdown.title}\" with ${breakdown.subtasks.size} subtasks is still available.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BouncyButton(
                             onClick = onResumeBreakdown,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                             shape = com.edukasyon.studentai.ui.theme.StudentAiShapes.button,
                         ) {
                             Text("View breakdown")
                         }
-                        OutlinedButton(onClick = { showDiscardDialog = true }) {
+                        OutlinedButton(
+                            onClick = { showDiscardDialog = true },
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        ) {
                             Text("Discard")
                         }
                     }
@@ -205,14 +214,17 @@ private fun InputContent(
             }
         }
 
-        StudentAiCard(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ModernCard(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.AutoAwesome, contentDescription = "AI", tint = MaterialTheme.colorScheme.primary)
                     Text(
                         "Upload or paste your assignment",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Text(
@@ -257,7 +269,7 @@ private fun InputContent(
                 )
                 BouncyButton(
                     onClick = onAnalyzeText,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     shape = com.edukasyon.studentai.ui.theme.StudentAiShapes.button,
                 ) {
                     Icon(Icons.Default.AutoAwesome, null)
@@ -266,39 +278,70 @@ private fun InputContent(
                 }
             }
             AssignmentInputMode.PDF -> {
-                StudentAiCard(modifier = Modifier.fillMaxWidth()) {
+                ModernCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
-                        Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Icon(Icons.Default.PictureAsPdf, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
-                        Text("Pick a PDF assignment sheet or syllabus page.", style = MaterialTheme.typography.bodyMedium)
+                        Icon(Icons.Default.PictureAsPdf, contentDescription = "PDF document", Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text(
+                            "Pick a PDF assignment sheet or syllabus page.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                        )
                         state.selectedFileName?.let {
-                            Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
-                        BouncyButton(onClick = onPickPdf, shape = com.edukasyon.studentai.ui.theme.StudentAiShapes.button) {
+                        BouncyButton(
+                            onClick = onPickPdf,
+                            modifier = Modifier.heightIn(min = 48.dp),
+                            shape = com.edukasyon.studentai.ui.theme.StudentAiShapes.button,
+                        ) {
                             Text("Choose PDF")
                         }
                     }
                 }
             }
             AssignmentInputMode.IMAGE -> {
-                StudentAiCard(modifier = Modifier.fillMaxWidth()) {
+                ModernCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
-                        Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Icon(Icons.Default.Image, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
-                        Text("Pick a photo or screenshot of the assignment.", style = MaterialTheme.typography.bodyMedium)
+                        Icon(Icons.Default.Image, contentDescription = "Image file", Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text(
+                            "Pick a photo or screenshot of the assignment.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                        )
                         state.selectedFileName?.let {
-                            Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
-                        BouncyButton(onClick = onPickImage, shape = com.edukasyon.studentai.ui.theme.StudentAiShapes.button) {
+                        BouncyButton(
+                            onClick = onPickImage,
+                            modifier = Modifier.heightIn(min = 48.dp),
+                            shape = com.edukasyon.studentai.ui.theme.StudentAiShapes.button,
+                        ) {
                             Text("Choose Image")
                         }
-                        OutlinedButton(onClick = onDocumentScan) {
+                        OutlinedButton(
+                            onClick = onDocumentScan,
+                            modifier = Modifier.heightIn(min = 48.dp),
+                        ) {
                             Icon(Icons.Default.DocumentScanner, null, Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                             Text("Scan document")
@@ -334,9 +377,15 @@ private fun BreakdownReviewContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            StudentAiCard(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(breakdown.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            ModernCard(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        breakdown.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     if (dueMillis != null) {
                         Text(
                             "Deadline: ${DateUtils.formatFullDate(dueMillis)} (${DateUtils.formatCountdown(dueMillis)})",
@@ -374,11 +423,10 @@ private fun BreakdownReviewContent(
 
         item { SectionHeader("Subtasks (${breakdown.subtasks.size})") }
         itemsIndexed(breakdown.subtasks) { index, sub ->
-            StudentAiCard(modifier = Modifier.fillMaxWidth()) {
+            ModernCard(modifier = Modifier.fillMaxWidth()) {
                 Row(
-                    Modifier.padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment = Alignment.Top,
                 ) {
                     Surface(
                         shape = MaterialTheme.shapes.small,
@@ -391,8 +439,16 @@ private fun BreakdownReviewContent(
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
                     }
-                    Column(Modifier.weight(1f)) {
-                        Text(sub.title, style = MaterialTheme.typography.bodyLarge)
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            sub.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                         val targetDate = dueMillis?.let { DateUtils.formatFullDate(DateUtils.subtractDays(it, sub.dueOffsetDays)) }
                         Text(
                             buildString {
@@ -410,10 +466,9 @@ private fun BreakdownReviewContent(
         if (breakdown.notes.isNotBlank()) {
             item { SectionHeader("Notes") }
             item {
-                StudentAiCard(modifier = Modifier.fillMaxWidth()) {
+                ModernCard(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         breakdown.notes,
-                        Modifier.padding(16.dp),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -426,12 +481,16 @@ private fun BreakdownReviewContent(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedButton(onClick = onBackToInput, modifier = Modifier.weight(1f), enabled = !isSaving) {
+                OutlinedButton(
+                    onClick = onBackToInput,
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    enabled = !isSaving,
+                ) {
                     Text("Back to input")
                 }
                 BouncyButton(
                     onClick = onAddToPlanner,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                     enabled = !isSaving,
                     shape = com.edukasyon.studentai.ui.theme.StudentAiShapes.button,
                 ) {
@@ -448,8 +507,8 @@ private fun BreakdownReviewContent(
 
 @Composable
 private fun BulletCard(items: List<String>) {
-    StudentAiCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    ModernCard(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items.forEach { item ->
                 Text("• $item", style = MaterialTheme.typography.bodyMedium)
             }

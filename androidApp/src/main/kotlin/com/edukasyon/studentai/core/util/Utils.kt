@@ -5,6 +5,7 @@ import com.edukasyon.studentai.domain.model.GradeEntry
 import com.edukasyon.studentai.domain.model.Priority
 import com.edukasyon.studentai.domain.model.ScheduleItem
 import com.edukasyon.studentai.domain.model.Task
+import java.util.Calendar
 
 object GradeCalculator {
     fun calculateWeightedGrade(entries: List<GradeEntry>): Double {
@@ -87,7 +88,22 @@ object DateUtils {
     }
 
     fun daysUntil(timestamp: Long): Long {
-        val diff = timestamp - System.currentTimeMillis()
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = System.currentTimeMillis()
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val todayMidnight = cal.timeInMillis
+
+        cal.timeInMillis = timestamp
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val dueMidnight = cal.timeInMillis
+
+        val diff = dueMidnight - todayMidnight
         return (diff / (1000 * 60 * 60 * 24)).coerceAtLeast(0)
     }
 
