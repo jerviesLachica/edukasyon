@@ -185,8 +185,8 @@ class AuthenticationService {
   }
 
   /**
-   * Lazily initialize firebase-admin from FIREBASE_SERVICE_ACCOUNT (raw JSON or
-   * base64), mirroring the pattern used by ScanProviderConfig / UpdateBroadcastService.
+   * Lazily initialize firebase-admin from the shared credential loader
+   * (FIREBASE_SERVICE_ACCOUNT env, or a key file path — see config/FirebaseCredential.js).
    * Returns the admin instance, or null when verification cannot be performed.
    * Result is cached (including the null "unavailable" result).
    */
@@ -201,21 +201,8 @@ class AuthenticationService {
         return this._admin;
       }
 
-      const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-      if (!raw) {
-        console.warn('[auth] FIREBASE_SERVICE_ACCOUNT not set — Firebase token verification disabled');
-        return this._admin;
-      }
-
-      let serviceAccount;
-      try {
-        serviceAccount = JSON.parse(
-          raw.trim().startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8')
-        );
-      } catch (_err) {
-        console.warn('[auth] FIREBASE_SERVICE_ACCOUNT is not valid JSON/base64 — token verification disabled');
-        return this._admin;
-      }
+      const serviceAccount = require('../config/FirebaseCredential').loadServiceAccount();
+      if (!serviceAccount) return this._admin;
 
       admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
       console.log('[auth] firebase-admin initialized for ID token verification');

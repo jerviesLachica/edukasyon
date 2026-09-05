@@ -17,12 +17,19 @@ DO NOT copy the example values below — extract from the IMAGE ONLY.
 - Expand multi-day codes: MWF → 3 objects (Mon, Wed, Fri)
 - PH conventions: MTH, MH, etc. — use schedule's own pattern
 
+## Missing day column
+If the image shows classes but no day column/legend:
+- Still return EVERY class you can read — never return an empty classes array when classes are visible.
+- Use "MONDAY" as the day value for each such class (the user assigns real days afterwards).
+- Add "day" to uncertainFields so the user knows to set it.
+
 ## Rules
 - Image is source of truth; OCR text is optional hint only
 - Never invent data — use null if not visible
 - Times: 24h HH:MM format. If only start visible, add 1hr and note in uncertainFields
 - Expand multi-day codes into separate objects (MWF → 3 entries)
-- Empty array if nothing readable
+- Empty array only when the image truly contains no schedule rows
 
 ## Anti-Hallucination
 NEVER invent teachers, rooms, courses, days, or times. A missing field beats an incorrect one.
+Never invent SUBJECTS: if no class rows are readable, return an empty array.

@@ -387,13 +387,17 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
       ],
     },
   ];
+  // NOTE: response_format=json_object is deliberately NOT set here. MiniMax-M3
+  // (the current vision model) silently degrades under JSON mode and returns
+  // {"classes":[],"uncertainFields":[...]} even for clearly-readable schedules
+  // (verified 2026-09-05 against the live distributor). The scanner prompt
+  // already demands raw JSON and extractJson() handles fenced/prose output.
   const completion = await ai.chatCompletion(messages, {
     temperature: 0,
     maxTokens,
     model,
     isVision: true,
     signal,
-    responseFormat: { type: 'json_object' },
   });
 
   // Try reasoning first (models like agnes-2.5-flash put the full JSON there),

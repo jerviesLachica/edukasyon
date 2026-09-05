@@ -21,18 +21,9 @@ let cachedValue = null;
 function getAdmin() {
   try {
     const admin = require('firebase-admin');
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-    if (!raw) return null;
     if (!admin.apps.length) {
-      let serviceAccount;
-      try {
-        serviceAccount = JSON.parse(
-          raw.trim().startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8')
-        );
-      } catch (err) {
-        console.warn('[scan-config] FIREBASE_SERVICE_ACCOUNT is not valid JSON/base64');
-        return null;
-      }
+      const serviceAccount = require('./FirebaseCredential').loadServiceAccount();
+      if (!serviceAccount) return null;
       admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
     }
     return admin;

@@ -31,21 +31,9 @@ function getMessaging() {
     return messagingCache;
   }
 
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!raw) {
-    const error = new Error('FIREBASE_SERVICE_ACCOUNT env var is not configured');
-    error.status = 500;
-    throw error;
-  }
-
-  let serviceAccount;
-  try {
-    const decoded = raw.trim().startsWith('{')
-      ? raw
-      : Buffer.from(raw, 'base64').toString('utf8');
-    serviceAccount = JSON.parse(decoded);
-  } catch (err) {
-    const error = new Error('FIREBASE_SERVICE_ACCOUNT must be valid service-account JSON (raw or base64)');
+  const serviceAccount = require('../config/FirebaseCredential').loadServiceAccount();
+  if (!serviceAccount) {
+    const error = new Error('FIREBASE_SERVICE_ACCOUNT is not configured (env JSON/base64 or key file path)');
     error.status = 500;
     throw error;
   }
