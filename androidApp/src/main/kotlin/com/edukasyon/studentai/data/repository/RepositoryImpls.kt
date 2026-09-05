@@ -146,7 +146,8 @@ class TaskRepositoryImpl @Inject constructor(
 }
 
 private fun Subtask.toEntity() = com.edukasyon.studentai.data.local.entity.SubtaskEntity(
-    id = id, taskId = taskId, title = title, isCompleted = isCompleted, sortOrder = sortOrder
+    id = id, taskId = taskId, title = title, isCompleted = isCompleted, sortOrder = sortOrder,
+    updatedAt = System.currentTimeMillis(), deletedAt = null
 )
 
 @Singleton

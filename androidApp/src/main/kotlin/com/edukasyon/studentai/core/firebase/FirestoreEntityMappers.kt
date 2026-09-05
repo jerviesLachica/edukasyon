@@ -179,6 +179,8 @@ internal fun Map<String, Any?>.toSubtaskEntity(): SubtaskEntity = SubtaskEntity(
     title = string("title") ?: "",
     isCompleted = bool("isCompleted") ?: false,
     sortOrder = int("sortOrder") ?: 0,
+    updatedAt = long("updatedAt") ?: 0L,
+    deletedAt = long("deletedAt"),
 )
 
 internal fun AssignmentEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
