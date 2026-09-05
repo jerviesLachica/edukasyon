@@ -260,13 +260,18 @@ function createAiProvider(config = {}) {
     return parseChatCompletionResult(data);
   }
 
-  async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, signal, responseFormat, reasoning } = {}) {
+  async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, signal, responseFormat, reasoning, wireModelOverride } = {}) {
     if (!hasAiKey) throw new Error('AI provider not configured (set AI_API_KEY)');
-    const wireModels = [];
-    for (const candidate of modelFallbackChain(model || (isVision ? VISION_MODEL : TEXT_MODEL), { isVision })) {
-      const wire = toWireModelSlug(candidate);
-      if (wire && !wireModels.includes(wire)) wireModels.push(wire);
-    }
+    const wireModels = wireModelOverride
+      ? [wireModelOverride]
+      : (() => {
+          const chain = [];
+          for (const candidate of modelFallbackChain(model || (isVision ? VISION_MODEL : TEXT_MODEL), { isVision })) {
+            const wire = toWireModelSlug(candidate);
+            if (wire && !chain.includes(wire)) chain.push(wire);
+          }
+          return chain;
+        })();
     const models = wireModels.length ? wireModels : ['auto'];
     let lastError;
     for (let i = 0; i < models.length; i += 1) {

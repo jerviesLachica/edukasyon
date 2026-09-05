@@ -370,9 +370,10 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
   if (!imageBase64) throw new Error('imageBase64 is required');
 
   const model = ai.resolveVisionModel(scan ? scan.model : requestedModel);
-  // Drop OCR text if long (>500 chars) — it adds tokens and can distract the model
-  const ocrContext = extractedText?.trim() && extractedText.trim().length < 500
-    ? `\n\nOCR text (hint only — image is source of truth):\n${extractedText.trim().slice(0, 400)}`
+  // Keep up to ~900 chars of OCR context — on-device OCR often catches day
+  // columns and times the vision model misreads. Image stays source of truth.
+  const ocrContext = extractedText?.trim() && extractedText.trim().length < 900
+    ? `\n\nOCR text (hint only — image is source of truth):\n${extractedText.trim().slice(0, 800)}`
     : '';
   // Use the raw chatCompletion so we keep `reasoning` (agnes-2.5-flash and similar
   // models put the structured JSON in the reasoning channel when response_format
@@ -392,29 +393,47 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
   // {"classes":[],"uncertainFields":[...]} even for clearly-readable schedules
   // (verified 2026-09-05 against the live distributor). The scanner prompt
   // already demands raw JSON and extractJson() handles fenced/prose output.
-  const completion = await ai.chatCompletion(messages, {
-    temperature: 0,
-    maxTokens,
-    model,
-    isVision: true,
-    signal,
-  });
+  async function runCompletion(wireModel) {
+    return ai.chatCompletion(messages, {
+      temperature: 0,
+      maxTokens,
+      model,
+      isVision: true,
+      signal,
+      ...(wireModel ? { wireModelOverride: wireModel } : {}),
+    });
+  }
+  function parseCompletion(completion) {
+    // Try reasoning first (models like agnes-2.5-flash put the full JSON there),
+    // then content reply as fallback.
+    for (const src of [completion.reasoning, completion.reply].filter(Boolean)) {
+      try {
+        const p = ai.extractJson(src);
+        if (p && Array.isArray(p.classes) && p.classes.length > 0) {
+          return { parsed: p, completion };
+        }
+        if (!p) continue;
+        return { parsed: p, completion }; // valid JSON, empty/odd shape
+      } catch (_e) { /* try next source */ }
+    }
+    return { parsed: null, completion };
+  }
 
-  // Try reasoning first (models like agnes-2.5-flash put the full JSON there),
-  // then content reply as fallback. Reasoning is typically the complete response
-  // while reply may be truncated.
-  let parsed = null;
-  let lastErr;
-  for (const src of [completion.reasoning, completion.reply].filter(Boolean)) {
+  let { parsed, completion } = parseCompletion(await runCompletion(null));
+
+  // Defense in depth: a model that "succeeds" with zero classes on a schedule
+  // image is almost always a silent model failure. Retry once through the
+  // distributor's `auto` routing (a different model upstream) before giving up.
+  if (parsed && Array.isArray(parsed.classes) && parsed.classes.length === 0) {
+    console.warn('[schedule-analysis] First pass returned 0 classes — retrying with auto routing');
     try {
-      const p = ai.extractJson(src);
-      if (p && Array.isArray(p.classes) && p.classes.length > 0) {
-        parsed = p;
-        break;
+      const retry = parseCompletion(await runCompletion('auto'));
+      if (retry.parsed && Array.isArray(retry.parsed.classes) && retry.parsed.classes.length > 0) {
+        parsed = retry.parsed;
+        completion = retry.completion;
       }
-      if (!parsed) parsed = p;
-    } catch (e) {
-      lastErr = e;
+    } catch (err) {
+      console.warn('[schedule-analysis] auto-routing retry failed:', String(err.message || err).slice(0, 160));
     }
   }
 
@@ -422,7 +441,7 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
     const full = (completion.reply || completion.reasoning || '');
     console.error('[schedule-analysis] Parsing failed. RAW OUTPUT:', full);
     console.error('[schedule-analysis] model:', completion.model, 'reasoning present:', !!completion.reasoning, 'reply length:', (completion.reply || '').length);
-    throw lastErr || new Error('AI returned no parsable JSON');
+    throw new Error('AI returned no parsable JSON');
   }
   // Log success with class count for observability
   console.log(`[schedule-analysis] OK: extracted ${parsed.classes.length} classes. Model: ${completion.model}, reasoning length: ${(completion.reasoning || '').length}, reply length: ${(completion.reply || '').length}`);
