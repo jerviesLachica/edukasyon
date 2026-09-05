@@ -22,14 +22,15 @@ const VISION_CAPABLE_MODELS = [
   ]),
 ];
 const DEFAULT_TEXT_MODEL = 'auto';
-// Vision requests use agnes-2.5-flash as the logical model name.
+// Vision requests use MiniMax-M3 (multimodal-capable, verified working).
 // The upstream distributor has no working channel for explicit agnes,
-// so toWireModelSlug maps it to step-3.7-flash for actual API calls.
-const DEFAULT_VISION_MODEL = 'agnes-2.5-flash';
+// and step-3.7-flash is now failing. Map our logical agnes-2.5-flash
+// to MiniMax-M3 on the wire.
+const DEFAULT_VISION_MODEL = 'MiniMax-M3';
 
 // Legacy slug from before the agnes migration. Old clients / Render envs may
 // still send `step-3.7-flash` — normalize it to `agnes-2.5-flash` so quota
-// attribution and logs stay consistent; the wire layer maps it to `auto`.
+// attribution and logs stay consistent; the wire layer maps it to `MiniMax-M3`.
 const LEGACY_VISION_ALIASES = {
   'step-3.7-flash': 'agnes-2.5-flash',
 };
@@ -41,11 +42,12 @@ function normalizeModelSlug(slug) {
 }
 
 // Maps a resolved slug to the model id actually sent upstream.
-// For vision requests, send agnes-2.5-flash directly (it supports multimodal).
-// Identity for everything else.
+// If the normalized slug is `agnes-2.5-flash` (our logical vision model),
+// wire it to `MiniMax-M3` (the actual working vision model).
+// Otherwise, use the normalized slug directly.
 function toWireModelSlug(slug) {
   const normalized = normalizeModelSlug(slug);
-  if (normalized === 'agnes-2.5-flash') return 'step-3.7-flash';
+  if (normalized === 'agnes-2.5-flash') return 'MiniMax-M3';
   return normalized;
 }
 
@@ -123,9 +125,11 @@ function createAiProvider(config = {}) {
     const chain = [normalizedPrimary];
     if (isVision) {
       for (const candidate of VISION_CAPABLE_MODELS) {
-        if (candidate !== normalizedPrimary && !chain.includes(candidate)) chain.push(candidate);
+        if (candidate === normalizedPrimary) continue;
+        if (!chain.includes(candidate)) chain.push(candidate);
       }
-      if (!chain.includes('auto')) chain.push('auto');
+      // Prepend MiniMax-M3 if not already in chain — it's the verified working vision model.
+      if (!chain.includes('MiniMax-M3')) chain.unshift('MiniMax-M3');
     }
     if (primaryModel !== TEXT_MODEL && !chain.includes(TEXT_MODEL)) chain.push(TEXT_MODEL);
     if (primaryModel !== DEFAULT_MODEL && !chain.includes(DEFAULT_MODEL)) chain.push(DEFAULT_MODEL);
