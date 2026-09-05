@@ -2029,11 +2029,12 @@ class AiViewModel @Inject constructor(
 
     private companion object {
         const val TAG = "AiViewModel"
-        // The vision model upstream takes 45-75s on real schedule photos;
-        // a 30s timeout aborted every real scan mid-flight (OkHttp allows 150s).
-        // 120s always outlasts the backend's own 90s upstream cap, so the app
-        // waits for the backend's final verdict instead of guessing.
-        const val SCHEDULE_SCAN_TIMEOUT_MS = 120_000L
+        // The vision model upstream takes 45-75s on real schedule photos, and
+        // when the first pass finds 0 classes the backend retries through auto
+        // routing — worst case ~144s. The gateway allows schedule-analysis 300s
+        // (its per-endpoint cap); 180s covers the backend's worst case while
+        // failing cleanly before the gateway would.
+        const val SCHEDULE_SCAN_TIMEOUT_MS = 180_000L
         // Skip ML Kit OCR if it would delay the request — vision model doesn't need text hint
         const val SCHEDULE_SCAN_OCR_DEADLINE_MS = 1_500L
         const val SCHEDULE_SCAN_RETRY_WORK = "schedule_scan_retry_later"

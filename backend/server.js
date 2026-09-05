@@ -451,6 +451,63 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
   };
 }
 
+// ---------------------------------------------------------------------------
+// Async scan jobs. Render's edge proxy caps a single HTTP request at ~100s,
+// and a vision scan legitimately needs 45-75s per pass (up to ~150s with the
+// 0-class auto-routing retry) — synchronous responses get killed mid-scan no
+// matter what timeouts we configure. So POST returns a jobId immediately and
+// the client polls GET /:jobId until the background work settles.
+const scheduleScanJobs = new Map();
+const SCHEDULE_SCAN_JOB_TTL_MS = 5 * 60_000;
+const SCHEDULE_SCAN_MAX_ACTIVE = 8;
+
+function pruneScheduleScanJobs() {
+  const now = Date.now();
+  for (const [id, job] of scheduleScanJobs) {
+    if (now - job.createdAt > SCHEDULE_SCAN_JOB_TTL_MS) scheduleScanJobs.delete(id);
+  }
+}
+
+function startScheduleScanJob({ body, provider: fallbackProvider, maxTokens }) {
+  pruneScheduleScanJobs();
+  const active = [...scheduleScanJobs.values()].filter((j) => j.status === 'processing').length;
+  if (active >= SCHEDULE_SCAN_MAX_ACTIVE) {
+    const err = new Error('Scanner is busy right now — try again in a moment.');
+    err.statusCode = 503;
+    err.code = 'SCAN_BUSY';
+    throw err;
+  }
+  const jobId = `scan_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  scheduleScanJobs.set(jobId, { status: 'processing', createdAt: Date.now() });
+  // Fire-and-forget: the response must return this instant so the request
+  // never approaches Render's ~100s proxy cap.
+  handleScheduleAnalysis({ body, provider: fallbackProvider, maxTokens, signal: undefined })
+    .then((result) => {
+      const check = scheduleValidator.validate(result);
+      if (!check.valid) {
+        throw new Error(`Scan result invalid: ${check.error}`);
+      }
+      // Store the validator's NORMALIZED shape ({ classes, uncertainFields }),
+      // mirroring what the gateway used to return for the synchronous route.
+      scheduleScanJobs.set(jobId, {
+        ...scheduleScanJobs.get(jobId),
+        status: 'done',
+        result: check.data,
+        createdAt: Date.now(),
+      });
+    })
+    .catch((err) => {
+      console.error(`[schedule-analysis] job ${jobId} failed:`, String(err.message || err).slice(0, 200));
+      scheduleScanJobs.set(jobId, {
+        ...scheduleScanJobs.get(jobId),
+        status: 'error',
+        error: err.message || 'Scan failed on the server.',
+        createdAt: Date.now(),
+      });
+    });
+  return { jobId, status: 'processing' };
+}
+
 async function handleSummarize({ body, provider: ai, maxTokens, signal }) {
   const text = body.text || '';
   const model = ai.resolveTextModel(body.model);
@@ -764,10 +821,35 @@ app.post('/api/ai/schedule-analysis', (req, res) =>
       }
       return { ok: true };
     },
-    handler: handleScheduleAnalysis,
-    validateOutput: (result) => scheduleValidator.validate(result),
+    // Starts a background job and returns { jobId } instantly (Render's proxy
+    // caps requests at ~100s; the vision scan needs longer). The real result
+    // is validated when the job finishes, not here.
+    handler: startScheduleScanJob,
+    validateOutput: (result) =>
+      result && typeof result.jobId === 'string'
+        ? { valid: true }
+        : { valid: false, error: 'Missing jobId' },
   })
 );
+
+// Poll a scan job. Lightweight lookup, kept OUTSIDE the safety gateway so the
+// per-minute scan rate limit applies to job creation only, not polling.
+app.get('/api/ai/schedule-analysis/:jobId', (req, res) => {
+  const job = scheduleScanJobs.get(req.params.jobId);
+  if (!job) {
+    return res.status(404).json({
+      error: 'Scan job not found or expired. Start a new scan.',
+      code: 'JOB_NOT_FOUND',
+    });
+  }
+  if (job.status === 'done') {
+    return res.json({ status: 'done', ...job.result });
+  }
+  if (job.status === 'error') {
+    return res.status(200).json({ status: 'error', error: job.error, classes: [] });
+  }
+  res.json({ status: 'processing' });
+});
 
 app.post('/api/ai/summarize', (req, res) =>
   gateway.handle(req, res, {

@@ -100,6 +100,13 @@ function loadSafetyPolicy() {
       dailyQuota: envInt(`${prefix}_DAILY_QUOTA`, defaults.dailyQuota ?? globalDaily),
       hourlyQuota: envInt(`${prefix}_HOURLY_QUOTA`, defaults.hourlyQuota ?? globalHourly),
       maxOutputTokens: envInt(`${prefix}_MAX_OUTPUT_TOKENS`, defaults.maxOutputTokens),
+      // Per-endpoint timeout override (e.g. schedule-analysis needs 300s for
+      // the vision model + auto-routing retry). Previously this field was
+      // dropped here, so every endpoint silently used the 90s global timeout.
+      requestTimeoutMs: envInt(
+        `${prefix}_REQUEST_TIMEOUT_MS`,
+        defaults.requestTimeoutMs ?? 90_000,
+      ),
     };
   }
 

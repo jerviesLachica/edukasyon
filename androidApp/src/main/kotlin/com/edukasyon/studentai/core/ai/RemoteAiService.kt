@@ -69,12 +69,29 @@ class RemoteAiService @Inject constructor(
             val compressed = withContext(Dispatchers.Default) {
                 compressScheduleImage(input.imageData)
             }
-            val response = api.analyzeSchedule(
+            // Async job flow: POST returns a jobId instantly, then poll until
+            // the backend's background vision work settles. Each HTTP request
+            // stays short, so Render's ~100s proxy cap can never kill a scan
+            // mid-flight (a synchronous response needed up to ~150s).
+            val job = api.startScheduleScan(
                 com.edukasyon.studentai.core.network.ScheduleAnalysisRequest(
                     imageBase64 = android.util.Base64.encodeToString(compressed, android.util.Base64.NO_WRAP),
                     extractedText = input.extractedText?.takeIf { it.isNotBlank() },
                 )
             )
+            var lastStatus: com.edukasyon.studentai.core.network.ScheduleScanJobStatusDto? = null
+            while (true) {
+                kotlinx.coroutines.delay(SCAN_POLL_INTERVAL_MS)
+                val status = api.getScheduleScanJob(job.jobId)
+                lastStatus = status
+                when (status.status) {
+                    "done" -> break
+                    "error" -> throw AiException(status.error ?: "The scan failed on the server.")
+                    // "processing" → keep polling; the ViewModel's outer
+                    // timeout (180s) cancels this loop if it never settles.
+                }
+            }
+            val response = lastStatus!!
             ScheduleAnalysisResult(
                 classes = response.classes.mapNotNull { dto ->
                     // Drop entries the AI left blank instead of failing the whole scan.
@@ -107,6 +124,9 @@ class RemoteAiService @Inject constructor(
         // the single biggest UX win for "scanning is too slow".
         private const val SCAN_MAX_DIMENSION = 1280
         private const val SCAN_JPEG_QUALITY = 75
+        // Job polling cadence: the vision pass takes 45-75s, so 3s between
+        // polls is plenty responsive without hammering the server.
+        private const val SCAN_POLL_INTERVAL_MS = 3_000L
     }
 
     /** Downscale large camera photos so the vision model processes them faster. */

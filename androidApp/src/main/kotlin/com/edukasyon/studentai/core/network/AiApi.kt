@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonNames
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Path
 
 interface AiApiService {
     @GET("health")
@@ -15,8 +16,14 @@ interface AiApiService {
     @POST("api/ai/chat")
     suspend fun chat(@Body request: ChatRequest): ChatResponseDto
 
+    // Schedule scans are async: POST starts a background job and returns a
+    // jobId immediately (Render's proxy caps single requests at ~100s, but a
+    // vision scan needs up to ~150s), then GET polls until the job settles.
     @POST("api/ai/schedule-analysis")
-    suspend fun analyzeSchedule(@Body request: ScheduleAnalysisRequest): ScheduleAnalysisResponseDto
+    suspend fun startScheduleScan(@Body request: ScheduleAnalysisRequest): ScheduleScanJobDto
+
+    @GET("api/ai/schedule-analysis/{jobId}")
+    suspend fun getScheduleScanJob(@Path("jobId") jobId: String): ScheduleScanJobStatusDto
 
     @POST("api/ai/summarize")
     suspend fun summarize(@Body request: TextRequest): TextResponseDto
@@ -72,6 +79,16 @@ interface AiApiService {
 @Serializable data class ScheduleAnalysisRequest(
     val imageBase64: String,
     val extractedText: String? = null,
+)
+@Serializable data class ScheduleScanJobDto(
+    val jobId: String,
+    val status: String = "processing",
+)
+@Serializable data class ScheduleScanJobStatusDto(
+    val status: String,
+    val classes: List<ExtractedClassDto> = emptyList(),
+    val uncertainFields: List<String> = emptyList(),
+    val error: String? = null,
 )
 @Serializable data class ExtractedClassDto(
     val subject: String,

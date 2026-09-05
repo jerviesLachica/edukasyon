@@ -121,13 +121,13 @@ object NetworkModule {
     @Provides @Singleton
     fun provideOkHttp(deviceIdInterceptor: com.edukasyon.studentai.core.network.AiSafetyHeadersInterceptor): OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
-        // The schedule-analysis endpoint can take 30–60s on the vision model
-        // even after a small image. The backend's SAFETY_REQUEST_TIMEOUT_MS
-        // defaults to 90s, so the client must wait at least that long or
-        // the read fails with SocketTimeoutException mid-response.
-        .readTimeout(120, TimeUnit.SECONDS)
+        // The schedule-analysis endpoint waits on the vision model (45-75s per
+        // pass) and on its 0-class auto-routing retry (worst case ~144s). The
+        // app-level scan timeout is 180s, so the read/call budgets here must
+        // exceed that or OkHttp kills the response mid-flight first.
+        .readTimeout(190, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
-        .callTimeout(150, TimeUnit.SECONDS)
+        .callTimeout(200, TimeUnit.SECONDS)
         .addInterceptor(deviceIdInterceptor)
         .apply {
             if (BuildConfig.DEBUG) {
