@@ -1784,11 +1784,10 @@ class AiViewModel @Inject constructor(
                 )
             }
             try {
-                val ocrText: String? = if (isRetry) {
-                    null
-                } else {
-                    val hint = extractedText?.trim()?.takeIf { it.isNotEmpty() }
-                    hint ?: run {
+                // OCR text is a useful hint on every attempt (it caught days the
+                // vision model missed); keep it on retries instead of dropping it.
+                val ocrText: String? = extractedText?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: run {
                         // Run ML Kit on-device OCR (free, no AI needed).
                         // Cap at 1.5s to keep the local fast-path snappy.
                         val recognized = withTimeoutOrNull(SCHEDULE_SCAN_OCR_DEADLINE_MS) {
@@ -1796,12 +1795,11 @@ class AiViewModel @Inject constructor(
                         }
                         recognized?.trim()?.takeIf { it.isNotEmpty() }
                     }
-                }
                 lastScannedExtractedText = ocrText
                 _uiState.update {
                     it.copy(
                         scheduleScanExtractedText = ocrText,
-                        statusMessage = if (isRetry) "Retrying with image only..." else null,
+                        statusMessage = if (isRetry) "Retrying…" else null,
                     )
                 }
 
@@ -1818,8 +1816,18 @@ class AiViewModel @Inject constructor(
                 if (attemptId != scheduleScanAttemptCounter) return@launch
 
                 when {
-                    result == null -> registerScheduleScanFailure(attemptId, "No response — the server may be busy. Try again.")
-                    result.classes.isEmpty() -> registerScheduleScanFailure(attemptId, "No classes found in the image. Make sure the schedule is clear and legible.")
+                    result == null ->
+                        // The scan was aborted locally before the backend answered
+                        // (only possible on a network stall now that the timeout
+                        // covers the backend's worst-case processing time).
+                        registerScheduleScanError(
+                            attemptId,
+                            "The scan didn't finish — check your connection and try again.",
+                        )
+                    result.classes.isEmpty() ->
+                        // The backend answered successfully but found nothing
+                        // readable. Guidance, not an error.
+                        registerScheduleScanUnreadable(attemptId)
                     else -> _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -1839,7 +1847,7 @@ class AiViewModel @Inject constructor(
                 val msg = (e as? com.edukasyon.studentai.core.ai.AiException)?.message
                     ?: e.message
                     ?: "Scan failed"
-                registerScheduleScanFailure(attemptId, msg)
+                registerScheduleScanError(attemptId, msg)
             }
         }
     }
@@ -1908,39 +1916,43 @@ class AiViewModel @Inject constructor(
         }
     }
 
-    private fun registerScheduleScanFailure(attemptId: Long, reason: String? = null) {
+    /**
+     * Backend answered but couldn't find classes in the image. Guidance panel
+     * only — deliberately NOT an error snackbar, and no automatic retries: the
+     * user waits for the single awaited attempt, then decides (Retry / enter
+     * manually / back to camera).
+     */
+    private fun registerScheduleScanUnreadable(attemptId: Long) {
         if (attemptId != scheduleScanAttemptCounter) return
-        val newCount = _uiState.value.scheduleScanRetryCount + 1
-        if (newCount >= SCHEDULE_SCAN_MAX_RETRIES) {
-            val retryAt = System.currentTimeMillis() + SCHEDULE_SCAN_RETRY_LATER_MS
-            reminderScheduler.scheduleReminder(
-                uniqueWorkName = SCHEDULE_SCAN_RETRY_WORK,
-                type = ReminderType.SCHEDULE_SCAN,
-                title = "Ready to scan your schedule",
-                message = "You can try scanning your class schedule again now.",
-                triggerAtMillis = retryAt,
-                referenceId = Routes.SCHEDULE_SCANNER,
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                loadingTool = null,
+                scheduleScanStatus = ScheduleScanStatus.UNREADABLE,
+                scheduleScanRetryCount = 0,
+                scheduleScanRetryAfterMillis = null,
+                error = null,
             )
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    loadingTool = null,
-                    scheduleScanStatus = ScheduleScanStatus.RETRY_LATER,
-                    scheduleScanRetryCount = newCount,
-                    scheduleScanRetryAfterMillis = retryAt,
-                    error = reason,
-                )
-            }
-        } else {
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    loadingTool = null,
-                    scheduleScanStatus = ScheduleScanStatus.UNREADABLE,
-                    scheduleScanRetryCount = newCount,
-                    error = reason,
-                )
-            }
+        }
+    }
+
+    /**
+     * Real failure (network / backend error / local timeout). Surfaces the
+     * backend's own message on the error banner and re-enables the capture
+     * button so the user can retry immediately.
+     */
+    private fun registerScheduleScanError(attemptId: Long, reason: String) {
+        if (attemptId != scheduleScanAttemptCounter) return
+        reminderScheduler.cancelReminder(SCHEDULE_SCAN_RETRY_WORK)
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                loadingTool = null,
+                scheduleScanStatus = ScheduleScanStatus.IDLE,
+                scheduleScanRetryCount = 0,
+                scheduleScanRetryAfterMillis = null,
+                error = reason,
+            )
         }
     }
 
@@ -2017,12 +2029,13 @@ class AiViewModel @Inject constructor(
 
     private companion object {
         const val TAG = "AiViewModel"
-        // NVIDIA NIM is ~18s for schedule scanning; timeout includes network overhead and margin
-        const val SCHEDULE_SCAN_TIMEOUT_MS = 30_000L
+        // The vision model upstream takes 45-75s on real schedule photos;
+        // a 30s timeout aborted every real scan mid-flight (OkHttp allows 150s).
+        // 120s always outlasts the backend's own 90s upstream cap, so the app
+        // waits for the backend's final verdict instead of guessing.
+        const val SCHEDULE_SCAN_TIMEOUT_MS = 120_000L
         // Skip ML Kit OCR if it would delay the request — vision model doesn't need text hint
         const val SCHEDULE_SCAN_OCR_DEADLINE_MS = 1_500L
-        const val SCHEDULE_SCAN_MAX_RETRIES = 5
-        const val SCHEDULE_SCAN_RETRY_LATER_MS = 30 * 60 * 1000L
         const val SCHEDULE_SCAN_RETRY_WORK = "schedule_scan_retry_later"
         const val STEP_QUOTA_SWITCH_MESSAGE =
             "Agnes 2.5 Flash limit reached — switched to Auto. Try again in a few minutes."

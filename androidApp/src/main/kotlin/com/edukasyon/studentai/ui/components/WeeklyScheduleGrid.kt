@@ -95,9 +95,7 @@ fun WeeklyScheduleGrid(
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+            modifier = Modifier.fillMaxSize()
         ) {
             ScheduleDecorativeHeader(
                 title = title,
@@ -286,7 +284,7 @@ fun DayColumn(
         ?: MaterialTheme.colorScheme.primary
 
     Column(
-        modifier = modifier.fillMaxHeight(),
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Surface(
@@ -312,7 +310,6 @@ fun DayColumn(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight()
                 .then(
                     if (isToday) Modifier.background(
                         accentColor.copy(alpha = 0.12f),
