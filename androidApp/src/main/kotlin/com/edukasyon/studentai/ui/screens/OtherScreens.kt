@@ -689,8 +689,29 @@ fun SettingsScreen(
                                     }
                                 },
                             ) {
-                                Text("Sync")
+                                Text(if (state.calendarSyncedAt != null) "Re-sync" else "Sync")
                             }
+                        }
+                    }
+                )
+                SettingsRow(
+                    title = "Unsync from Google Calendar",
+                    subtitle = if (state.calendarSyncedAt != null)
+                        "Last synced — remove all SchedMate events"
+                    else
+                        "Removes only SchedMate-added events, leaves other entries alone",
+                    trailing = {
+                        TextButton(
+                            onClick = {
+                                if (com.edukasyon.studentai.core.sync.hasCalendarPermissions(context)) {
+                                    viewModel.unsyncFromGoogleCalendar(context)
+                                } else {
+                                    calendarPermissionLauncher.launch(com.edukasyon.studentai.core.sync.CALENDAR_PERMISSIONS)
+                                }
+                            },
+                            enabled = !state.isSyncingCalendar,
+                        ) {
+                            Text("Unsync")
                         }
                     }
                 )

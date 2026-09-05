@@ -42,6 +42,44 @@ fun createCalendarIntent(context: Context, scheduleItem: DummyScheduleItem): Int
     }
 }
 
+// Delete all SchedMate-generated calendar events (where UID_2445 starts with 'schedmate-')
+fun unsyncAllFromGoogleCalendar(context: Context): CalendarUnsyncResult {
+    if (!hasCalendarPermissions(context)) {
+        return CalendarUnsyncResult.MissingPermissions
+    }
+    val calendarId = getPrimaryCalendarId(context)
+        ?: return CalendarUnsyncResult.NoCalendarAccount
+
+    return try {
+        val uidLike = "schedmate-%"
+        val selection = "${CalendarContract.Events.CALENDAR_ID}=? AND ${CalendarContract.Events.UID_2445} LIKE ?"
+        val selectionArgs = arrayOf(calendarId.toString(), uidLike)
+
+        val deleted = context.contentResolver.delete(
+            CalendarContract.Events.CONTENT_URI,
+            selection,
+            selectionArgs
+        )
+        if (deleted > 0) {
+            CalendarUnsyncResult.Success(deleted = deleted)
+        } else {
+            CalendarUnsyncResult.NoEventsFound
+        }
+    } catch (e: SecurityException) {
+        CalendarUnsyncResult.MissingPermissions
+    } catch (e: Exception) {
+        CalendarUnsyncResult.Failed(e.message)
+    }
+}
+
+sealed class CalendarUnsyncResult {
+    data class Success(val deleted: Int) : CalendarUnsyncResult()
+    data class Failed(val reason: String?) : CalendarUnsyncResult()
+    data object MissingPermissions : CalendarUnsyncResult()
+    data object NoCalendarAccount : CalendarUnsyncResult()
+    data object NoEventsFound : CalendarUnsyncResult()
+}
+
 // Automatic calendar sync: directly insert or update event via ContentResolver
 // Uses scheduleItem.id as UID to prevent duplicates and enable updates
 fun insertCalendarEventAutomatically(context: Context, scheduleItem: ScheduleItem): Long? {

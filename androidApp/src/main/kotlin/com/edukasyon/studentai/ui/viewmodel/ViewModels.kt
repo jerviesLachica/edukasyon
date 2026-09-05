@@ -2059,14 +2059,15 @@ data class ProfileUiState(
     val firebaseEmail: String? = null,
     val isSigningInWithGoogle: Boolean = false,
     val isSyncing: Boolean = false,
-    val lastSyncedAt: Long? = null,
-    val syncStatus: SyncState = SyncState.LOCAL_ONLY,
-    val isSyncingCalendar: Boolean = false,
-    val calendarSyncMessage: String? = null,
-)
+        val lastSyncedAt: Long? = null,
+        val syncStatus: SyncState = SyncState.LOCAL_ONLY,
+        val isSyncingCalendar: Boolean = false,
+        val calendarSyncMessage: String? = null,
+        val calendarSyncedAt: Long? = null,
+    )
 
-@HiltViewModel
-class ProfileViewModel @Inject constructor(
+    @HiltViewModel
+    class ProfileViewModel @Inject constructor(
     private val userRepo: UserRepository,
     private val updateProfile: com.edukasyon.studentai.domain.usecase.UpdateProfileUseCase,
     private val saveUser: com.edukasyon.studentai.domain.usecase.SaveUserUseCase,
@@ -2316,7 +2317,27 @@ class ProfileViewModel @Inject constructor(
                 is com.edukasyon.studentai.core.sync.CalendarSyncResult.NoScheduleData ->
                     "No schedule items found — add classes first"
             }
-            _uiState.update { it.copy(isSyncingCalendar = false, calendarSyncMessage = message) }
+            _uiState.update { it.copy(isSyncingCalendar = false, calendarSyncMessage = message, calendarSyncedAt = System.currentTimeMillis()) }
+        }
+    }
+
+    fun unsyncFromGoogleCalendar(context: android.content.Context) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSyncingCalendar = true) }
+            val result = com.edukasyon.studentai.core.sync.unsyncAllFromGoogleCalendar(context)
+            val message = when (result) {
+                is com.edukasyon.studentai.core.sync.CalendarUnsyncResult.Success ->
+                    "Removed ${result.deleted} schedule events from calendar"
+                is com.edukasyon.studentai.core.sync.CalendarUnsyncResult.Failed ->
+                    "Unsync failed: ${result.reason ?: "unknown error"}"
+                is com.edukasyon.studentai.core.sync.CalendarUnsyncResult.MissingPermissions ->
+                    "Calendar permission required — please grant and try again"
+                is com.edukasyon.studentai.core.sync.CalendarUnsyncResult.NoCalendarAccount ->
+                    "No Google Calendar found on this device"
+                is com.edukasyon.studentai.core.sync.CalendarUnsyncResult.NoEventsFound ->
+                    "No SchedMate events found in calendar"
+            }
+            _uiState.update { it.copy(isSyncingCalendar = false, calendarSyncMessage = message, calendarSyncedAt = null) }
         }
     }
 
