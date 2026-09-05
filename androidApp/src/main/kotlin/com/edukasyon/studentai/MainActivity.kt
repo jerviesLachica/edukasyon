@@ -20,12 +20,14 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private var pendingTabRoute by mutableStateOf<String?>(null)
     private var pendingTriggerUpdate by mutableStateOf(false)
+    private var pendingTaskId by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         pendingTabRoute = extractStartTab(intent)
         pendingTriggerUpdate = extractTriggerUpdate(intent)
+        pendingTaskId = extractTaskId(intent)
         setContent {
             val updateManager: UpdateManager = hiltViewModel()
             StudentAiAppContent(
@@ -34,6 +36,8 @@ class MainActivity : ComponentActivity() {
                 autoTriggerUpdate = pendingTriggerUpdate,
                 onAutoTriggerConsumed = { pendingTriggerUpdate = false },
                 updateManager = updateManager,
+                initialTaskId = pendingTaskId,
+                onInitialTaskConsumed = { pendingTaskId = null },
             )
         }
     }
@@ -43,6 +47,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         extractStartTab(intent)?.let { pendingTabRoute = it }
         if (extractTriggerUpdate(intent)) pendingTriggerUpdate = true
+        extractTaskId(intent)?.let { pendingTaskId = it }
     }
 
     private fun extractStartTab(intent: Intent?): String? {
@@ -53,4 +58,7 @@ class MainActivity : ComponentActivity() {
 
     private fun extractTriggerUpdate(intent: Intent?): Boolean =
         intent?.getBooleanExtra(AppUpdateMessagingService.EXTRA_TRIGGER_UPDATE, false) == true
+
+    private fun extractTaskId(intent: Intent?): String? =
+        intent?.getStringExtra(WidgetActions.TASK_ID_KEY)
 }

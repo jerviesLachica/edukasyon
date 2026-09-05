@@ -63,7 +63,7 @@ object WidgetDataProvider {
             val themeColors = widgetThemeFor(designPreset, designColors)
 
             val today = Calendar.getInstance()
-            val dayName = SimpleDateFormat("EEEE", Locale.getDefault()).format(today.time)
+            val dayName = SimpleDateFormat("EEE", Locale.getDefault()).format(today.time)
             val monthName = SimpleDateFormat("MMM", Locale.getDefault()).format(today.time)
             val dayOfMonth = today.get(Calendar.DAY_OF_MONTH)
 
@@ -125,7 +125,7 @@ object WidgetDataProvider {
 
     private fun createEmptySnapshot(widgetSize: WidgetSize): WidgetSnapshot {
         val today = Calendar.getInstance()
-        val dayName = SimpleDateFormat("EEEE", Locale.getDefault()).format(today.time)
+        val dayName = SimpleDateFormat("EEE", Locale.getDefault()).format(today.time)
         val monthName = SimpleDateFormat("MMM", Locale.getDefault()).format(today.time)
         return WidgetSnapshot(
             dayName = dayName,
@@ -183,7 +183,7 @@ object WidgetDataProvider {
         val themeColors = widgetThemeFor(designPreset, designColors)
 
         val today = Calendar.getInstance()
-        val dayName = SimpleDateFormat("EEEE", Locale.getDefault()).format(today.time)
+        val dayName = SimpleDateFormat("EEE", Locale.getDefault()).format(today.time)
         val monthName = SimpleDateFormat("MMM", Locale.getDefault()).format(today.time)
         val dayOfMonth = today.get(Calendar.DAY_OF_MONTH)
 
@@ -338,10 +338,13 @@ object WidgetDataProvider {
         val elapsed = nowMinutes - start
         val remainingSec = (end - nowMinutes) * 60
         val progress = elapsed.toFloat() / total.toFloat()
+        val hours = remainingSec / 3600
+        val mins = (remainingSec % 3600) / 60
+        val secs = remainingSec % 60
         val timeLeft = when {
-            remainingSec >= 3600 -> "${remainingSec / 3600} hr left"
-            remainingSec >= 60 -> "${remainingSec / 60} min left"
-            else -> "$remainingSec sec left"
+            hours > 0 -> "${hours}h ${mins}m left"
+            mins > 0 -> "${mins}m ${secs}s left"
+            else -> "$secs sec left"
         }
         return progress to timeLeft
     }

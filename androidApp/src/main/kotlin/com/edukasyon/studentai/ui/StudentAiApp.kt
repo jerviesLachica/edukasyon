@@ -38,6 +38,8 @@ fun StudentAiAppContent(
     autoTriggerUpdate: Boolean = false,
     onAutoTriggerConsumed: () -> Unit = {},
     updateManager: UpdateManager,
+    initialTaskId: String? = null,
+    onInitialTaskConsumed: () -> Unit = {},
 ) {
     val viewModel: MainViewModel = hiltViewModel()
     val preferencesReady by viewModel.preferencesReady.collectAsStateWithLifecycle()
@@ -122,6 +124,8 @@ fun StudentAiAppContent(
                             MainNavigation(
                                 initialTabRoute = initialTabRoute,
                                 onInitialTabConsumed = onInitialTabConsumed,
+                                initialTaskId = initialTaskId,
+                                onInitialTaskConsumed = onInitialTaskConsumed,
                             )
                         }
                     }
@@ -151,6 +155,8 @@ fun StudentAiAppContent(
 fun MainNavigation(
     initialTabRoute: String? = null,
     onInitialTabConsumed: () -> Unit = {},
+    initialTaskId: String? = null,
+    onInitialTaskConsumed: () -> Unit = {},
 ) {
     val navController = rememberNavController()
     val tabs = MainTab.entries
@@ -164,7 +170,12 @@ fun MainNavigation(
         }
     }
 
-    LaunchedEffect(initialTabRoute) {
+    LaunchedEffect(initialTabRoute, initialTaskId) {
+        if (initialTaskId != null) {
+            navController.navigateToTab(MainTab.PLANNER)
+            onInitialTaskConsumed()
+            return@LaunchedEffect
+        }
         val route = initialTabRoute ?: return@LaunchedEffect
         MainTab.entries.find { it.route == route }?.let { tab ->
             navController.navigateToTab(tab)
@@ -209,6 +220,8 @@ fun MainNavigation(
                     onNavigateCalendar = { navController.navigate(Routes.CALENDAR) },
                     onOpenAssignmentIntelligence = { navController.navigate(Routes.ASSIGNMENT_INTELLIGENCE) },
                     onNavigateFocus = { navController.navigate(Routes.FOCUS) },
+                    initialTaskId = initialTaskId,
+                    onInitialTaskConsumed = onInitialTaskConsumed,
                 )
             }
             mainTabComposable(MainTab.JEVI) {

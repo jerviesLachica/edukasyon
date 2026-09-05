@@ -2436,6 +2436,12 @@ data class ProfileUiState(
             _uiState.update { it.copy(profileSaveMessage = "Display name is required.") }
             return
         }
+        // Bug #5 fix: Validate school field
+        val trimmedSchool = draft.school.trim()
+        if (trimmedSchool.isNotEmpty() && (trimmedSchool.length < 2 || !trimmedSchool.any { it.isLetter() })) {
+            _uiState.update { it.copy(profileSaveMessage = "School name must be at least 2 characters and contain at least one letter.") }
+            return
+        }
         _uiState.update { it.copy(isSavingProfile = true, profileSaveMessage = null) }
         viewModelScope.launch {
             when (

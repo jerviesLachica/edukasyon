@@ -220,7 +220,7 @@ private fun JeviStatsRow(
                 JeviStatItem(Icons.Default.Star, "Lv.$level", "$xp XP")
             }
             LinearProgressIndicator(
-                progress = { xpProgress },
+                progress = { xpProgress.coerceIn(0f, 1f) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp)
@@ -235,6 +235,7 @@ private fun JeviStatItem(icon: ImageVector, value: String, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(2.dp))
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -280,7 +281,7 @@ private fun JeviDeckCard(deck: JeviDeck, onClick: () -> Unit) {
                 Icon(Icons.Default.Style, contentDescription = null, tint = deckColor)
             }
             Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(deck.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(
                     "${deck.cardCount} cards · ${deck.dueCount} due",

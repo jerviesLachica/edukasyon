@@ -48,6 +48,8 @@ fun PlannerScreen(
     onNavigateCalendar: () -> Unit = {},
     onOpenAssignmentIntelligence: () -> Unit = {},
     onNavigateFocus: () -> Unit = {},
+    initialTaskId: String? = null,
+    onInitialTaskConsumed: () -> Unit = {},
     viewModel: PlannerViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -63,6 +65,13 @@ fun PlannerScreen(
     var linkingExam by remember { mutableStateOf<Exam?>(null) }
     var deletingExam by remember { mutableStateOf<Exam?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(initialTaskId) {
+        if (initialTaskId != null) {
+            selectedTaskId = initialTaskId
+            onInitialTaskConsumed()
+        }
+    }
 
     LaunchedEffect(state.snackbarMessage) {
         state.snackbarMessage?.let { message ->

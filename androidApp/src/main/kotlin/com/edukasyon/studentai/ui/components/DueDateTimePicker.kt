@@ -312,9 +312,11 @@ fun PlannerScheduleFields(
     }
 
     if (showReminderTimePicker) {
+        // Bug #14 fix: Explicitly use 12-hour format for consistency across locales
         val state = rememberTimePickerState(
             initialHour = schedule.reminderHour,
-            initialMinute = schedule.reminderMinute
+            initialMinute = schedule.reminderMinute,
+            is24Hour = false
         )
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showReminderTimePicker = false },

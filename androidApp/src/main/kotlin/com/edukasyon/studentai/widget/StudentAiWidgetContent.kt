@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceModifier
+import androidx.glance.LocalContext
 import androidx.glance.action.Action
 import androidx.glance.background
 import androidx.glance.appwidget.cornerRadius
@@ -23,6 +24,7 @@ import androidx.glance.unit.ColorProvider
 
 @Composable
 fun SmallWidgetContent(snapshot: WidgetSnapshot, openAction: Action) {
+    val context = LocalContext.current
     WidgetRoot(snapshot, openAction = openAction) {
         Column(modifier = GlanceModifier.fillMaxWidth()) {
             when (snapshot.displayType) {
@@ -35,7 +37,9 @@ fun SmallWidgetContent(snapshot: WidgetSnapshot, openAction: Action) {
                         if (snapshot.tasks.isEmpty()) {
                             EmptyLabel(snapshot, "No upcoming tasks")
                         } else {
-                            snapshot.tasks.forEach { TaskRow(it, snapshot) }
+                            snapshot.tasks.forEach {
+                                TaskRow(it, snapshot, openAction = WidgetActions.openAppForTask(context, it.id))
+                            }
                         }
                     }
                 }
@@ -62,7 +66,9 @@ fun SmallWidgetContent(snapshot: WidgetSnapshot, openAction: Action) {
                     if (snapshot.isLoading) {
                         TaskSkeleton(snapshot, 2, compact = true)
                     } else {
-                        snapshot.tasks.take(2).forEach { TaskRow(it, snapshot, compact = true) }
+                        snapshot.tasks.take(2).forEach {
+                            TaskRow(it, snapshot, openAction = WidgetActions.openAppForTask(context, it.id), compact = true)
+                        }
                     }
                 }
             }
@@ -72,17 +78,18 @@ fun SmallWidgetContent(snapshot: WidgetSnapshot, openAction: Action) {
 
 @Composable
 fun TallWidgetContent(snapshot: WidgetSnapshot, openAction: Action) {
+    val context = LocalContext.current
     WidgetRoot(snapshot, openAction = openAction) {
         when (snapshot.displayType) {
-            WidgetDisplayType.COMBINED -> CombinedTallContent(snapshot)
+            WidgetDisplayType.COMBINED -> CombinedTallContent(snapshot, context)
             WidgetDisplayType.SCHEDULE -> ScheduleTallContent(snapshot)
-            WidgetDisplayType.TASKS -> TasksTallContent(snapshot)
+            WidgetDisplayType.TASKS -> TasksTallContent(snapshot, context)
         }
     }
 }
 
 @Composable
-private fun CombinedTallContent(snapshot: WidgetSnapshot) {
+private fun CombinedTallContent(snapshot: WidgetSnapshot, context: android.content.Context) {
     val theme = snapshot.themeColors
     Row(modifier = GlanceModifier.fillMaxWidth()) {
         Column(modifier = GlanceModifier.width(72.dp)) {
@@ -103,7 +110,9 @@ private fun CombinedTallContent(snapshot: WidgetSnapshot) {
                 if (snapshot.tasks.isEmpty() && snapshot.schedule.isEmpty()) {
                     EmptyLabel(snapshot, "Nothing scheduled")
                 } else {
-                    snapshot.tasks.take(3).forEach { TaskRow(it, snapshot, compact = true) }
+                    snapshot.tasks.take(3).forEach {
+                        TaskRow(it, snapshot, openAction = WidgetActions.openAppForTask(context, it.id), compact = true)
+                    }
                     snapshot.schedule.take(2).forEach { ScheduleRow(it, snapshot, compact = true) }
                 }
             }
@@ -140,7 +149,7 @@ private fun ScheduleTallContent(snapshot: WidgetSnapshot) {
 }
 
 @Composable
-private fun TasksTallContent(snapshot: WidgetSnapshot) {
+private fun TasksTallContent(snapshot: WidgetSnapshot, context: android.content.Context) {
     Column(modifier = GlanceModifier.fillMaxWidth()) {
         DateHeader(snapshot)
         Spacer(GlanceModifier.height(8.dp))
@@ -150,7 +159,9 @@ private fun TasksTallContent(snapshot: WidgetSnapshot) {
             if (snapshot.tasks.isEmpty()) {
                 EmptyLabel(snapshot, "No upcoming tasks")
             } else {
-                snapshot.tasks.forEach { TaskRow(it, snapshot) }
+                snapshot.tasks.forEach {
+                    TaskRow(it, snapshot, openAction = WidgetActions.openAppForTask(context, it.id))
+                }
             }
         }
         Spacer(GlanceModifier.height(4.dp))

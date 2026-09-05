@@ -14,11 +14,20 @@ import kotlinx.coroutines.withContext
 
 object WidgetActions {
     const val START_TAB_KEY = "start_tab"
+    const val TASK_ID_KEY = "task_id"
 
     fun openApp(context: Context, tab: String) = actionStartActivity(
         Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(START_TAB_KEY, tab)
+        }
+    )
+
+    fun openAppForTask(context: Context, taskId: String) = actionStartActivity(
+        Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(START_TAB_KEY, "planner")
+            putExtra(TASK_ID_KEY, taskId)
         }
     )
 }
