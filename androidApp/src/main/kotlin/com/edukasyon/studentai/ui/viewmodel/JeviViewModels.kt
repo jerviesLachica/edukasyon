@@ -18,6 +18,7 @@ import com.edukasyon.studentai.domain.repository.QuizRepository
 import com.edukasyon.studentai.domain.usecase.AiGenerateFlashcardsUseCase
 import com.edukasyon.studentai.domain.usecase.AiGenerateQuizUseCase
 import com.edukasyon.studentai.domain.usecase.CreateJeviDeckUseCase
+import com.edukasyon.studentai.domain.usecase.DeleteJeviDeckUseCase
 import com.edukasyon.studentai.domain.usecase.EnsureJeviDefaultDeckUseCase
 import com.edukasyon.studentai.domain.usecase.GetDeckFlashcardsUseCase
 import com.edukasyon.studentai.domain.usecase.GetJeviDashboardUseCase
@@ -116,12 +117,16 @@ class JeviDeckDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getDeck: GetJeviDeckUseCase,
     private val getDeckFlashcards: GetDeckFlashcardsUseCase,
+    private val deleteDeck: DeleteJeviDeckUseCase,
 ) : ViewModel() {
     private val deckId: String = savedStateHandle.get<String>("deckId")
         ?: JeviConstants.DEFAULT_DECK_ID
 
     private val _uiState = MutableStateFlow(JeviDeckDetailUiState())
     val uiState: StateFlow<JeviDeckDetailUiState> = _uiState.asStateFlow()
+
+    private val _deckDeleted = MutableStateFlow(false)
+    val deckDeleted: StateFlow<Boolean> = _deckDeleted.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -137,6 +142,14 @@ class JeviDeckDetailViewModel @Inject constructor(
             }.collect { state ->
                 _uiState.value = state
             }
+        }
+    }
+
+    fun deleteCurrentDeck() {
+        if (deckId == JeviConstants.DEFAULT_DECK_ID) return
+        viewModelScope.launch {
+            deleteDeck(deckId)
+            _deckDeleted.value = true
         }
     }
 }

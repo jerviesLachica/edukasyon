@@ -266,7 +266,12 @@ fun PlannerScheduleFields(
     }
 
     if (showDueTimePicker) {
-        val state = rememberTimePickerState(initialHour = schedule.dueHour, initialMinute = schedule.dueMinute)
+        // Display elsewhere is always 12h (formatTime12h), so force the picker to match.
+        val state = rememberTimePickerState(
+            initialHour = schedule.dueHour,
+            initialMinute = schedule.dueMinute,
+            is24Hour = false,
+        )
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showDueTimePicker = false },
             confirmButton = {

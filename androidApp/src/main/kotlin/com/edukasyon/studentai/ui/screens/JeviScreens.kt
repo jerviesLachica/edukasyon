@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer
 import com.edukasyon.studentai.core.mlkit.PdfOcrHelper
 import com.edukasyon.studentai.domain.model.Flashcard
+import com.edukasyon.studentai.domain.model.JeviConstants
 import com.edukasyon.studentai.domain.model.JeviDeck
 import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
@@ -391,8 +392,14 @@ fun JeviDeckDetailScreen(
     viewModel: JeviDeckDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val deckDeleted by viewModel.deckDeleted.collectAsStateWithLifecycle()
     val deck = state.deck
     val horizontalPadding = rememberAdaptiveHorizontalPadding()
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(deckDeleted) {
+        if (deckDeleted) onBack()
+    }
 
     Scaffold(
         topBar = {
@@ -401,6 +408,13 @@ fun JeviDeckDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                    }
+                },
+                actions = {
+                    if (deck != null && deck.id != JeviConstants.DEFAULT_DECK_ID) {
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete deck")
+                        }
                     }
                 },
             )
@@ -479,6 +493,25 @@ fun JeviDeckDetailScreen(
                 }
             }
         }
+    }
+
+    if (showDeleteDialog && deck != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete deck") },
+            text = { Text("Are you sure you want to delete \"${deck.title}\"? This can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteDialog = false
+                    viewModel.deleteCurrentDeck()
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+            },
+        )
     }
 }
 

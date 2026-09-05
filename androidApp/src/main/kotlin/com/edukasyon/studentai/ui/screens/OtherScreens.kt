@@ -388,6 +388,7 @@ fun SettingsScreen(
     val horizontalPadding = if (adaptiveWidth == AdaptiveWidth.Compact) 16.dp else 32.dp
     val context = androidx.compose.ui.platform.LocalContext.current
     var showImportConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
+    var showUnsyncConfirm by remember { mutableStateOf(false) }
 
     val exportJsonLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
@@ -430,6 +431,29 @@ fun SettingsScreen(
                 android.widget.Toast.LENGTH_SHORT
             ).show()
         }
+    }
+
+    if (showUnsyncConfirm) {
+        AlertDialog(
+            onDismissRequest = { showUnsyncConfirm = false },
+            title = { Text("Unsync from Google Calendar") },
+            text = { Text("This will remove all SchedMate-added events from your Google Calendar. Your SchedMate data is not deleted.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showUnsyncConfirm = false
+                    if (com.edukasyon.studentai.core.sync.hasCalendarPermissions(context)) {
+                        viewModel.unsyncFromGoogleCalendar(context)
+                    } else {
+                        calendarPermissionLauncher.launch(com.edukasyon.studentai.core.sync.CALENDAR_PERMISSIONS)
+                    }
+                }) {
+                    Text("Remove events", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUnsyncConfirm = false }) { Text("Cancel") }
+            }
+        )
     }
 
     LaunchedEffect(state.notificationsEnabled) {
@@ -609,7 +633,7 @@ fun SettingsScreen(
                     state.isSyncing -> "Syncing your study data..."
                     !state.isOnline -> "Offline - local data available, sync when online"
                     state.syncStatus == SyncState.FAILED -> "Last sync failed - tap Sync now to retry"
-                    lastSyncedAt != null -> "Last synced ${'$'}{formatSyncTime(lastSyncedAt)}"
+                    lastSyncedAt != null -> "Last synced ${formatSyncTime(lastSyncedAt)}"
                     else -> "Keeps decks, notes, planner, and grades in sync"
                 }
                 if (!state.isGoogleSignedIn) {
@@ -702,13 +726,7 @@ fun SettingsScreen(
                         "Removes only SchedMate-added events, leaves other entries alone",
                     trailing = {
                         TextButton(
-                            onClick = {
-                                if (com.edukasyon.studentai.core.sync.hasCalendarPermissions(context)) {
-                                    viewModel.unsyncFromGoogleCalendar(context)
-                                } else {
-                                    calendarPermissionLauncher.launch(com.edukasyon.studentai.core.sync.CALENDAR_PERMISSIONS)
-                                }
-                            },
+                            onClick = { showUnsyncConfirm = true },
                             enabled = !state.isSyncingCalendar,
                         ) {
                             Text("Unsync")
@@ -1275,6 +1293,9 @@ private fun ProfileEditSheet(
                 enabled = state.canEditProfile && !state.isSavingProfile,
                 singleLine = true,
             )
+            val schoolInvalid = draft.school.isNotBlank() && (
+                draft.school.trim().length < 2 || draft.school.trim().none { it.isLetter() }
+                )
             OutlinedTextField(
                 value = draft.school,
                 onValueChange = onSchoolChange,
@@ -1283,6 +1304,10 @@ private fun ProfileEditSheet(
                 shape = StudentAiShapes.chip,
                 enabled = state.canEditProfile && !state.isSavingProfile,
                 singleLine = true,
+                isError = schoolInvalid,
+                supportingText = if (schoolInvalid) {
+                    { Text("School name must be at least 2 characters and contain a letter.") }
+                } else null,
             )
 
             Text(
