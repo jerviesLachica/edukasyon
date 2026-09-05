@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -33,8 +34,10 @@ import com.edukasyon.studentai.core.util.DateUtils
 import com.edukasyon.studentai.domain.model.*
 import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
 import com.edukasyon.studentai.ui.adaptive.AdaptiveWidth
+import com.edukasyon.studentai.ui.adaptive.columnCount
 import com.edukasyon.studentai.ui.adaptive.isMediumOrExpandedWidth
 import com.edukasyon.studentai.ui.adaptive.listPaneWeight
+import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveWidth
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveWidth
 import com.edukasyon.studentai.ui.components.*
@@ -187,7 +190,11 @@ fun PlannerScreen(
                 }
             }
             Row(
-                Modifier.fillMaxWidth().padding(horizontalPadding, vertical = 16.dp),
+                Modifier
+                    .fillMaxWidth()
+                    // Scrollable: chip + button can overflow at 320dp / large font scale.
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontalPadding, vertical = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -693,7 +700,9 @@ private fun AssignmentList(
 
     if (twoPane) {
         LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
+            // Column count scales with window width so cards stay readable on
+            // tablets instead of stretching huge.
+            columns = GridCells.Fixed(rememberAdaptiveWidth().columnCount(default = 2, medium = 3, expanded = 4)),
             contentPadding = contentPadding,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),

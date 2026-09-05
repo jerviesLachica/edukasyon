@@ -161,9 +161,11 @@ fun WeeklyScheduleGrid(
                             template = dayTemplates.templateFor(day),
                             isToday = day == today,
                             isSelected = day == selectedDay,
+                            // Min height for touch targets, but grows in
+                            // landscape / short windows instead of clipping.
                             modifier = Modifier
                                 .width(108.dp)
-                                .height(340.dp)
+                                .heightIn(min = 340.dp)
                                 .onGloballyPositioned { coordinates ->
                                     columnBounds[day] = coordinates.boundsInRoot()
                                 },
@@ -340,6 +342,7 @@ fun DayColumn(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -517,7 +520,7 @@ private val DayTemplatePresets = listOf(
     "#E3F2FD", "#C8E6C9", "#FFF9C4", "#FFE0B2", "#D1C4E9", "#B2DFDB", "#F0F4C3"
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun DayTemplateCustomizationSheet(
     dayTemplates: ScheduleWeekTemplates,
@@ -531,6 +534,7 @@ fun DayTemplateCustomizationSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -568,30 +572,32 @@ fun DayTemplateCustomizationSheet(
                 style = MaterialTheme.typography.labelLarge
             )
 
-            DayTemplatePresets.chunked(7).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { hex ->
-                        val color = parseHexColor(hex) ?: Color.Gray
-                        val selected = currentTemplate.backgroundColorHex.equals(hex, ignoreCase = true)
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(color)
-                                .clickable {
-                                    onDayColorSelected(
-                                        selectedDay,
-                                        currentTemplate.copy(backgroundColorHex = hex)
-                                    )
-                                }
-                                .then(
-                                    if (selected) Modifier.background(
-                                        Color.Black.copy(alpha = 0.15f),
-                                        RoundedCornerShape(8.dp)
-                                    ) else Modifier
+            // FlowRow so swatches wrap on narrow screens instead of clipping.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                DayTemplatePresets.forEach { hex ->
+                    val color = parseHexColor(hex) ?: Color.Gray
+                    val selected = currentTemplate.backgroundColorHex.equals(hex, ignoreCase = true)
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(color)
+                            .clickable {
+                                onDayColorSelected(
+                                    selectedDay,
+                                    currentTemplate.copy(backgroundColorHex = hex)
                                 )
-                        )
-                    }
+                            }
+                            .then(
+                                if (selected) Modifier.background(
+                                    Color.Black.copy(alpha = 0.15f),
+                                    RoundedCornerShape(8.dp)
+                                ) else Modifier
+                            )
+                    )
                 }
             }
 

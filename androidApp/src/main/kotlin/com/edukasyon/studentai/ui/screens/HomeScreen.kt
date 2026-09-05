@@ -245,29 +245,35 @@ fun HomeScreen(
             }
 
             item {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(gridColumns),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height((((FeaturesCatalog.homeDashboardTiles.size + gridColumns - 1) / gridColumns) * 104).dp)
-                        .padding(horizontal = horizontalPadding),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    userScrollEnabled = false,
-                ) {
-                    items(FeaturesCatalog.homeDashboardTiles) { feature ->
-                        QuickActionTile(
-                            label = feature.dashboardLabel ?: feature.title,
-                            icon = feature.icon,
-                            onClick = {
-                                when (val dest = feature.destination) {
-                                    is FeatureDestination.Tab -> onNavigateToTab(dest.tab)
-                                    is FeatureDestination.Route -> onNavigateToRoute(dest.route)
-                                    FeatureDestination.WidgetInstructions -> onOpenFeaturesGuide()
-                                }
-                            },
-                        )
+                // Chunked rows instead of a fixed-height nested grid — tile heights
+                // come from content, so two-line labels never clip.
+                FeaturesCatalog.homeDashboardTiles.chunked(gridColumns).forEach { rowTiles ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = horizontalPadding),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        rowTiles.forEach { feature ->
+                            Box(Modifier.weight(1f)) {
+                                QuickActionTile(
+                                    label = feature.dashboardLabel ?: feature.title,
+                                    icon = feature.icon,
+                                    onClick = {
+                                        when (val dest = feature.destination) {
+                                            is FeatureDestination.Tab -> onNavigateToTab(dest.tab)
+                                            is FeatureDestination.Route -> onNavigateToRoute(dest.route)
+                                            FeatureDestination.WidgetInstructions -> onOpenFeaturesGuide()
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                        repeat(gridColumns - rowTiles.size) {
+                            Spacer(Modifier.weight(1f))
+                        }
                     }
+                    Spacer(Modifier.height(10.dp))
                 }
             }
         }

@@ -37,6 +37,7 @@ import com.edukasyon.studentai.domain.model.ProfileEditPolicy
 import com.edukasyon.studentai.domain.model.SyncState
 import com.edukasyon.studentai.domain.model.ThemeMode
 import com.edukasyon.studentai.R
+import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveWidth
 import com.edukasyon.studentai.ui.adaptive.AdaptiveWidth
 import com.edukasyon.studentai.ui.components.*
@@ -152,19 +153,20 @@ fun ProfileScreen(
         )
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // ===== HERO GRADIENT CARD =====
-        item {
-            val profileSubtitle = buildList {
-                state.user?.school?.takeIf { it.isNotBlank() }?.let { add(it) }
-                state.user?.preferredStatus?.takeIf { it.isNotBlank() }?.let { add(it) }
-            }.joinToString(" · ").ifBlank { "SchedMate profile" }
-            val displayName = state.user?.displayName ?: "Guest Student"
-            val initial = displayName.firstOrNull()?.uppercase() ?: "S"
+    AdaptiveContentContainer {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // ===== HERO GRADIENT CARD =====
+            item {
+                val profileSubtitle = buildList {
+                    state.user?.school?.takeIf { it.isNotBlank() }?.let { add(it) }
+                    state.user?.preferredStatus?.takeIf { it.isNotBlank() }?.let { add(it) }
+                }.joinToString(" · ").ifBlank { "SchedMate profile" }
+                val displayName = state.user?.displayName ?: "Guest Student"
+                val initial = displayName.firstOrNull()?.uppercase() ?: "S"
 
             GradientHeader(
                 modifier = Modifier.clickable(onClick = viewModel::openEditSheet),
@@ -329,6 +331,7 @@ fun ProfileScreen(
                     .padding(top = 8.dp, bottom = 4.dp),
             )
         }
+        }
     }
 }
 
@@ -374,7 +377,7 @@ private fun QuickActionCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit = {},
@@ -510,13 +513,14 @@ fun SettingsScreen(
         )
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Text(
+    AdaptiveContentContainer {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Text(
                 "Settings",
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(bottom = 8.dp),
@@ -550,7 +554,10 @@ fun SettingsScreen(
             SettingsGroup(title = "Appearance") {
                 Text("Theme", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     ThemeMode.entries.forEach { mode ->
                         FilterChip(
                             selected = state.themeMode == mode,
@@ -738,12 +745,13 @@ fun SettingsScreen(
 
         item {
             SettingsGroup(title = "Data") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // FlowRow: buttons wrap instead of clipping on narrow screens.
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     OutlinedButton(onClick = { exportJsonLauncher.launch("studentai_backup.json") }) { Text("Export JSON") }
                     OutlinedButton(onClick = { exportScheduleLauncher.launch("schedule.csv") }) { Text("Schedule CSV") }
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { exportGradesLauncher.launch("grades.csv") }) { Text("Grades CSV") }
                     Button(onClick = { importLauncher.launch(arrayOf("application/json")) }) { Text("Import JSON") }
                 }
@@ -806,6 +814,7 @@ fun SettingsScreen(
                 )
             }
         }
+        }
     }
 }
 
@@ -818,6 +827,7 @@ fun NotesScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
+    AdaptiveContentContainer {
     Column(Modifier.fillMaxSize()) {
         TopAppBar(title = { Text("Notes") })
         OutlinedTextField(
@@ -867,6 +877,7 @@ fun NotesScreen(
             modifier = Modifier.padding(16.dp),
         )
     }
+    }
 }
 
 @Composable
@@ -880,6 +891,7 @@ fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {
         viewModel.refreshHolidays()
     }
 
+    AdaptiveContentContainer {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item { Text("Calendar", style = MaterialTheme.typography.headlineSmall) }
         if (holidaysLoading) {
@@ -924,6 +936,7 @@ fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {
                 }
             }
         }
+    }
     }
 }
 
@@ -1063,6 +1076,7 @@ private fun OnboardingSchoolStep(
     Button(onClick = viewModel::nextStep, modifier = Modifier.fillMaxWidth(), shape = StudentAiShapes.button) { Text("Continue") }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun OnboardingAppearanceStep(
     state: com.edukasyon.studentai.ui.viewmodel.OnboardingUiState,
@@ -1070,7 +1084,10 @@ private fun OnboardingAppearanceStep(
 ) {
     Text("Appearance", style = MaterialTheme.typography.headlineMedium)
     Text("Choose a theme — you can change this anytime in Profile.", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         ThemeMode.entries.forEach { mode ->
             FilterChip(
                 selected = state.themeMode == mode,

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -32,8 +33,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
+import com.edukasyon.studentai.ui.adaptive.columnCount
 import com.edukasyon.studentai.ui.adaptive.isMediumOrExpandedWidth
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
+import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveWidth
 import com.edukasyon.studentai.ui.components.*
 import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import com.edukasyon.studentai.ui.theme.parseHexColor
@@ -56,7 +59,8 @@ private data class SubjectGradeGroup(
 fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val horizontalPadding = rememberAdaptiveHorizontalPadding()
-    val useGrid = isMediumOrExpandedWidth()
+    val adaptiveWidth = rememberAdaptiveWidth()
+    val gridColumns = adaptiveWidth.columnCount(default = 1, medium = 2, expanded = 3)
     var showAddSheet by remember { mutableStateOf(false) }
     var preselectedSubjectId by remember { mutableStateOf<String?>(null) }
 
@@ -180,42 +184,35 @@ fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
                 }
                 } else {
                     item { SectionHeader("BY SUBJECT") }
-                    if (useGrid) {
-                        item {
-                            LazyVerticalGrid(
-                                columns = GridCells.Fixed(2),
+                    // Rows of N cards chunked from the subject list — heights come
+                    // from the tallest card in each row (no estimates), so subjects
+                    // with many entries never clip. N adapts to window width.
+                    subjectGroups.chunked(gridColumns).forEach { rowGroups ->
+                        item(key = rowGroups.first().subjectId) {
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height((((subjectGroups.size + 1) / 2) * 220).dp)
                                     .padding(horizontal = horizontalPadding),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
-                                userScrollEnabled = false,
                             ) {
-                                items(subjectGroups, key = { it.subjectId }) { group ->
-                                    SubjectGradeCard(
-                                        group = group,
-                                        horizontalPadding = 0.dp,
-                                        onAddGrade = {
-                                            preselectedSubjectId = group.subjectId
-                                            showAddSheet = true
-                                        },
-                                        onDeleteEntry = viewModel::removeGrade,
-                                    )
+                                rowGroups.forEach { group ->
+                                    Box(Modifier.weight(1f)) {
+                                        SubjectGradeCard(
+                                            group = group,
+                                            horizontalPadding = 0.dp,
+                                            onAddGrade = {
+                                                preselectedSubjectId = group.subjectId
+                                                showAddSheet = true
+                                            },
+                                            onDeleteEntry = viewModel::removeGrade,
+                                        )
+                                    }
+                                }
+                                // Keep card widths equal when the last row is short.
+                                repeat(gridColumns - rowGroups.size) {
+                                    Spacer(Modifier.weight(1f))
                                 }
                             }
-                        }
-                    } else {
-                        items(subjectGroups, key = { it.subjectId }) { group ->
-                            SubjectGradeCard(
-                                group = group,
-                                horizontalPadding = horizontalPadding,
-                                onAddGrade = {
-                                    preselectedSubjectId = group.subjectId
-                                    showAddSheet = true
-                                },
-                                onDeleteEntry = viewModel::removeGrade,
-                            )
                         }
                     }
                 }
@@ -421,6 +418,10 @@ private fun AddGradeBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // Scroll + ime padding so Save stays reachable on small screens
+                // and with the keyboard open.
+                .verticalScroll(rememberScrollState())
+                .imePadding()
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)

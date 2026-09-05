@@ -6,7 +6,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -15,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -63,11 +66,13 @@ fun JeviHubScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("JEVI")
+                        Text("JEVI", maxLines = 1)
                         Text(
                             "Intelligent Revision & Virtual Instruction",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 },
@@ -1028,7 +1033,12 @@ private fun AddQuizQuestionDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add Question") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Scrollable: the option list can grow and the dialog clips on
+            // small screens / landscape / with the keyboard open otherwise.
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+            ) {
                 OutlinedTextField(
                     value = questionText,
                     onValueChange = { questionText = it },

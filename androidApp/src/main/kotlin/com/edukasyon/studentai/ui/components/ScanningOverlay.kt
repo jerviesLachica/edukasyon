@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
@@ -69,7 +71,6 @@ fun ScanningOverlay(
     extractedText: String? = null,
     primaryMessage: String = "Scanning schedule…",
     subMessage: String = "Jevi is reading your schedule",
-    isImageOnlyRetry: Boolean = false,
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
     val infiniteTransition = rememberInfiniteTransition(label = "scanOverlay")
@@ -215,7 +216,7 @@ fun ScanningOverlay(
                     StarPreloader(containerSize = 56.dp, showGlow = true)
                     Spacer(Modifier.height(20.dp))
                     Text(
-                        text = if (isImageOnlyRetry) "Retrying from scratch…" else primaryMessage,
+                        text = primaryMessage,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White,
@@ -223,7 +224,7 @@ fun ScanningOverlay(
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text = if (isImageOnlyRetry) "Reading the image directly, no text preview" else subMessage,
+                        text = subMessage,
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.White.copy(alpha = 0.9f),
                         textAlign = TextAlign.Center,
@@ -266,7 +267,6 @@ fun ScheduleScanFailureOverlay(
     modifier: Modifier = Modifier,
     imageBytes: ByteArray? = null,
     status: ScheduleScanStatus,
-    retryCount: Int,
     retryAfterMillis: Long? = null,
     onRetry: () -> Unit,
     onDismiss: () -> Unit,
@@ -346,10 +346,10 @@ fun ScheduleScanFailureOverlay(
                 color = Color.White.copy(alpha = 0.88f),
                 textAlign = TextAlign.Center,
             )
-            if (status == ScheduleScanStatus.UNREADABLE && retryCount > 0) {
+            if (status == ScheduleScanStatus.UNREADABLE) {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "Attempt $retryCount of 5",
+                    text = "Make sure the whole timetable is flat, well-lit, and in frame.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.95f),
                     textAlign = TextAlign.Center,
@@ -424,15 +424,17 @@ fun TimetablePopulateAnimation(
             Spacer(Modifier.height(16.dp))
 
             Row(
-                modifier = Modifier.wrapContentSize(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 180.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 days.forEach { day ->
                     val dayClasses = classesByDay[day] ?: emptyList()
                     Column(
                         modifier = Modifier
-                            .width(56.dp)
-                            .height(180.dp)
+                            .weight(1f)
+                            .fillMaxHeight()
                             .clip(RoundedCornerShape(12.dp))
                             .background(Color.White.copy(alpha = 0.08f))
                             .padding(8.dp),

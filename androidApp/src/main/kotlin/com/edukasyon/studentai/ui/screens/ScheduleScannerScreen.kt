@@ -111,7 +111,6 @@ fun ScheduleScannerScreen(
     val showCamera = state.scannedClasses.isEmpty()
     val isScanning = state.scheduleScanStatus == ScheduleScanStatus.SCANNING
     val isConfirming = state.scheduleScanStatus == ScheduleScanStatus.CONFIRMING
-    val isImageOnlyRetry = state.scheduleScanRetryCount == 2
     val showScanFailure = state.scheduleScanStatus == ScheduleScanStatus.UNREADABLE ||
         state.scheduleScanStatus == ScheduleScanStatus.RETRY_LATER
     val cooldownActive = state.scheduleScanRetryAfterMillis?.let { System.currentTimeMillis() < it } == true
@@ -296,7 +295,6 @@ fun ScheduleScannerScreen(
                             ScanningOverlay(
                                 imageBytes = pendingScanImageBytes,
                                 extractedText = state.scheduleScanExtractedText,
-                                isImageOnlyRetry = isImageOnlyRetry,
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
@@ -304,7 +302,6 @@ fun ScheduleScannerScreen(
                             ScheduleScanFailureOverlay(
                                 imageBytes = pendingScanImageBytes,
                                 status = state.scheduleScanStatus,
-                                retryCount = state.scheduleScanRetryCount,
                                 retryAfterMillis = state.scheduleScanRetryAfterMillis,
                                 onRetry = { viewModel.retryScheduleScan() },
                                 onDismiss = {

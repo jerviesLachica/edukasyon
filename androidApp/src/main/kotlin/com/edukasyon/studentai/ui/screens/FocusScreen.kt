@@ -1,6 +1,7 @@
 package com.edukasyon.studentai.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -354,7 +355,12 @@ private fun SubjectLabelField(
             singleLine = true,
         )
         if (subjects.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+            ) {
                 subjects.take(4).forEach { subject ->
                     SuggestionChip(
                         onClick = { onLabelChange(subject) },
@@ -454,6 +460,7 @@ private fun FocusTimerContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = horizontalPadding, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(24.dp),
@@ -479,7 +486,15 @@ private fun FocusTimerContent(
             fontWeight = FontWeight.Bold,
         )
 
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(240.dp)) {
+        // Ring shrinks on short screens (landscape) instead of pushing the
+        // controls off-screen.
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxWidth(0.75f)
+                .aspectRatio(1f)
+                .heightIn(max = 240.dp),
+        ) {
             CircularProgressIndicator(
                 progress = { progress.coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxSize(),

@@ -6,6 +6,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -21,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edukasyon.studentai.domain.model.LectureFile
+import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
 import com.edukasyon.studentai.ui.components.*
 import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import com.edukasyon.studentai.ui.viewmodel.LectureFilesViewModel
@@ -95,6 +98,7 @@ fun LectureFilesScreen(
             )
         }
     ) { padding ->
+        AdaptiveContentContainer {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -154,6 +158,7 @@ fun LectureFilesScreen(
                 }
             }
         }
+        }
     }
 
     if (showAddDialog && pendingUri != null) {
@@ -164,7 +169,10 @@ fun LectureFilesScreen(
             },
             title = { Text("Add lecture file") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                ) {
                     OutlinedTextField(
                         value = fileTitle,
                         onValueChange = { fileTitle = it },
