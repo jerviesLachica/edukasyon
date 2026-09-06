@@ -10,9 +10,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.edukasyon.studentai.core.notifications.NotificationHelper
+import com.edukasyon.studentai.core.notifications.ReminderType
 import com.edukasyon.studentai.core.update.AppUpdateMessagingService
 import com.edukasyon.studentai.core.update.UpdateManager
 import com.edukasyon.studentai.ui.StudentAiAppContent
+import com.edukasyon.studentai.ui.navigation.MainTab
 import com.edukasyon.studentai.widget.WidgetActions
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -52,13 +54,39 @@ class MainActivity : ComponentActivity() {
 
     private fun extractStartTab(intent: Intent?): String? {
         val extras = intent?.extras ?: return null
+        // ONLY the widget sets START_TAB_KEY, always with a MainTab route name.
+        // A notification's reference id must never leak in here — it's a data
+        // UUID, not a navigation route (navigating it crashes the NavController).
         return extras.getString(WidgetActions.START_TAB_KEY)
-            ?: extras.getString(NotificationHelper.REFERENCE_ID_EXTRA)
+            ?: notificationStartTab(extras)
     }
 
     private fun extractTriggerUpdate(intent: Intent?): Boolean =
         intent?.getBooleanExtra(AppUpdateMessagingService.EXTRA_TRIGGER_UPDATE, false) == true
 
-    private fun extractTaskId(intent: Intent?): String? =
-        intent?.getStringExtra(WidgetActions.TASK_ID_KEY)
+    private fun extractTaskId(intent: Intent?): String? {
+        val extras = intent?.extras ?: return null
+        extras.getString(WidgetActions.TASK_ID_KEY)?.let { return it }
+        // Task reminders deep-link to the Planner with the task preselected,
+        // mirroring the widget's tap-through flow.
+        if (extras.getString(NotificationHelper.REFERENCE_TYPE_EXTRA) == ReminderType.TASK.name) {
+            return extras.getString(NotificationHelper.REFERENCE_ID_EXTRA)
+        }
+        return null
+    }
+
+    /**
+     * Maps a reminder notification tap to the tab that owns the reminder.
+     * Assignments and exams live in the Planner; class reminders point at the
+     * Schedule; task reminders are handled by extractTaskId instead. Unknown or
+     * legacy ids (notifications scheduled before the type extra existed) land
+     * on the Planner rather than crashing navigation with a UUID "route".
+     */
+    private fun notificationStartTab(extras: Bundle): String? {
+        extras.getString(NotificationHelper.REFERENCE_ID_EXTRA) ?: return null
+        return when (extras.getString(NotificationHelper.REFERENCE_TYPE_EXTRA)) {
+            ReminderType.CLASS.name -> MainTab.SCHEDULE.route
+            else -> MainTab.PLANNER.route
+        }
+    }
 }

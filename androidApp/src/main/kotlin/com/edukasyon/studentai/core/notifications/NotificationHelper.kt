@@ -27,6 +27,7 @@ class NotificationHelper @Inject constructor(
 ) {
     companion object {
         const val REFERENCE_ID_EXTRA = "reference_id"
+        const val REFERENCE_TYPE_EXTRA = "reference_type"
         private const val TAG = "NotificationHelper"
     }
     init {
@@ -70,6 +71,7 @@ class NotificationHelper @Inject constructor(
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             referenceId?.let { putExtra(REFERENCE_ID_EXTRA, it) }
+            putExtra(REFERENCE_TYPE_EXTRA, type.name)
         }
         val pending = PendingIntent.getActivity(
             context,

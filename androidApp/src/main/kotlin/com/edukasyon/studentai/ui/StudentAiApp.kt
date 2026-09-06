@@ -181,7 +181,16 @@ fun MainNavigation(
             navController.navigateToTab(tab)
         } ?: run {
             routeToSelectedTab(route)?.let { tab -> navController.navigateToTab(tab) }
-            navController.navigate(route) { launchSingleTop = true }
+            // NavController THROWS IllegalArgumentException when the route
+            // doesn't match any destination (this crashed the app whenever a
+            // non-route string arrived here). The tab mapping above already
+            // landed the user somewhere sensible; stacking the detail screen
+            // on top is best-effort only.
+            try {
+                navController.navigate(route) { launchSingleTop = true }
+            } catch (_: IllegalArgumentException) {
+                Log.w("MainNavigation", "Ignoring unregistered start route: $route")
+            }
         }
         onInitialTabConsumed()
     }
