@@ -460,8 +460,11 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
 const scheduleScanJobs = new Map();
 const SCHEDULE_SCAN_JOB_TTL_MS = 5 * 60_000;
 const SCHEDULE_SCAN_MAX_ACTIVE = 8;
+// Matches the schedule-analysis endpoint's requestTimeoutMs policy: the
+// background work gets the same budget the synchronous route used to have.
+const SCHEDULE_SCAN_JOB_TIMEOUT_MS = 300_000;
 
-function pruneScheduleScanJobs() {
+function pruneScanJobs() {
   const now = Date.now();
   for (const [id, job] of scheduleScanJobs) {
     if (now - job.createdAt > SCHEDULE_SCAN_JOB_TTL_MS) scheduleScanJobs.delete(id);
@@ -469,7 +472,7 @@ function pruneScheduleScanJobs() {
 }
 
 function startScheduleScanJob({ body, provider: fallbackProvider, maxTokens }) {
-  pruneScheduleScanJobs();
+  pruneScanJobs();
   const active = [...scheduleScanJobs.values()].filter((j) => j.status === 'processing').length;
   if (active >= SCHEDULE_SCAN_MAX_ACTIVE) {
     const err = new Error('Scanner is busy right now — try again in a moment.');
@@ -480,8 +483,14 @@ function startScheduleScanJob({ body, provider: fallbackProvider, maxTokens }) {
   const jobId = `scan_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   scheduleScanJobs.set(jobId, { status: 'processing', createdAt: Date.now() });
   // Fire-and-forget: the response must return this instant so the request
-  // never approaches Render's ~100s proxy cap.
-  handleScheduleAnalysis({ body, provider: fallbackProvider, maxTokens, signal: undefined })
+  // never approaches Render's ~100s proxy cap. The background work still
+  // needs its own deadline — no HTTP request is attached anymore, so without
+  // this controller a hung upstream call would leave the job 'processing'
+  // until TTL pruning, and the client would die on a confusing 404 instead
+  // of a clean error.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SCHEDULE_SCAN_JOB_TIMEOUT_MS);
+  handleScheduleAnalysis({ body, provider: fallbackProvider, maxTokens, signal: controller.signal })
     .then((result) => {
       const check = scheduleValidator.validate(result);
       if (!check.valid) {
@@ -497,14 +506,18 @@ function startScheduleScanJob({ body, provider: fallbackProvider, maxTokens }) {
       });
     })
     .catch((err) => {
+      const message = err?.name === 'AbortError'
+        ? 'The scan took too long on the server. Try again.'
+        : err.message || 'Scan failed on the server.';
       console.error(`[schedule-analysis] job ${jobId} failed:`, String(err.message || err).slice(0, 200));
       scheduleScanJobs.set(jobId, {
         ...scheduleScanJobs.get(jobId),
         status: 'error',
-        error: err.message || 'Scan failed on the server.',
+        error: message,
         createdAt: Date.now(),
       });
-    });
+    })
+    .finally(() => clearTimeout(timeout));
   return { jobId, status: 'processing' };
 }
 
