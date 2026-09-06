@@ -22,11 +22,10 @@ const VISION_CAPABLE_MODELS = [
   ]),
 ];
 const DEFAULT_TEXT_MODEL = 'auto';
-// Vision requests use `auto` routing on the upstream distributor.
-// `auto` resolves to agnes-2.5-flash (34s per schedule scan).
-// MiniMax-M3 is slower (~120s per scan) and hits the 300s job timeout on large images.
-// If `auto` fails, the fallback chain will retry with other vision models.
-const DEFAULT_VISION_MODEL = 'auto';
+// Vision requests use MiniMax-M3 directly — the upstream distributor's
+// `auto` routing returns a non-vision model (400: does not support multimodal).
+// MiniMax-M3 is the only verified working vision model (~120s per scan).
+const DEFAULT_VISION_MODEL = 'MiniMax-M3';
 
 // Legacy slug from before the agnes migration. Old clients / Render envs may
 // still send `step-3.7-flash` — normalize it to `agnes-2.5-flash` so quota
@@ -121,11 +120,11 @@ function createAiProvider(config = {}) {
 
   function modelFallbackChain(primaryModel, { isVision = false } = {}) {
     const normalizedPrimary = normalizeModelSlug(primaryModel);
-    // Vision chain: try `auto` first (fast, ~34s per scan), then other vision models.
+    // Vision chain: try the primary directly. `auto` is intentionally excluded
+    // because the upstream distributor's `auto` route returns a non-vision
+    // model (400: does not support multimodal) and burns ~30s on every scan.
     const chain = [normalizedPrimary];
     if (isVision) {
-      // Ensure `auto` is tried early for speed, then fallback to other vision-capable models.
-      if (normalizedPrimary !== 'auto' && !chain.includes('auto')) chain.unshift('auto');
       for (const candidate of VISION_CAPABLE_MODELS) {
         if (candidate === normalizedPrimary || candidate === 'auto') continue;
         if (!chain.includes(candidate)) chain.push(candidate);
