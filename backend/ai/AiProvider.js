@@ -22,11 +22,11 @@ const VISION_CAPABLE_MODELS = [
   ]),
 ];
 const DEFAULT_TEXT_MODEL = 'auto';
-// Vision requests use MiniMax-M3 (multimodal-capable, verified working).
-// The upstream distributor has no working channel for explicit agnes,
-// and step-3.7-flash is now failing. Map our logical agnes-2.5-flash
-// to MiniMax-M3 on the wire.
-const DEFAULT_VISION_MODEL = 'MiniMax-M3';
+// Vision requests use `auto` routing on the upstream distributor.
+// `auto` resolves to agnes-2.5-flash (34s per schedule scan).
+// MiniMax-M3 is slower (~120s per scan) and hits the 300s job timeout on large images.
+// If `auto` fails, the fallback chain will retry with other vision models.
+const DEFAULT_VISION_MODEL = 'auto';
 
 // Legacy slug from before the agnes migration. Old clients / Render envs may
 // still send `step-3.7-flash` — normalize it to `agnes-2.5-flash` so quota
@@ -121,15 +121,15 @@ function createAiProvider(config = {}) {
 
   function modelFallbackChain(primaryModel, { isVision = false } = {}) {
     const normalizedPrimary = normalizeModelSlug(primaryModel);
-    // Vision chain: try agnes-2.5-flash first (multimodal), then `auto` as fallback.
+    // Vision chain: try `auto` first (fast, ~34s per scan), then other vision models.
     const chain = [normalizedPrimary];
     if (isVision) {
+      // Ensure `auto` is tried early for speed, then fallback to other vision-capable models.
+      if (normalizedPrimary !== 'auto' && !chain.includes('auto')) chain.unshift('auto');
       for (const candidate of VISION_CAPABLE_MODELS) {
-        if (candidate === normalizedPrimary) continue;
+        if (candidate === normalizedPrimary || candidate === 'auto') continue;
         if (!chain.includes(candidate)) chain.push(candidate);
       }
-      // Prepend MiniMax-M3 if not already in chain — it's the verified working vision model.
-      if (!chain.includes('MiniMax-M3')) chain.unshift('MiniMax-M3');
     }
     if (primaryModel !== TEXT_MODEL && !chain.includes(TEXT_MODEL)) chain.push(TEXT_MODEL);
     if (primaryModel !== DEFAULT_MODEL && !chain.includes(DEFAULT_MODEL)) chain.push(DEFAULT_MODEL);
