@@ -41,11 +41,13 @@ function normalizeModelSlug(slug) {
 }
 
 // Maps a resolved slug to the model id actually sent upstream.
-// If the normalized slug is `agnes-2.5-flash` (our logical vision model),
-// wire it to `MiniMax-M3` (the actual working vision model).
-// Otherwise, use the normalized slug directly.
-function toWireModelSlug(slug) {
+// Any vision request targeting agnes-2.5-flash OR auto gets mapped directly
+// to MiniMax-M3, because the distributor has no multimodal channel for either.
+function toWireModelSlug(slug, { isVision = false } = {}) {
   const normalized = normalizeModelSlug(slug);
+  if (isVision && (normalized === 'agnes-2.5-flash' || normalized === 'auto')) {
+    return 'MiniMax-M3';
+  }
   if (normalized === 'agnes-2.5-flash') return 'MiniMax-M3';
   return normalized;
 }
@@ -262,16 +264,16 @@ function createAiProvider(config = {}) {
   async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, signal, responseFormat, reasoning, wireModelOverride } = {}) {
     if (!hasAiKey) throw new Error('AI provider not configured (set AI_API_KEY)');
     const wireModels = wireModelOverride
-      ? [wireModelOverride]
+      ? [toWireModelSlug(wireModelOverride, { isVision })]
       : (() => {
           const chain = [];
           for (const candidate of modelFallbackChain(model || (isVision ? VISION_MODEL : TEXT_MODEL), { isVision })) {
-            const wire = toWireModelSlug(candidate);
+            const wire = toWireModelSlug(candidate, { isVision });
             if (wire && !chain.includes(wire)) chain.push(wire);
           }
           return chain;
         })();
-    const models = wireModels.length ? wireModels : ['auto'];
+    const models = wireModels.length ? wireModels : [isVision ? 'MiniMax-M3' : 'auto'];
     let lastError;
     for (let i = 0; i < models.length; i += 1) {
       const candidate = models[i];
