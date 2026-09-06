@@ -421,23 +421,6 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
 
   let { parsed, completion } = parseCompletion(await runCompletion(null));
 
-  // Defense in depth: a model that "succeeds" with zero classes on a schedule
-  // image is almost always a silent model failure. Retry once more on the
-  // same vision model (a transient failure can clear on a second attempt)
-  // before giving up.
-  if (parsed && Array.isArray(parsed.classes) && parsed.classes.length === 0) {
-    console.warn('[schedule-analysis] First pass returned 0 classes — retrying vision pass');
-    try {
-      const retry = parseCompletion(await runCompletion(null));
-      if (retry.parsed && Array.isArray(retry.parsed.classes) && retry.parsed.classes.length > 0) {
-        parsed = retry.parsed;
-        completion = retry.completion;
-      }
-    } catch (err) {
-      console.warn('[schedule-analysis] vision retry failed:', String(err.message || err).slice(0, 160));
-    }
-  }
-
   if (!parsed) {
     const full = (completion.reply || completion.reasoning || '');
     console.error('[schedule-analysis] Parsing failed. RAW OUTPUT:', full);
@@ -463,7 +446,7 @@ const SCHEDULE_SCAN_JOB_TTL_MS = 5 * 60_000;
 const SCHEDULE_SCAN_MAX_ACTIVE = 8;
 // Matches the schedule-analysis endpoint's requestTimeoutMs policy: the
 // background work gets the same budget the synchronous route used to have.
-const SCHEDULE_SCAN_JOB_TIMEOUT_MS = 300_000;
+const SCHEDULE_SCAN_JOB_TIMEOUT_MS = 600_000;
 
 function pruneScanJobs() {
   const now = Date.now();

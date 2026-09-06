@@ -2032,9 +2032,9 @@ class AiViewModel @Inject constructor(
         // The vision model upstream takes 45-75s on real schedule photos, and
         // when the first pass finds 0 classes the backend retries through auto
         // routing — worst case ~144s. The gateway allows schedule-analysis 300s
-        // (its per-endpoint cap); 180s covers the backend's worst case while
-        // failing cleanly before the gateway would.
-        const val SCHEDULE_SCAN_TIMEOUT_MS = 180_000L
+        // 300s covers the backend's worst-case processing time for large images
+        // on MiniMax-M3 while failing cleanly before the 10-minute server job timeout.
+        const val SCHEDULE_SCAN_TIMEOUT_MS = 300_000L
         // Skip ML Kit OCR if it would delay the request — vision model doesn't need text hint
         const val SCHEDULE_SCAN_OCR_DEADLINE_MS = 1_500L
         const val SCHEDULE_SCAN_RETRY_WORK = "schedule_scan_retry_later"
