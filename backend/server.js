@@ -823,11 +823,13 @@ app.post('/api/ai/schedule-analysis', (req, res) =>
     },
     // Starts a background job and returns { jobId } instantly (Render's proxy
     // caps requests at ~100s; the vision scan needs longer). The real result
-    // is validated when the job finishes, not here.
+    // is validated when the job finishes, not here. NOTE: validateOutput must
+    // hand the response back via `data` — the gateway returns validated.data,
+    // so a bare {valid:true} would replace the response with undefined.
     handler: startScheduleScanJob,
     validateOutput: (result) =>
       result && typeof result.jobId === 'string'
-        ? { valid: true }
+        ? { valid: true, data: result }
         : { valid: false, error: 'Missing jobId' },
   })
 );
