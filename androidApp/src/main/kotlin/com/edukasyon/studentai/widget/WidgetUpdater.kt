@@ -69,7 +69,8 @@ object WidgetUpdater {
     }
 
     fun notifyDataChanged(context: Context) {
-            android.util.Log.i("WidgetLifecycle", "WIDGET_REFRESH_REASON: notifyDataChanged called")
+            android.util.Log.i("WidgetLifecycle", "WIDGET_REFRESH_REASON: notifyDataChanged called — invalidating cache")
+            WidgetSnapshotCache.invalidate(context)
             WorkManager.getInstance(context.applicationContext)
                 .enqueueUniqueWork(
                     ON_DEMAND_WORK_NAME,
