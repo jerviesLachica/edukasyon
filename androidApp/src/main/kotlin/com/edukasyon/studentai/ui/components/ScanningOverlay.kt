@@ -45,7 +45,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -213,7 +217,7 @@ fun ScanningOverlay(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    StarPreloader(containerSize = 56.dp, showGlow = true)
+                    PencilPreloader(containerSize = 56.dp)
                     Spacer(Modifier.height(20.dp))
                     Text(
                         text = primaryMessage,
@@ -524,6 +528,137 @@ fun TimetablePopulateAnimation(
                 color = primaryColor,
                 trackColor = primaryColor.copy(alpha = 0.2f),
             )
+        }
+    }
+}
+
+@Composable
+fun PencilPreloader(
+    modifier: Modifier = Modifier,
+    containerSize: androidx.compose.ui.unit.Dp = 80.dp,
+) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val infiniteTransition = rememberInfiniteTransition(label = "pencil")
+    
+    // Main rotation (0 to 720 degrees in 3s)
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 720f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "rotation",
+    )
+    
+    // Body rotation (-90 to -225 degrees)
+    val bodyRotation by infiniteTransition.animateFloat(
+        initialValue = -90f,
+        targetValue = -225f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "bodyRotation",
+    )
+    
+    // Eraser skew animation
+    val eraserSkew by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "eraserSkew",
+    )
+    
+    Box(
+        modifier = modifier
+            .wrapContentSize()
+            .width(containerSize)
+            .height(containerSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val centerX = size.width / 2f
+            val centerY = size.height / 2f
+            val scale = size.minDimension / 200f
+            
+            // Apply main rotation
+            rotate(rotation, Offset(centerX, centerY)) {
+                // Draw pencil body circles
+                rotate(bodyRotation, Offset(centerX, centerY)) {
+                    // Body circle 1 (main body)
+                    drawCircle(
+                        color = primaryColor,
+                        radius = 32f * scale,
+                        center = Offset(centerX, centerY),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 15f * scale),
+                    )
+                    // Body circle 2 (outer ring)
+                    drawCircle(
+                        color = primaryColor.copy(alpha = 0.7f),
+                        radius = 37f * scale,
+                        center = Offset(centerX, centerY),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5f * scale),
+                    )
+                    // Body circle 3 (inner ring)
+                    drawCircle(
+                        color = primaryColor.copy(alpha = 0.5f),
+                        radius = 27f * scale,
+                        center = Offset(centerX, centerY),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5f * scale),
+                    )
+                }
+                
+                // Draw eraser (simplified rectangle with skew effect)
+                val eraserOffset = 49f * scale
+                val skewAmount = when {
+                    eraserSkew < 0.325f || eraserSkew > 0.675f -> 0f
+                    eraserSkew < 0.40f -> -4f
+                    eraserSkew < 0.45f -> 8f
+                    eraserSkew < 0.60f -> -15f
+                    else -> 8f
+                }
+                
+                translate(left = centerX + eraserOffset, top = centerY - 15f * scale) {
+                    rotate(-45f + bodyRotation) {
+                        drawRect(
+                            color = primaryColor.copy(alpha = 0.8f),
+                            topLeft = Offset(-15f * scale + skewAmount, 0f),
+                            size = androidx.compose.ui.geometry.Size(30f * scale, 30f * scale),
+                        )
+                    }
+                }
+                
+                // Draw pencil point (triangle)
+                translate(left = centerX + eraserOffset, top = centerY - 30f * scale) {
+                    rotate(-90f + bodyRotation) {
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, 0f) // tip
+                            lineTo(15f * scale, 30f * scale)
+                            lineTo(-15f * scale, 30f * scale)
+                            close()
+                        }
+                        drawPath(
+                            path = path,
+                            color = Color(0xFFFFB74D), // orange/wood color
+                        )
+                        // Pencil lead (small triangle at tip)
+                        val leadPath = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, 0f)
+                            lineTo(5f * scale, 10f * scale)
+                            lineTo(-5f * scale, 10f * scale)
+                            close()
+                        }
+                        drawPath(
+                            path = leadPath,
+                            color = Color(0xFF424242), // graphite
+                        )
+                    }
+                }
+            }
         }
     }
 }
