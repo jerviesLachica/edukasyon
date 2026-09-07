@@ -44,7 +44,7 @@ abstract class BaseStudentAiWidget(
         
         // INSTANT LOAD: Show cached or skeleton immediately — no blocking work before provideContent
         val snapshot = cached ?: WidgetDataProvider.createSkeletonSnapshot(context, appWidgetId, widgetSize)
-        
+
         val startTab = when (snapshot.displayType) {
             WidgetDisplayType.TASKS, WidgetDisplayType.COMBINED -> "planner"
             WidgetDisplayType.SCHEDULE -> "schedule"
@@ -60,9 +60,21 @@ abstract class BaseStudentAiWidget(
         // AFTER first paint: prewarm design bitmap in background so next update is instant
         WidgetDataProvider.prewarmBackground(context, snapshot)
 
-        // Load fresh data in background if cached is null or stale
-        if (cached == null || shouldRefreshCachedSnapshot(context, appWidgetId)) {
-            WidgetUpdater.notifyDataChanged(context)
+        // Detect stale cache: different day, or cache too old (>30 min), or no cache at all.
+        // When the day changed we must reload immediately so the widget doesn't show yesterday's
+        // date; the background worker is fire-and-forget and may be killed by the OS.
+        val dateChanged = cached != null && !isSnapshotForToday(cached)
+        val needsRefresh = cached == null || dateChanged || shouldRefreshCachedSnapshot(context, appWidgetId)
+
+        if (needsRefresh) {
+            if (dateChanged && cached != null) {
+                // Day rolled over: load fresh snapshot synchronously and re-render
+                // so the widget shows today's date without waiting for a background worker.
+                val fresh = WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
+                WidgetUpdater.refreshAll(context)
+            } else {
+                WidgetUpdater.notifyDataChanged(context)
+            }
         }
     }
 
@@ -70,6 +82,16 @@ abstract class BaseStudentAiWidget(
             val savedAt = WidgetSnapshotCache.readSavedAtMs(context, appWidgetId) ?: return true
             return System.currentTimeMillis() - savedAt > 30 * 60_000L  // 30 minutes
         }
+
+    /** Returns true if the cached snapshot was written today (same day/month/year). */
+    private fun isSnapshotForToday(snapshot: WidgetSnapshot): Boolean {
+        val now = java.util.Calendar.getInstance()
+        val currentDay = now.get(java.util.Calendar.DAY_OF_MONTH)
+        val currentMonth = now.get(java.util.Calendar.MONTH) // 0-based, matches SimpleDateFormat "MMM" intent
+        val currentYear = now.get(java.util.Calendar.YEAR)
+        val dayName = java.text.SimpleDateFormat("EEE", java.util.Locale.getDefault()).format(now.time)
+        return snapshot.dayOfMonth == currentDay && snapshot.monthName == java.text.SimpleDateFormat("MMM", java.util.Locale.getDefault()).format(now.time)
+    }
 }
 
 class StudentAiWidget2x2 : BaseStudentAiWidget(WidgetSize.SMALL_2X2)
