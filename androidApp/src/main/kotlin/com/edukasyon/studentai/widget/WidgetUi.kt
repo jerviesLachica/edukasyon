@@ -153,19 +153,40 @@ internal fun TaskRow(
             .fillMaxWidth()
             .background(bg)
             .cornerRadius(6.dp)
-            .padding(vertical = if (compact) 3.dp else 4.dp, horizontal = 6.dp)
-            .clickable(openAction),
+            .padding(vertical = if (compact) 3.dp else 4.dp, horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Checkbox — toggles task completion
         Box(
             modifier = GlanceModifier
-                .width(3.dp)
-                .height(if (compact) 20.dp else 26.dp)
-                .background(accent)
-                .cornerRadius(2.dp)
-        ) {}
+                .width(20.dp)
+                .height(20.dp)
+                .background(
+                    if (item.isCompleted) accent else WidgetColors.muted(theme).copy(alpha = 0.2f)
+                )
+                .cornerRadius(4.dp)
+                .clickable(WidgetActions.toggleTaskComplete(item.id)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (item.isCompleted) {
+                Text(
+                    text = "✓",
+                    style = TextStyle(
+                        color = ColorProvider(if (theme.isLightBackground) Color.White else Color.Black),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+        }
         Spacer(GlanceModifier.width(6.dp))
-        Column(modifier = GlanceModifier.defaultWeight()) {
+        
+        // Title and subtitle — click opens app
+        Column(
+            modifier = GlanceModifier
+                .defaultWeight()
+                .clickable(openAction)
+        ) {
             Text(
                 text = item.title,
                 maxLines = if (compact) 1 else 2,

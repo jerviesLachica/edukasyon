@@ -87,7 +87,8 @@ private data class CachedTaskItem(
     val title: String,
     val subtitle: String,
     val accentHex: String,
-    val isHighlighted: Boolean
+    val isHighlighted: Boolean,
+    val isCompleted: Boolean
 )
 
 @Serializable
@@ -113,7 +114,7 @@ private fun WidgetSnapshot.toCached(): CachedWidgetSnapshot = CachedWidgetSnapsh
     monthName = monthName,
     dayOfMonth = dayOfMonth,
     tasks = tasks.map {
-        CachedTaskItem(it.id, it.title, it.subtitle, it.accentHex, it.isHighlighted)
+        CachedTaskItem(it.id, it.title, it.subtitle, it.accentHex, it.isHighlighted, it.isCompleted)
     },
     schedule = schedule.map {
         CachedScheduleItem(it.id, it.title, it.timeRange, it.accentHex, it.isCurrent)
@@ -142,7 +143,7 @@ private fun CachedWidgetSnapshot.toSnapshot(): WidgetSnapshot {
         monthName = monthName,
         dayOfMonth = dayOfMonth,
         tasks = tasks.map {
-            WidgetTaskItem(it.id, it.title, it.subtitle, it.accentHex, it.isHighlighted)
+            WidgetTaskItem(it.id, it.title, it.subtitle, it.accentHex, it.isHighlighted, it.isCompleted)
         },
         schedule = schedule.map {
             WidgetScheduleItem(it.id, it.title, it.timeRange, it.accentHex, it.isCurrent)

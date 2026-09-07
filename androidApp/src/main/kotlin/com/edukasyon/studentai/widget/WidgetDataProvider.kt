@@ -235,7 +235,8 @@ object WidgetDataProvider {
                 title = task.title,
                 subtitle = formatTaskSubtitle(task.dueDate, task.dueTime),
                 accentHex = accentForIndex(index, accentHex),
-                isHighlighted = index == 0
+                isHighlighted = index == 0,
+                isCompleted = task.status == com.edukasyon.studentai.domain.model.TaskStatus.COMPLETED
             )
         }
 

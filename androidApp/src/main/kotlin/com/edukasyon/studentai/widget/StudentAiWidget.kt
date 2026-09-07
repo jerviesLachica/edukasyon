@@ -9,6 +9,7 @@ import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.provideContent
 import com.edukasyon.studentai.MainActivity
 import androidx.glance.appwidget.action.actionStartActivity
+import androidx.glance.action.actionParametersOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -29,6 +30,12 @@ object WidgetActions {
             putExtra(START_TAB_KEY, "planner")
             putExtra(TASK_ID_KEY, taskId)
         }
+    )
+
+    fun toggleTaskComplete(taskId: String) = androidx.glance.appwidget.action.actionRunCallback<ToggleTaskActionCallback>(
+        actionParametersOf(
+            ToggleTaskActionCallback.TASK_ID_KEY to taskId
+        )
     )
 }
 

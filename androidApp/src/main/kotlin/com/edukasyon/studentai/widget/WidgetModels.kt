@@ -98,7 +98,8 @@ data class WidgetTaskItem(
     val title: String,
     val subtitle: String,
     val accentHex: String,
-    val isHighlighted: Boolean = false
+    val isHighlighted: Boolean = false,
+    val isCompleted: Boolean = false
 )
 
 data class WidgetScheduleItem(
