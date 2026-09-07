@@ -15,6 +15,7 @@ class WidgetRefreshWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return runCatching {
+            android.util.Log.i("WidgetLifecycle", "WIDGET_BACKGROUND_SYNC_START: WorkManager refresh started")
             // Load fresh snapshots into cache for ALL active widgets before refreshing,
             // so the widget shows real data instead of stuck skeleton "Loading..." rows.
             val ids = WidgetUpdater.widgetIds(applicationContext)
@@ -26,8 +27,13 @@ class WidgetRefreshWorker @AssistedInject constructor(
                     }
                 }
             }
+            android.util.Log.i("WidgetLifecycle", "WIDGET_BACKGROUND_SYNC_COMPLETE: Refreshed ${ids.size} widgets")
             WidgetUpdater.refreshAll(applicationContext)
+            android.util.Log.i("WidgetLifecycle", "WIDGET_REFRESH: All widgets updated")
             Result.success()
-        }.getOrElse { Result.retry() }
+        }.getOrElse { 
+            android.util.Log.e("WidgetLifecycle", "WIDGET_BACKGROUND_SYNC_COMPLETE: Worker failed", it)
+            Result.retry() 
+        }
     }
 }

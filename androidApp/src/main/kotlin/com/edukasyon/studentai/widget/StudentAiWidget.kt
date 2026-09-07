@@ -49,14 +49,37 @@ abstract class BaseStudentAiWidget(
 
         val cached = WidgetDataProvider.loadCachedSnapshot(context, appWidgetId, widgetSize)
         
-        // INSTANT LOAD: Show cached or skeleton immediately — no blocking work before provideContent
-        val snapshot = cached ?: WidgetDataProvider.createSkeletonSnapshot(context, appWidgetId, widgetSize)
+        // WIDGET_INIT: Determine initial snapshot
+        // If cache exists, use it. If not (new widget), try eager load from DB.
+        val snapshot = if (cached != null) {
+            android.util.Log.i("WidgetLifecycle", "WIDGET_LOCAL_SNAPSHOT_READ: Using cached snapshot")
+            cached
+        } else {
+            // First render with no cache: eagerly load fresh data from DB within this suspension.
+            // This avoids WorkManager latency and shows real data immediately if available.
+            android.util.Log.i("WidgetLifecycle", "WIDGET_LOCAL_SNAPSHOT_READ: Cache miss, loading fresh from DB")
+            try {
+                val fresh = WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
+                if (fresh.tasks.isNotEmpty() || fresh.schedule.isNotEmpty()) {
+                    android.util.Log.i("WidgetLifecycle", "WIDGET_FIRST_RENDER: Fresh data loaded (${fresh.tasks.size} tasks, ${fresh.schedule.size} schedule)")
+                    fresh
+                } else {
+                    android.util.Log.i("WidgetLifecycle", "WIDGET_FIRST_RENDER: Fresh load returned empty, showing skeleton")
+                    WidgetDataProvider.createSkeletonSnapshot(context, appWidgetId, widgetSize)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("WidgetLifecycle", "WIDGET_FIRST_RENDER: Fresh load failed, showing skeleton", e)
+                WidgetDataProvider.createSkeletonSnapshot(context, appWidgetId, widgetSize)
+            }
+        }
 
         val startTab = when (snapshot.displayType) {
             WidgetDisplayType.TASKS, WidgetDisplayType.COMBINED -> "planner"
             WidgetDisplayType.SCHEDULE -> "schedule"
         }
         val openAction = WidgetActions.openApp(context, startTab)
+        
+        android.util.Log.i("WidgetLifecycle", "WIDGET_FIRST_RENDER: Rendering widget (isLoading=${snapshot.isLoading})")
         provideContent {
             when (widgetSize) {
                 WidgetSize.SMALL_2X2 -> SmallWidgetContent(snapshot, openAction)
@@ -68,18 +91,16 @@ abstract class BaseStudentAiWidget(
         WidgetDataProvider.prewarmBackground(context, snapshot)
 
         // Detect stale cache: different day, or cache too old (>30 min), or no cache at all.
-        // When the day changed we must reload immediately so the widget doesn't show yesterday's
-        // date; the background worker is fire-and-forget and may be killed by the OS.
         val dateChanged = cached != null && !isSnapshotForToday(cached)
-        val needsRefresh = cached == null || dateChanged || shouldRefreshCachedSnapshot(context, appWidgetId)
+        val needsBackgroundSync = cached == null || dateChanged || shouldRefreshCachedSnapshot(context, appWidgetId)
 
-        if (needsRefresh) {
+        if (needsBackgroundSync) {
             if (dateChanged && cached != null) {
-                // Day rolled over: load fresh snapshot synchronously and re-render
-                // so the widget shows today's date without waiting for a background worker.
+                android.util.Log.i("WidgetLifecycle", "WIDGET_REFRESH_REASON: Date changed, loading fresh")
                 val fresh = WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
                 WidgetUpdater.refreshAll(context)
             } else {
+                android.util.Log.i("WidgetLifecycle", "WIDGET_BACKGROUND_SYNC_START: Enqueuing WorkManager refresh")
                 WidgetUpdater.notifyDataChanged(context)
             }
         }

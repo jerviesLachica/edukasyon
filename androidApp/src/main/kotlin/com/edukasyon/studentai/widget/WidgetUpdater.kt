@@ -27,6 +27,7 @@ object WidgetUpdater {
     }
 
     suspend fun refreshAll(context: Context) {
+        android.util.Log.i("WidgetLifecycle", "WIDGET_REFRESH: refreshAll called")
         StudentAiWidget2x2().updateAll(context)
         StudentAiWidget2x3().updateAll(context)
     }
@@ -68,9 +69,7 @@ object WidgetUpdater {
     }
 
     fun notifyDataChanged(context: Context) {
-            // Don't invalidate cache here — let the worker write the fresh snapshot
-            // to the cache, THEN refresh the widget. Invalidating first causes a
-            // brief skeleton flash while the new snapshot is being built.
+            android.util.Log.i("WidgetLifecycle", "WIDGET_REFRESH_REASON: notifyDataChanged called")
             WorkManager.getInstance(context.applicationContext)
                 .enqueueUniqueWork(
                     ON_DEMAND_WORK_NAME,

@@ -50,9 +50,9 @@ class ToggleTaskActionCallback : ActionCallback {
                 )
 
                 taskDao.insert(updatedTask)
-                Log.i("ToggleTaskActionCallback", "Toggled task $taskId: ${if (isCompleted) "uncompleted" else "completed"}")
-
-                // Trigger widget refresh so the checked state reflects immediately
+                Log.i("WidgetLifecycle", "WIDGET_REFRESH_REASON: Task $taskId toggled to $newStatus, triggering refresh")
+                
+                // Refresh widget
                 WidgetUpdater.notifyDataChanged(context)
             } catch (e: Exception) {
                 Log.e("ToggleTaskActionCallback", "Failed to toggle task $taskId", e)
