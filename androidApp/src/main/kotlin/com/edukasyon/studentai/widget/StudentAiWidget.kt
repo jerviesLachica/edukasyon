@@ -44,9 +44,11 @@ abstract class BaseStudentAiWidget(
 ) : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_START: provideGlance called")
         val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
         WidgetPreferences.setWidgetSize(context, appWidgetId, widgetSize)
 
+        android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_DATA_READ: Reading cached snapshot for widget $appWidgetId")
         val cached = WidgetDataProvider.loadCachedSnapshot(context, appWidgetId, widgetSize)
         
         // WIDGET_INIT: Determine initial snapshot
@@ -79,7 +81,7 @@ abstract class BaseStudentAiWidget(
         }
         val openAction = WidgetActions.openApp(context, startTab)
         
-        android.util.Log.i("WidgetLifecycle", "WIDGET_FIRST_RENDER: Rendering widget (isLoading=${snapshot.isLoading})")
+        android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_RENDER: Rendering widget (isLoading=${snapshot.isLoading}, tasks=${snapshot.tasks.size}, schedule=${snapshot.schedule.size})")
         provideContent {
             when (widgetSize) {
                 WidgetSize.SMALL_2X2 -> SmallWidgetContent(snapshot, openAction)
@@ -93,11 +95,18 @@ abstract class BaseStudentAiWidget(
         // If we eagerly loaded fresh data (no prior cache), save it to cache immediately
         // so subsequent provideGlance() calls read the correct design/data without re-querying DB.
         if (cached == null) {
-            android.util.Log.i("WidgetLifecycle", "WIDGET_LOCAL_SNAPSHOT_READ: Saving eager-loaded snapshot to cache")
+            android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_COMPLETE: Saved eager-loaded snapshot to cache")
             WidgetSnapshotCache.write(context, appWidgetId, snapshot)
-            // Do NOT call notifyDataChanged() here — we already have fresh data.
-            // notifyDataChanged() would invalidate the cache and trigger another refresh cycle,
-            // which races with the configure screen's own updateAppWidget() call.
+            
+            // If we loaded a skeleton (empty data), trigger background sync to fetch real data.
+            // PATH A (initial creation) must match PATH B (task toggle) behavior: always refresh if empty.
+            val hasData = snapshot.tasks.isNotEmpty() || snapshot.schedule.isNotEmpty()
+            if (!hasData) {
+                android.util.Log.i("WidgetLifecycle", "WIDGET_REFRESH_REASON=INITIAL_CREATION: Skeleton loaded, triggering background sync to fetch real data")
+                WidgetUpdater.notifyDataChanged(context)
+            } else {
+                android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_COMPLETE: Real data loaded, no sync needed yet")
+            }
             return
         }
 

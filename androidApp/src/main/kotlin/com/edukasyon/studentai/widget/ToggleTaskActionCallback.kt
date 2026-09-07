@@ -50,9 +50,9 @@ class ToggleTaskActionCallback : ActionCallback {
                 )
 
                 taskDao.insert(updatedTask)
-                Log.i("WidgetLifecycle", "WIDGET_REFRESH_REASON: Task $taskId toggled to $newStatus, triggering refresh")
+                Log.i("WidgetLifecycle", "WIDGET_REFRESH_REASON=TASK_CHANGED: Task $taskId toggled to $newStatus, triggering refresh")
                 
-                // Refresh widget
+                // Refresh widget — centralized update coordinator
                 WidgetUpdater.notifyDataChanged(context)
             } catch (e: Exception) {
                 Log.e("ToggleTaskActionCallback", "Failed to toggle task $taskId", e)

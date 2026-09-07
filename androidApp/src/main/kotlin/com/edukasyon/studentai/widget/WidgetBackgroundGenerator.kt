@@ -39,8 +39,11 @@ object WidgetBackgroundGenerator {
         cache.get(key)?.let { return it }
 
         val density = context.resources.displayMetrics.density
-        val widthPx = (widthDp * density).toInt().coerceAtLeast(1)
-        val heightPx = (heightDp * density).toInt().coerceAtLeast(1)
+        // RemoteViews.setImageViewBitmap() is limited by Binder transaction size (~1 MB).
+        // Cap the bitmap at a safe pixel dimension; Glance ImageProvider will scale/crop it.
+        val maxPx = 200
+        val widthPx = (widthDp * density).toInt().coerceAtMost(maxPx).coerceAtLeast(1)
+        val heightPx = (heightDp * density).toInt().coerceAtMost(maxPx).coerceAtLeast(1)
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 

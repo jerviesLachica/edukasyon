@@ -71,32 +71,19 @@ internal fun WidgetRoot(
 
 @Composable
 private fun WidgetBackgroundLayer(context: Context, snapshot: WidgetSnapshot) {
-    when (snapshot.designPreset) {
-        WidgetDesignPreset.MINIMAL -> {
-            val bg = parseHexColor(snapshot.designColors.color1) ?: Color(0xFFF3F4F6)
-            Box(
-                modifier = GlanceModifier
-                    .fillMaxSize()
-                    .background(ColorProvider(bg))
-            ) {}
-        }
-        else -> {
-            val (widthDp, heightDp) = WidgetDataProvider.backgroundSizeDp(snapshot.widgetSize)
-            val bitmap = WidgetBackgroundGenerator.getBitmap(
-                context = context,
-                preset = snapshot.designPreset,
-                colors = snapshot.designColors,
-                widthDp = widthDp,
-                heightDp = heightDp
-            )
-            Image(
-                provider = ImageProvider(bitmap),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = GlanceModifier.fillMaxSize()
-            )
-        }
+    // Use solid color background for ALL presets to avoid Bitmap serialization in RemoteViews
+    val bg = when (snapshot.designPreset) {
+        WidgetDesignPreset.MINIMAL -> parseHexColor(snapshot.designColors.color1) ?: Color(0xFFF3F4F6)
+        WidgetDesignPreset.HEX_DARK -> parseHexColor(snapshot.designColors.color1) ?: Color(0xFF1D1D1D)
+        WidgetDesignPreset.DOT_GRID -> parseHexColor(snapshot.designColors.color1) ?: Color(0xFF313131)
+        WidgetDesignPreset.LINE_GRID -> parseHexColor(snapshot.designColors.color1) ?: Color(0xFF191A1A)
+        WidgetDesignPreset.CORAL_CHEVRON -> parseHexColor(snapshot.designColors.color1) ?: Color(0xFFF8B195)
     }
+    Box(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .background(ColorProvider(bg))
+    ) {}
 }
 
 @Composable
