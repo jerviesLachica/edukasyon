@@ -92,7 +92,7 @@ fun TallWidgetContent(snapshot: WidgetSnapshot, openAction: Action) {
 private fun CombinedTallContent(snapshot: WidgetSnapshot, context: android.content.Context) {
     val theme = snapshot.themeColors
     Row(modifier = GlanceModifier.fillMaxWidth()) {
-        Column(modifier = GlanceModifier.width(72.dp)) {
+        Column(modifier = GlanceModifier.width(105.dp)) {
             Text(
                 text = "Today",
                 style = TextStyle(
@@ -101,22 +101,26 @@ private fun CombinedTallContent(snapshot: WidgetSnapshot, context: android.conte
                     fontWeight = FontWeight.Medium
                 )
             )
-            Spacer(GlanceModifier.height(6.dp))
+            Spacer(GlanceModifier.height(4.dp))
             if (snapshot.isLoading) {
-                TaskSkeleton(snapshot, 2, compact = true)
-                Spacer(GlanceModifier.height(6.dp))
-                ScheduleSkeleton(snapshot, 2, compact = true)
+                ScheduleSkeleton(snapshot, 3, compact = true)
             } else {
                 if (snapshot.tasks.isEmpty() && snapshot.schedule.isEmpty()) {
                     EmptyLabel(snapshot, "Nothing scheduled")
                 } else {
-                    snapshot.tasks.take(3).forEach {
+                    // Show tasks first (up to 2), then schedule items up to remaining slot budget (total 4)
+                    val taskCount = snapshot.tasks.size.coerceAtMost(2)
+                    val scheduleBudget = (4 - taskCount).coerceAtLeast(2)
+                    
+                    snapshot.tasks.take(taskCount).forEach {
                         TaskRow(it, snapshot, openAction = WidgetActions.openAppForTask(context, it.id), compact = true)
                     }
-                    snapshot.schedule.take(2).forEach { ScheduleRow(it, snapshot, compact = true) }
+                    snapshot.schedule.take(scheduleBudget).forEach {
+                        ScheduleRow(it, snapshot, compact = true)
+                    }
                 }
             }
-            Spacer(GlanceModifier.height(4.dp))
+            Spacer(GlanceModifier.height(2.dp))
             MoreLabel(snapshot)
         }
         Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {

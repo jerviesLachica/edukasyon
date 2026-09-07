@@ -152,26 +152,26 @@ internal fun TaskRow(
         modifier = GlanceModifier
             .fillMaxWidth()
             .background(bg)
-            .cornerRadius(8.dp)
-            .padding(vertical = if (compact) 4.dp else 6.dp, horizontal = 6.dp)
+            .cornerRadius(6.dp)
+            .padding(vertical = if (compact) 3.dp else 4.dp, horizontal = 6.dp)
             .clickable(openAction),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = GlanceModifier
                 .width(3.dp)
-                .height(if (compact) 24.dp else 32.dp)
+                .height(if (compact) 20.dp else 26.dp)
                 .background(accent)
                 .cornerRadius(2.dp)
         ) {}
-        Spacer(GlanceModifier.width(8.dp))
+        Spacer(GlanceModifier.width(6.dp))
         Column(modifier = GlanceModifier.defaultWeight()) {
             Text(
                 text = item.title,
                 maxLines = if (compact) 1 else 2,
                 style = TextStyle(
                     color = ColorProvider(WidgetColors.onSurface(theme)),
-                    fontSize = if (compact) 12.sp else 13.sp,
+                    fontSize = if (compact) 11.sp else 12.sp,
                     fontWeight = if (item.isHighlighted) FontWeight.Medium else FontWeight.Normal
                 )
             )
@@ -182,7 +182,7 @@ internal fun TaskRow(
                     color = ColorProvider(
                         if (item.isHighlighted) accent else WidgetColors.muted(theme)
                     ),
-                    fontSize = 11.sp
+                    fontSize = 10.sp
                 )
             )
         }
@@ -206,36 +206,36 @@ internal fun ScheduleRow(
         modifier = GlanceModifier
             .fillMaxWidth()
             .background(bg)
-            .cornerRadius(8.dp)
-            .padding(vertical = if (compact) 4.dp else 6.dp, horizontal = 6.dp),
+            .cornerRadius(6.dp)
+            .padding(vertical = if (compact) 3.dp else 4.dp, horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = GlanceModifier
                 .width(3.dp)
-                .height(if (compact) 24.dp else 32.dp)
+                .height(if (compact) 20.dp else 26.dp)
                 .background(accent)
                 .cornerRadius(2.dp)
         ) {}
-        Spacer(GlanceModifier.width(8.dp))
+        Spacer(GlanceModifier.width(6.dp))
         Column(modifier = GlanceModifier.defaultWeight()) {
             Text(
-                            text = item.title,
-                            maxLines = if (compact) 1 else 2,
-                            style = TextStyle(
-                                color = ColorProvider(WidgetColors.onSurface(theme)),
-                                fontSize = if (compact) 12.sp else 13.sp,
-                                fontWeight = if (item.isCurrent) FontWeight.Medium else FontWeight.Normal
-                            )
-                        )
-                        Text(
-                            text = item.timeRange,
-                            maxLines = 1,
+                text = item.title,
+                maxLines = if (compact) 1 else 2,
+                style = TextStyle(
+                    color = ColorProvider(WidgetColors.onSurface(theme)),
+                    fontSize = if (compact) 11.sp else 12.sp,
+                    fontWeight = if (item.isCurrent) FontWeight.Medium else FontWeight.Normal
+                )
+            )
+            Text(
+                text = item.timeRange,
+                maxLines = 1,
                 style = TextStyle(
                     color = ColorProvider(
                         if (item.isCurrent) accent else WidgetColors.muted(theme)
                     ),
-                    fontSize = 11.sp
+                    fontSize = 10.sp
                 )
             )
         }
