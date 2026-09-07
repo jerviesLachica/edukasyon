@@ -26,6 +26,9 @@ const DEFAULT_TEXT_MODEL = 'auto';
 // `auto` routing returns a non-vision model (400: does not support multimodal).
 // MiniMax-M3 is the only verified working vision model (~120s per scan).
 const DEFAULT_VISION_MODEL = 'MiniMax-M3';
+// OrcaRouter free tier for faster vision (5-12s vs 60-120s).
+// free tier: 10 RPM, ~1440/day, $0 forever. Falls back to MiniMax-M3 on 429.
+const ORCA_VISION_MODEL = 'z-ai/glm-5.3-flash-free';
 
 // Legacy slug from before the agnes migration. Old clients / Render envs may
 // still send `step-3.7-flash` — normalize it to `agnes-2.5-flash` so quota
@@ -41,10 +44,17 @@ function normalizeModelSlug(slug) {
 }
 
 // Maps a resolved slug to the model id actually sent upstream.
-// Any vision request targeting agnes-2.5-flash OR auto gets mapped directly
-// to MiniMax-M3, because the distributor has no multimodal channel for either.
-function toWireModelSlug(slug, { isVision = false } = {}) {
+// Vision requests can use OrcaRouter (fast, $0) or fall back to MiniMax-M3 (slow, unlimited).
+function toWireModelSlug(slug, { isVision = false, provider = 'hcnsec' } = {}) {
   const normalized = normalizeModelSlug(slug);
+  // OrcaRouter provider (if explicitly requested or auto-selected)
+  if (provider === 'orca') {
+    if (isVision && (normalized === 'agnes-2.5-flash' || normalized === 'auto')) {
+      return ORCA_VISION_MODEL;
+    }
+    return normalized;
+  }
+  // Default hcnsec provider
   if (isVision && (normalized === 'agnes-2.5-flash' || normalized === 'auto')) {
     return 'MiniMax-M3';
   }
@@ -75,6 +85,14 @@ function createAiProvider(config = {}) {
   const TEXT_MODEL = envModel('TEXT_MODEL', envModel('AI_TEXT_MODEL', DEFAULT_TEXT_MODEL));
   const VISION_MODEL = envModel('VISION_MODEL', envModel('AI_VISION_MODEL', DEFAULT_VISION_MODEL));
   const DEFAULT_MODEL = envModel('AI_MODEL', DEFAULT_TEXT_MODEL);
+
+  // OrcaRouter secondary provider for fast vision
+  const ORCA_API_KEY = config.orcaApiKey || process.env.ORCA_API_KEY || '';
+  const ORCA_BASE_URL = (
+    config.orcaBaseUrl ||
+    process.env.ORCA_BASE_URL ||
+    'https://api.orcarouter.ai/v1'
+  ).replace(/\/$/, '');
 
   const hasAiKey = Boolean(AI_API_KEY);
 
@@ -122,15 +140,23 @@ function createAiProvider(config = {}) {
 
   function modelFallbackChain(primaryModel, { isVision = false } = {}) {
     const normalizedPrimary = normalizeModelSlug(primaryModel);
-    // Vision chain: try the primary directly. `auto` is intentionally excluded
-    // because the upstream distributor's `auto` route returns a non-vision
-    // model (400: does not support multimodal) and burns ~30s on every scan.
-    const chain = [normalizedPrimary];
+    const chain = [];
     if (isVision) {
+      // OrcaRouter goes FIRST — fast free tier (5-12s), rate-limited at 10 RPM
+      if (ORCA_API_KEY) {
+        chain.push(ORCA_VISION_MODEL);
+      }
+      // Then primary (maps to MiniMax-M3 over wire via hcnsec — slow but unlimited)
+      if (!chain.includes(normalizedPrimary) && normalizedPrimary !== 'auto') {
+        chain.push(normalizedPrimary);
+      }
+      // Other vision-capable models as further fallback
       for (const candidate of VISION_CAPABLE_MODELS) {
-        if (candidate === normalizedPrimary || candidate === 'auto') continue;
+        if (candidate === normalizedPrimary || candidate === 'auto' || candidate === ORCA_VISION_MODEL) continue;
         if (!chain.includes(candidate)) chain.push(candidate);
       }
+    } else {
+      chain.push(normalizedPrimary);
     }
     if (primaryModel !== TEXT_MODEL && !chain.includes(TEXT_MODEL)) chain.push(TEXT_MODEL);
     if (primaryModel !== DEFAULT_MODEL && !chain.includes(DEFAULT_MODEL)) chain.push(DEFAULT_MODEL);
@@ -240,16 +266,18 @@ function createAiProvider(config = {}) {
     };
   }
 
-  async function chatCompletionOnce(messages, { temperature = 0.7, maxTokens = 2048, model, signal, responseFormat, reasoning } = {}) {
+  async function chatCompletionOnce(messages, { temperature = 0.7, maxTokens = 2048, model, signal, responseFormat, reasoning, baseUrl, apiKey } = {}) {
     const payload = { model, messages, temperature, max_tokens: maxTokens };
     // Structured-output hint; providers that don't support it are handled by the caller's fallback.
     if (responseFormat) payload.response_format = responseFormat;
     // reasoning parameter (e.g. for agnes-2.5-flash or OpenRouter thinking)
     // Only pass if it is an object (e.g. { effort: 'medium' }) or boolean
     if (reasoning && typeof reasoning !== 'string') payload.reasoning = reasoning;
-    const res = await fetch(`${AI_BASE_URL}/chat/completions`, {
+    const url = baseUrl || AI_BASE_URL;
+    const key = apiKey || AI_API_KEY;
+    const res = await fetch(`${url}/chat/completions`, {
       method: 'POST',
-      headers: providerHeaders(AI_API_KEY),
+      headers: providerHeaders(key),
       body: JSON.stringify(payload),
       signal,
     });
@@ -262,34 +290,70 @@ function createAiProvider(config = {}) {
   }
 
   async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, signal, responseFormat, reasoning, wireModelOverride } = {}) {
-    if (!hasAiKey) throw new Error('AI provider not configured (set AI_API_KEY)');
+    if (!hasAiKey && (!isVision || !ORCA_API_KEY)) throw new Error('AI provider not configured (set AI_API_KEY or ORCA_API_KEY)');
     const wireModels = wireModelOverride
-      ? [toWireModelSlug(wireModelOverride, { isVision })]
+      ? [{ model: toWireModelSlug(wireModelOverride, { isVision }), provider: 'hcnsec' }]
       : (() => {
           const chain = [];
           for (const candidate of modelFallbackChain(model || (isVision ? VISION_MODEL : TEXT_MODEL), { isVision })) {
-            const wire = toWireModelSlug(candidate, { isVision });
-            if (wire && !chain.includes(wire)) chain.push(wire);
+            let provider = 'hcnsec';
+            let wire = candidate;
+            if (candidate === ORCA_VISION_MODEL && ORCA_API_KEY) {
+              provider = 'orca';
+              wire = ORCA_VISION_MODEL;
+            } else {
+              wire = toWireModelSlug(candidate, { isVision });
+            }
+            if (wire && !chain.find((c) => c.model === wire)) {
+              chain.push({ model: wire, provider });
+            }
           }
           return chain;
         })();
-    const models = wireModels.length ? wireModels : [isVision ? 'MiniMax-M3' : 'auto'];
+    const candidates = wireModels.length ? wireModels : [{ model: isVision ? 'MiniMax-M3' : 'auto', provider: 'hcnsec' }];
     let lastError;
-    for (let i = 0; i < models.length; i += 1) {
-      const candidate = models[i];
+    for (let i = 0; i < candidates.length; i += 1) {
+      const { model: candidate, provider } = candidates[i];
+      const baseUrl = provider === 'orca' ? ORCA_BASE_URL : AI_BASE_URL;
+      const apiKey = provider === 'orca' ? ORCA_API_KEY : AI_API_KEY;
       try {
-        if (i > 0) console.warn(`[ai] Retrying with fallback model=${candidate}`);
-        const result = await chatCompletionOnce(messages, { temperature, maxTokens, model: candidate, signal, responseFormat, reasoning });
+        if (i > 0) console.warn(`[ai] Retrying with fallback model=${candidate} (provider=${provider})`);
+        const result = await chatCompletionOnce(messages, {
+          temperature,
+          maxTokens,
+          model: candidate,
+          signal,
+          responseFormat,
+          reasoning,
+          baseUrl,
+          apiKey,
+        });
         return { ...result, model: result.model || candidate };
       } catch (err) {
+        if (err.message && err.message.includes('429')) {
+          console.warn(`[ai] Provider ${provider} rate limited; trying next fallback`);
+        }
         // Some providers reject response_format outright — drop it and retry the same model once.
         if (responseFormat && /response_format|unsupported|invalid.*format/i.test(String(err.message || ''))) {
           console.warn('[ai] response_format rejected; retrying without it');
-          const retry = await chatCompletionOnce(messages, { temperature, maxTokens, model: candidate, signal });
-          return { ...retry, model: retry.model || candidate };
+          try {
+            const retry = await chatCompletionOnce(messages, {
+              temperature,
+              maxTokens,
+              model: candidate,
+              signal,
+              baseUrl,
+              apiKey,
+            });
+            return { ...retry, model: retry.model || candidate };
+          } catch (retryErr) {
+            lastError = retryErr;
+            if (i < candidates.length - 1 && isRetryableModelError(retryErr.message)) continue;
+            throw retryErr;
+          }
         }
         lastError = err;
-        const hasNext = i < models.length - 1;
+        const hasNext = i < candidates.length - 1;
         if (!hasNext || !isRetryableModelError(err.message)) throw err;
         console.warn(`[ai] Model ${candidate} failed: ${String(err.message || err).slice(0, 160)}`);
       }

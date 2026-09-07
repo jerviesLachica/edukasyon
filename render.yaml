@@ -26,6 +26,12 @@ services:
       # Base URL + vision model have safe defaults in server.js.
       - key: SCAN_AI_API_KEY
         sync: false
+      # OrcaRouter for fast vision (~5-12s). Free tier: 10 RPM, $0 forever.
+      # Falls back to VISION_MODEL (MiniMax-M3) on rate limit or error.
+      - key: ORCA_API_KEY
+        sync: false
+      - key: ORCA_BASE_URL
+        value: https://api.orcarouter.ai/v1
 
   - type: static_site
     name: studentai-download
