@@ -42,13 +42,9 @@ abstract class BaseStudentAiWidget(
 
         val cached = WidgetDataProvider.loadCachedSnapshot(context, appWidgetId, widgetSize)
         
-        // INSTANT LOAD: Show cached or skeleton immediately, load fresh data in background
+        // INSTANT LOAD: Show cached or skeleton immediately — no blocking work before provideContent
         val snapshot = cached ?: WidgetDataProvider.createSkeletonSnapshot(context, appWidgetId, widgetSize)
         
-        // Render the design bitmap off the main thread BEFORE composition — otherwise
-        // WidgetBackgroundLayer draws pattern bitmaps synchronously during first paint.
-        WidgetDataProvider.prewarmBackground(context, snapshot)
-
         val startTab = when (snapshot.displayType) {
             WidgetDisplayType.TASKS, WidgetDisplayType.COMBINED -> "planner"
             WidgetDisplayType.SCHEDULE -> "schedule"
@@ -61,19 +57,19 @@ abstract class BaseStudentAiWidget(
             }
         }
 
-        // Load fresh data in background if cached is null or stale. Re-render the widget
-        // once the fresh snapshot is ready using updateAll (reliable across glance versions)
-        // rather than calling update() against the original GlanceId, which can be a no-op
-        // or race with the just-finished provideContent call.
+        // AFTER first paint: prewarm design bitmap in background so next update is instant
+        WidgetDataProvider.prewarmBackground(context, snapshot)
+
+        // Load fresh data in background if cached is null or stale
         if (cached == null || shouldRefreshCachedSnapshot(context, appWidgetId)) {
             WidgetUpdater.notifyDataChanged(context)
         }
     }
 
     private fun shouldRefreshCachedSnapshot(context: Context, appWidgetId: Int): Boolean {
-        val savedAt = WidgetSnapshotCache.readSavedAtMs(context, appWidgetId) ?: return true
-        return System.currentTimeMillis() - savedAt > 30_000L
-    }
+            val savedAt = WidgetSnapshotCache.readSavedAtMs(context, appWidgetId) ?: return true
+            return System.currentTimeMillis() - savedAt > 30 * 60_000L  // 30 minutes
+        }
 }
 
 class StudentAiWidget2x2 : BaseStudentAiWidget(WidgetSize.SMALL_2X2)

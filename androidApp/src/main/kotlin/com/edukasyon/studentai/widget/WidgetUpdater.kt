@@ -68,14 +68,16 @@ object WidgetUpdater {
     }
 
     fun notifyDataChanged(context: Context) {
-        WidgetSnapshotCache.invalidate(context)
-        WorkManager.getInstance(context.applicationContext)
-            .enqueueUniqueWork(
-                ON_DEMAND_WORK_NAME,
-                ExistingWorkPolicy.REPLACE,
-                OneTimeWorkRequestBuilder<WidgetRefreshWorker>().build()
-            )
-    }
+            // Don't invalidate cache here — let the worker write the fresh snapshot
+            // to the cache, THEN refresh the widget. Invalidating first causes a
+            // brief skeleton flash while the new snapshot is being built.
+            WorkManager.getInstance(context.applicationContext)
+                .enqueueUniqueWork(
+                    ON_DEMAND_WORK_NAME,
+                    ExistingWorkPolicy.REPLACE,
+                    OneTimeWorkRequestBuilder<WidgetRefreshWorker>().build()
+                )
+        }
 
     suspend fun widgetIds(context: Context): List<Int> {
         val manager = GlanceAppWidgetManager(context)
