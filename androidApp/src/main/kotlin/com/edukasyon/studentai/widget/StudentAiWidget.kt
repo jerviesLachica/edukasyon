@@ -90,14 +90,26 @@ abstract class BaseStudentAiWidget(
         // AFTER first paint: prewarm design bitmap in background so next update is instant
         WidgetDataProvider.prewarmBackground(context, snapshot)
 
-        // Detect stale cache: different day, or cache too old (>30 min), or no cache at all.
-        val dateChanged = cached != null && !isSnapshotForToday(cached)
-        val needsBackgroundSync = cached == null || dateChanged || shouldRefreshCachedSnapshot(context, appWidgetId)
+        // If we eagerly loaded fresh data (no prior cache), save it to cache immediately
+        // so subsequent provideGlance() calls read the correct design/data without re-querying DB.
+        if (cached == null) {
+            android.util.Log.i("WidgetLifecycle", "WIDGET_LOCAL_SNAPSHOT_READ: Saving eager-loaded snapshot to cache")
+            WidgetSnapshotCache.write(context, appWidgetId, snapshot)
+            // Do NOT call notifyDataChanged() here — we already have fresh data.
+            // notifyDataChanged() would invalidate the cache and trigger another refresh cycle,
+            // which races with the configure screen's own updateAppWidget() call.
+            return
+        }
+
+        // We had a valid cache — check if it needs background sync
+        val cachedSnapshot = cached!!
+        val dateChanged = !isSnapshotForToday(cachedSnapshot)
+        val needsBackgroundSync = dateChanged || shouldRefreshCachedSnapshot(context, appWidgetId)
 
         if (needsBackgroundSync) {
-            if (dateChanged && cached != null) {
+            if (dateChanged) {
                 android.util.Log.i("WidgetLifecycle", "WIDGET_REFRESH_REASON: Date changed, loading fresh")
-                val fresh = WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
+                WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
                 WidgetUpdater.refreshAll(context)
             } else {
                 android.util.Log.i("WidgetLifecycle", "WIDGET_BACKGROUND_SYNC_START: Enqueuing WorkManager refresh")

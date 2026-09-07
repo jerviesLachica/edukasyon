@@ -8,6 +8,9 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 import java.util.concurrent.TimeUnit
 
 object WidgetUpdater {
@@ -69,7 +72,7 @@ object WidgetUpdater {
     }
 
     fun notifyDataChanged(context: Context) {
-            android.util.Log.i("WidgetLifecycle", "WIDGET_REFRESH_REASON: notifyDataChanged called — invalidating cache")
+            android.util.Log.i("WidgetLifecycle", "WIDGET_REFRESH_REASON: notifyDataChanged called — invalidating cache and refreshing immediately")
             WidgetSnapshotCache.invalidate(context)
             WorkManager.getInstance(context.applicationContext)
                 .enqueueUniqueWork(
@@ -77,6 +80,15 @@ object WidgetUpdater {
                     ExistingWorkPolicy.REPLACE,
                     OneTimeWorkRequestBuilder<WidgetRefreshWorker>().build()
                 )
+            // Immediately refresh widgets so they pick up the new data without waiting for WorkManager.
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    android.util.Log.i("WidgetLifecycle", "WIDGET_REFRESH: Immediate refresh after notifyDataChanged")
+                    refreshAll(context)
+                } catch (e: Exception) {
+                    android.util.Log.e("WidgetLifecycle", "WIDGET_REFRESH: Immediate refresh failed", e)
+                }
+            }
         }
 
     suspend fun widgetIds(context: Context): List<Int> {
