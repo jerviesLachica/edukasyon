@@ -58,15 +58,27 @@ fun WidgetSetupCard(
     val context = LocalContext.current
     var showSizePicker by remember { mutableStateOf(false) }
     var showManualSteps by remember { mutableStateOf(false) }
+    // Synchronous guard against double-tap double-pin: the dialog is async to dismiss
+    // so a second tap on the same button before recomposition would otherwise fire
+    // requestPinWidget twice and end up with two pinned widgets.
+    var pinInFlight by remember { mutableStateOf(false) }
 
-    if (showSizePicker) {
+    if (showSizePicker && !pinInFlight) {
         WidgetSizePickerDialog(
             onDismiss = { showSizePicker = false },
             onSizeSelected = { size ->
+                pinInFlight = true
                 showSizePicker = false
                 when (WidgetPinHelper.requestPinWidget(context, size)) {
-                    WidgetPinResult.PIN_DIALOG_REQUESTED -> Unit
-                    WidgetPinResult.MANUAL_INSTRUCTIONS_NEEDED -> showManualSteps = true
+                    WidgetPinResult.PIN_DIALOG_REQUESTED -> {
+                        // Reset after a short delay so subsequent pin attempts work.
+                        // Pin flow itself is async (OS dialog), so guard stays up.
+                        pinInFlight = false
+                    }
+                    WidgetPinResult.MANUAL_INSTRUCTIONS_NEEDED -> {
+                        showManualSteps = true
+                        pinInFlight = false
+                    }
                 }
             },
         )

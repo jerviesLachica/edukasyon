@@ -43,34 +43,36 @@ abstract class BaseStudentAiWidget(
     private val widgetSize: WidgetSize
 ) : GlanceAppWidget() {
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
+override suspend fun provideGlance(context: Context, id: GlanceId) {
         android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_START: provideGlance called")
         val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
         WidgetPreferences.setWidgetSize(context, appWidgetId, widgetSize)
 
         android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_DATA_READ: Reading cached snapshot for widget $appWidgetId")
         val cached = WidgetDataProvider.loadCachedSnapshot(context, appWidgetId, widgetSize)
-        
+
         // WIDGET_INIT: Determine initial snapshot
-        // If cache exists, use it. If not (new widget), try eager load from DB.
-        val snapshot = if (cached != null) {
-            android.util.Log.i("WidgetLifecycle", "WIDGET_LOCAL_SNAPSHOT_READ: Using cached snapshot")
+        // If cache exists AND its design matches current preferences, use it (fast path).
+        // If design changed (user just reconfigured), ignore cache and load fresh.
+        // If no cache (new widget or first render after cache invalidation),
+        // eagerly try to load fresh data from DB. If DB returns empty/skeleton, still render the
+        // skeleton now — then enqueue a background refresh so the widget never stays empty.
+        val snapshot = if (cached != null && isSnapshotDesignCurrent(context, appWidgetId, cached)) {
+            android.util.Log.i("WidgetLifecycle", "WIDGET_LOCAL_SNAPSHOT_READ: Using cached snapshot (design current)")
             cached
         } else {
-            // First render with no cache: eagerly load fresh data from DB within this suspension.
-            // This avoids WorkManager latency and shows real data immediately if available.
-            android.util.Log.i("WidgetLifecycle", "WIDGET_LOCAL_SNAPSHOT_READ: Cache miss, loading fresh from DB")
+            if (cached != null) {
+                android.util.Log.i("WidgetLifecycle", "WIDGET_LOCAL_SNAPSHOT_READ: Cache stale (design changed), loading fresh")
+            } else {
+                android.util.Log.i("WidgetLifecycle", "WIDGET_LOCAL_SNAPSHOT_READ: Cache miss, loading fresh from DB")
+            }
             try {
-                val fresh = WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
-                if (fresh.tasks.isNotEmpty() || fresh.schedule.isNotEmpty()) {
-                    android.util.Log.i("WidgetLifecycle", "WIDGET_FIRST_RENDER: Fresh data loaded (${fresh.tasks.size} tasks, ${fresh.schedule.size} schedule)")
-                    fresh
-                } else {
-                    android.util.Log.i("WidgetLifecycle", "WIDGET_FIRST_RENDER: Fresh load returned empty, showing skeleton")
-                    WidgetDataProvider.createSkeletonSnapshot(context, appWidgetId, widgetSize)
-                }
+                WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
+                    .also {
+                        android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_DATA_READ: Fresh load (${it.tasks.size} tasks, ${it.schedule.size} schedule)")
+                    }
             } catch (e: Exception) {
-                android.util.Log.e("WidgetLifecycle", "WIDGET_FIRST_RENDER: Fresh load failed, showing skeleton", e)
+                android.util.Log.e("WidgetLifecycle", "WIDGET_INIT_DATA_READ: Fresh load failed, showing skeleton", e)
                 WidgetDataProvider.createSkeletonSnapshot(context, appWidgetId, widgetSize)
             }
         }
@@ -80,7 +82,7 @@ abstract class BaseStudentAiWidget(
             WidgetDisplayType.SCHEDULE -> "schedule"
         }
         val openAction = WidgetActions.openApp(context, startTab)
-        
+
         android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_RENDER: Rendering widget (isLoading=${snapshot.isLoading}, tasks=${snapshot.tasks.size}, schedule=${snapshot.schedule.size})")
         provideContent {
             when (widgetSize) {
@@ -92,38 +94,28 @@ abstract class BaseStudentAiWidget(
         // AFTER first paint: prewarm design bitmap in background so next update is instant
         WidgetDataProvider.prewarmBackground(context, snapshot)
 
-        // If we eagerly loaded fresh data (no prior cache), save it to cache immediately
-        // so subsequent provideGlance() calls read the correct design/data without re-querying DB.
+        // Trigger one deterministic background refresh.
+        //
+        // - INITIAL_CREATION on a brand-new widget or any cache miss: a fresh load into the
+        //   cache may have raced empty, or the cached snapshot could be stale. Re-running
+        //   through the coordinator guarantees a real-data update without requiring a user
+        //   action (no checkbox toggle, no app open, no delay).
+        // - TIME_BOUNDARY if the cached snapshot is from a previous day.
+        //
+        // We always route through WidgetUpdater.refresh so the WIDGET_REFRESH_REASON log
+        // matches PATH B (task toggle) exactly. The coordinator handles cache invalidation
+        // for data-changing reasons; INITIAL_CREATION is read-only and skips the invalidate.
         if (cached == null) {
-            android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_COMPLETE: Saved eager-loaded snapshot to cache")
-            WidgetSnapshotCache.write(context, appWidgetId, snapshot)
-            
-            // If we loaded a skeleton (empty data), trigger background sync to fetch real data.
-            // PATH A (initial creation) must match PATH B (task toggle) behavior: always refresh if empty.
-            val hasData = snapshot.tasks.isNotEmpty() || snapshot.schedule.isNotEmpty()
-            if (!hasData) {
-                android.util.Log.i("WidgetLifecycle", "WIDGET_REFRESH_REASON=INITIAL_CREATION: Skeleton loaded, triggering background sync to fetch real data")
-                WidgetUpdater.notifyDataChanged(context)
-            } else {
-                android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_COMPLETE: Real data loaded, no sync needed yet")
-            }
-            return
-        }
-
-        // We had a valid cache — check if it needs background sync
-        val cachedSnapshot = cached!!
-        val dateChanged = !isSnapshotForToday(cachedSnapshot)
-        val needsBackgroundSync = dateChanged || shouldRefreshCachedSnapshot(context, appWidgetId)
-
-        if (needsBackgroundSync) {
-            if (dateChanged) {
-                android.util.Log.i("WidgetLifecycle", "WIDGET_REFRESH_REASON: Date changed, loading fresh")
-                WidgetDataProvider.loadSnapshotFresh(context, appWidgetId, widgetSize)
-                WidgetUpdater.refreshAll(context)
-            } else {
-                android.util.Log.i("WidgetLifecycle", "WIDGET_BACKGROUND_SYNC_START: Enqueuing WorkManager refresh")
-                WidgetUpdater.notifyDataChanged(context)
-            }
+            android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_COMPLETE: Cache miss — enqueuing INITIAL_CREATION refresh")
+            WidgetUpdater.refresh(context, WidgetUpdater.Reason.INITIAL_CREATION)
+        } else if (!isSnapshotForToday(cached)) {
+            android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_COMPLETE: Stale day — enqueuing TIME_BOUNDARY refresh")
+            WidgetUpdater.refresh(context, WidgetUpdater.Reason.TIME_BOUNDARY)
+        } else if (shouldRefreshCachedSnapshot(context, appWidgetId)) {
+            android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_COMPLETE: TTL expired — enqueuing REMOTE_SYNC refresh")
+            WidgetUpdater.refresh(context, WidgetUpdater.Reason.REMOTE_SYNC)
+        } else {
+            android.util.Log.i("WidgetLifecycle", "WIDGET_INIT_COMPLETE: Cache fresh — no refresh needed")
         }
     }
 
@@ -140,6 +132,20 @@ abstract class BaseStudentAiWidget(
         val currentYear = now.get(java.util.Calendar.YEAR)
         val dayName = java.text.SimpleDateFormat("EEE", java.util.Locale.getDefault()).format(now.time)
         return snapshot.dayOfMonth == currentDay && snapshot.monthName == java.text.SimpleDateFormat("MMM", java.util.Locale.getDefault()).format(now.time)
+    }
+
+    /** Checks if the snapshot's design preset & colors match current preferences. */
+    private fun isSnapshotDesignCurrent(
+        context: Context,
+        appWidgetId: Int,
+        snapshot: WidgetSnapshot
+    ): Boolean {
+        val currentPreset = WidgetPreferences.getDesignPreset(context, appWidgetId)
+        val currentColors = WidgetPreferences.getResolvedDesignColors(context, appWidgetId)
+        return snapshot.designPreset == currentPreset &&
+            snapshot.designColors.color1 == currentColors.color1 &&
+            snapshot.designColors.color2 == currentColors.color2 &&
+            snapshot.designColors.color3 == currentColors.color3
     }
 }
 

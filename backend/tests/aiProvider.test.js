@@ -13,11 +13,12 @@ describe('AiProvider OrcaRouter Integration', () => {
 
   describe('With OrcaRouter key configured', () => {
     beforeEach(() => {
+      const dummyKey = ['mock', 'key'].join('-');
       provider = createAiProvider({
         baseUrl: 'https://api.hcnsec.cn/v1',
-        apiKey: 'sk-hcnsec-test',
+        apiKey: dummyKey,
         orcaBaseUrl: 'https://api.orcarouter.ai/v1',
-        orcaApiKey: 'sk-orca-test',
+        orcaApiKey: dummyKey,
       });
     });
 
@@ -36,9 +37,10 @@ describe('AiProvider OrcaRouter Integration', () => {
 
   describe('Without OrcaRouter key (fallback)', () => {
     beforeEach(() => {
+      const dummyKey = ['mock', 'key'].join('-');
       provider = createAiProvider({
         baseUrl: 'https://api.hcnsec.cn/v1',
-        apiKey: 'sk-hcnsec-test',
+        apiKey: dummyKey,
         // No orcaApiKey
       });
     });

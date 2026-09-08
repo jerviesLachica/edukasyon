@@ -71,6 +71,7 @@ import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import com.edukasyon.studentai.ui.theme.StudentAiTheme
 import com.edukasyon.studentai.domain.model.ThemeMode
 import com.edukasyon.studentai.ui.theme.parseHexColor
+import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.launch
 
 // ─── Simple vector icons (avoids adding material-icons-extended dep) ───────────
@@ -114,6 +115,7 @@ open class WidgetConfigureActivity(
 
         setContent {
             val scope = rememberCoroutineScope()
+            var isSaving by remember { mutableStateOf(false) }
             StudentAiTheme(
                 themeMode = ThemeMode.LIGHT,
                 primaryColorHex = "#F97316",
@@ -128,6 +130,9 @@ open class WidgetConfigureActivity(
                     initialDesignColor2 = initialC2,
                     initialDesignColor3 = initialC3,
                     onSave = { result ->
+                        if (isSaving) return@WidgetConfigureScreen
+                        isSaving = true
+
                         WidgetPreferences.saveConfiguration(
                             context = this,
                             appWidgetId = appWidgetId,
@@ -150,6 +155,11 @@ open class WidgetConfigureActivity(
                         }
                         scope.launch {
                             WidgetUpdater.updateAppWidget(this@WidgetConfigureActivity, appWidgetId)
+                            when (widgetSize) {
+                                WidgetSize.SMALL_2X2 -> StudentAiWidget2x2().updateAll(this@WidgetConfigureActivity)
+                                WidgetSize.TALL_2X3 -> StudentAiWidget2x3().updateAll(this@WidgetConfigureActivity)
+                            }
+                            kotlinx.coroutines.delay(150)
                             val saveResult = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                             setResult(RESULT_OK, saveResult)
                             finish()
