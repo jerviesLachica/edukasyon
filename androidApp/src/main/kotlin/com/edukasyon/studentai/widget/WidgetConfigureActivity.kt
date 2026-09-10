@@ -71,7 +71,9 @@ import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import com.edukasyon.studentai.ui.theme.StudentAiTheme
 import com.edukasyon.studentai.domain.model.ThemeMode
 import com.edukasyon.studentai.ui.theme.parseHexColor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // ─── Simple vector icons (avoids adding material-icons-extended dep) ───────────
 
@@ -141,14 +143,16 @@ open class WidgetConfigureActivity(
                         )
                         WidgetBackgroundGenerator.invalidateCache()
                         WidgetSnapshotCache.invalidate(this, appWidgetId)
-                        kotlinx.coroutines.runBlocking {
-                            WidgetDataProvider.loadSnapshotFresh(
-                                this@WidgetConfigureActivity,
-                                appWidgetId,
-                                widgetSize
-                            )
-                        }
                         scope.launch {
+                            // Snapshot load hits Room + DataStore — keep it off the
+                            // main thread (runBlocking here could ANR on slow devices).
+                            withContext(Dispatchers.IO) {
+                                WidgetDataProvider.loadSnapshotFresh(
+                                    this@WidgetConfigureActivity,
+                                    appWidgetId,
+                                    widgetSize
+                                )
+                            }
                             WidgetUpdater.updateAppWidget(this@WidgetConfigureActivity, appWidgetId)
                             val saveResult = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                             setResult(RESULT_OK, saveResult)

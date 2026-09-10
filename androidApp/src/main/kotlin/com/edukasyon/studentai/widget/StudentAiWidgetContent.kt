@@ -52,7 +52,9 @@ fun SmallWidgetContent(snapshot: WidgetSnapshot, openAction: Action) {
                         if (snapshot.schedule.isEmpty()) {
                             EmptyLabel(snapshot, "No classes today")
                         } else {
-                            snapshot.schedule.forEach { ScheduleRow(it, snapshot) }
+                            snapshot.schedule.forEach {
+                                ScheduleRow(it, snapshot, openAction = WidgetActions.openSchedule(context))
+                            }
                         }
                         snapshot.currentTaskProgress?.let {
                             Spacer(GlanceModifier.height(6.dp))
@@ -82,7 +84,7 @@ fun TallWidgetContent(snapshot: WidgetSnapshot, openAction: Action) {
     WidgetRoot(snapshot, openAction = openAction) {
         when (snapshot.displayType) {
             WidgetDisplayType.COMBINED -> CombinedTallContent(snapshot, context)
-            WidgetDisplayType.SCHEDULE -> ScheduleTallContent(snapshot)
+            WidgetDisplayType.SCHEDULE -> ScheduleTallContent(snapshot, context)
             WidgetDisplayType.TASKS -> TasksTallContent(snapshot, context)
         }
     }
@@ -113,7 +115,9 @@ private fun CombinedTallContent(snapshot: WidgetSnapshot, context: android.conte
                     snapshot.tasks.take(3).forEach {
                         TaskRow(it, snapshot, openAction = WidgetActions.openAppForTask(context, it.id), compact = true)
                     }
-                    snapshot.schedule.take(2).forEach { ScheduleRow(it, snapshot, compact = true) }
+                    snapshot.schedule.take(2).forEach {
+                        ScheduleRow(it, snapshot, openAction = WidgetActions.openSchedule(context), compact = true)
+                    }
                 }
             }
             Spacer(GlanceModifier.height(4.dp))
@@ -126,7 +130,7 @@ private fun CombinedTallContent(snapshot: WidgetSnapshot, context: android.conte
 }
 
 @Composable
-private fun ScheduleTallContent(snapshot: WidgetSnapshot) {
+private fun ScheduleTallContent(snapshot: WidgetSnapshot, context: android.content.Context) {
     Column(modifier = GlanceModifier.fillMaxWidth()) {
         DateHeader(snapshot)
         Spacer(GlanceModifier.height(8.dp))
@@ -136,7 +140,9 @@ private fun ScheduleTallContent(snapshot: WidgetSnapshot) {
             if (snapshot.schedule.isEmpty()) {
                 EmptyLabel(snapshot, "No classes today")
             } else {
-                snapshot.schedule.forEach { ScheduleRow(it, snapshot) }
+                snapshot.schedule.forEach {
+                    ScheduleRow(it, snapshot, openAction = WidgetActions.openSchedule(context))
+                }
             }
             snapshot.currentTaskProgress?.let {
                 Spacer(GlanceModifier.height(8.dp))

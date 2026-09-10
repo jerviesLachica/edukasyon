@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -71,6 +72,10 @@ fun PlannerScreen(
 
     LaunchedEffect(initialTaskId) {
         if (initialTaskId != null) {
+            // Widget / reminder deep-link: land on the Tasks tab with the
+            // tapped task selected (MainNavigation deliberately leaves the
+            // value unconsumed so it survives until this effect runs).
+            viewModel.selectTab(0)
             selectedTaskId = initialTaskId
             onInitialTaskConsumed()
         }
@@ -445,7 +450,25 @@ private fun TaskList(
             }
         }
     } else {
-        LazyColumn(contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 8.dp)) {
+        // Single-pane (phones): selection isn't rendered as a detail pane, so
+        // scroll the deep-linked task into view instead. Re-runs while tasks
+        // load, but scrolls at most once per selected id.
+        val listState = rememberLazyListState()
+        var scrolledToId by remember { mutableStateOf<String?>(null) }
+        LaunchedEffect(selectedTaskId, tasks) {
+            val target = selectedTaskId
+            if (target != null && target != scrolledToId) {
+                val index = tasks.indexOfFirst { it.id == target }
+                if (index >= 0) {
+                    listState.scrollToItem(index)
+                    scrolledToId = target
+                }
+            }
+        }
+        LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 8.dp),
+        ) {
             items(tasks, key = { it.id }) { task ->
                 TaskCard(
                     task = task,

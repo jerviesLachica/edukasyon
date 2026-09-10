@@ -193,6 +193,7 @@ internal fun TaskRow(
 internal fun ScheduleRow(
     item: WidgetScheduleItem,
     snapshot: WidgetSnapshot,
+    openAction: Action,
     compact: Boolean = false
 ) {
     val theme = snapshot.themeColors
@@ -207,7 +208,8 @@ internal fun ScheduleRow(
             .fillMaxWidth()
             .background(bg)
             .cornerRadius(8.dp)
-            .padding(vertical = if (compact) 4.dp else 6.dp, horizontal = 6.dp),
+            .padding(vertical = if (compact) 4.dp else 6.dp, horizontal = 6.dp)
+            .clickable(openAction),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(

@@ -173,7 +173,13 @@ fun MainNavigation(
     LaunchedEffect(initialTabRoute, initialTaskId) {
         if (initialTaskId != null) {
             navController.navigateToTab(MainTab.PLANNER)
-            onInitialTaskConsumed()
+            // Do NOT consume the task here: PlannerScreen consumes it after
+            // applying it to its selection. Consuming here would null the value
+            // before PlannerScreen's LaunchedEffect ever runs, so the deep-linked
+            // task would never be selected. The tab extra that accompanies widget
+            // and reminder intents is redundant once we've navigated, so consume
+            // it to avoid a second navigation pass.
+            onInitialTabConsumed()
             return@LaunchedEffect
         }
         val route = initialTabRoute ?: return@LaunchedEffect
