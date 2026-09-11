@@ -926,7 +926,7 @@ app.post('/api/ai/embed', (req, res) =>
       return { ok: true };
     },
     handler: handleEmbed,
-    validateOutput: () => ({ ok: true }),
+    validateOutput: (result) => ({ valid: true, data: result }),
   })
 );
 
