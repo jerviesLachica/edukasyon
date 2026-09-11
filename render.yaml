@@ -38,6 +38,15 @@ services:
         sync: false
       - key: CEREBRAS_MODEL
         value: qwen-3.8-27b
+      # Gemini embeddings for JEVI source citations. Free tier (AI Studio,
+      # no card): ~1,500 req/day. Batch document embeds; 768 dims keeps
+      # per-user vector rows small. Key is per-deployer secret, never committed.
+      - key: GEMINI_EMBEDDING_API_KEY
+        sync: false
+      - key: GEMINI_EMBEDDING_MODEL
+        value: gemini-embedding-001
+      - key: GEMINI_EMBEDDING_DIMS
+        value: 768
 
   - type: static_site
     name: studentai-download
