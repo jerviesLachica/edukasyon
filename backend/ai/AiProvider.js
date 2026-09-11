@@ -28,7 +28,8 @@ const DEFAULT_TEXT_MODEL = 'auto';
 const DEFAULT_VISION_MODEL = 'MiniMax-M3';
 // OrcaRouter free tier for faster vision (5-12s vs 60-120s).
 // free tier: 10 RPM, ~1440/day, $0 forever. Falls back to MiniMax-M3 on 429.
-const ORCA_VISION_MODEL = 'z-ai/glm-5.3-flash-free';
+// Override via ORCA_MODEL env without a redeploy of code.
+const ORCA_VISION_MODEL = process.env.ORCA_MODEL || 'orcarouter/auto';
 
 // Legacy slug from before the agnes migration. Old clients / Render envs may
 // still send `step-3.7-flash` — normalize it to `agnes-2.5-flash` so quota
