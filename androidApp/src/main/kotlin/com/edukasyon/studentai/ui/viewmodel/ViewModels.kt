@@ -874,6 +874,7 @@ class AiViewModel @Inject constructor(
     private val aiConversationRepo: AiConversationRepository,
     private val reminderScheduler: ReminderScheduler,
     private val mlKitTextRecognizer: com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer,
+    private val sourceRepository: com.edukasyon.studentai.domain.repository.SourceRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AiUiState())
     val uiState: StateFlow<AiUiState> = _uiState.asStateFlow()
@@ -1268,6 +1269,11 @@ class AiViewModel @Inject constructor(
                 val selectedModel = resolveModelForSend()
                 val modelOverride = AiModelRouter.chatModelOverride(selectedModel)
                 val effort = AiModelRouter.effortParam(preferences.thinkingLevel.first())
+                val groundedSources: List<com.edukasyon.studentai.domain.model.RankedChunk> = try {
+                    sourceRepository.retrieve(displayMessage, null, 5)
+                } catch (_: Exception) {
+                    emptyList()
+                }
                 if (selectedModel.isStepModel) {
                     recordStepModelUseIfNeeded(selectedModel)
                 }
@@ -1284,6 +1290,7 @@ class AiViewModel @Inject constructor(
                         attachmentText = attachmentText,
                         model = modelOverride,
                         effort = effort,
+                        sources = groundedSources,
                     )
                 )
                 val reply = response.reply.trim()

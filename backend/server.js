@@ -298,6 +298,7 @@ async function handleChat({ body, provider: ai, webSearch: searchService, maxTok
     contextSummary,
     conversationId,
     effort: requestedEffort,
+    sources: clientSources,
     attachmentName,
     attachmentMimeType,
     imageBase64,
@@ -342,6 +343,17 @@ async function handleChat({ body, provider: ai, webSearch: searchService, maxTok
     attachmentText,
   });
 
+  const sources = Array.isArray(clientSources) ? clientSources.slice(0, 8) : [];
+  if (sources.length) {
+    const numbered = sources
+      .map((c, i) => `[${i + 1}] ${c.label || 'Source'}: ${String(c.text || '').slice(0, 1500)}`)
+      .join(String.fromCharCode(10, 10));
+    userContent += `
+
+Answer using ONLY the numbered sources below. Cite every factual claim with its source number, for example [1]. If the sources do not contain the answer, say so instead of guessing.
+${numbered}`;
+  }
+
   if (effort === 'deep') {
     userContent += '\n\nThink step by step through this problem before giving your final answer.';
   }
@@ -366,12 +378,20 @@ async function handleChat({ body, provider: ai, webSearch: searchService, maxTok
     signal,
   });
 
+  const citedFromReply = Array.from(
+    new Set(Array.from(String(reply || '').matchAll(/\[(\d+)\]/g)).map((m) => m[1]))
+  ).filter((n) => Number(n) >= 1 && Number(n) <= sources.length);
+  const citedChunkIds = citedFromReply.length
+    ? citedFromReply.map((n) => String(sources[Number(n) - 1].id))
+    : sources.map((c) => String(c.id));
+
   return {
     reply,
     ...(reasoning ? { reasoning } : {}),
     conversationId: conversationId || crypto.randomUUID(),
     model: usedModel || model,
     effort,
+    citedChunkIds,
   };
 }
 
