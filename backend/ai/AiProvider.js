@@ -117,7 +117,7 @@ function createAiProvider(config = {}) {
     process.env.GEMINI_BASE_URL ||
     'https://generativelanguage.googleapis.com/v1beta/openai'
   ).replace(/\/$/, '');
-  const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || 'gemini-2.0-flash';
+  const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
 
   const hasAiKey = Boolean(AI_API_KEY);
 
