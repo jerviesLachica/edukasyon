@@ -73,13 +73,16 @@ interface AiApiService {
     val attachmentText: String? = null,
     val model: String? = null,
     val effort: String? = null,
+    val sources: List<CitedChunkDto> = emptyList(),
 )
 @Serializable data class ChatResponseDto(
     val reply: String,
     val conversationId: String,
     val reasoning: String? = null,
     val model: String? = null,
+    val citedChunkIds: List<String> = emptyList(),
 )
+@Serializable data class CitedChunkDto(val id: String, val label: String, val text: String)
 @Serializable data class ScheduleAnalysisRequest(
     val imageBase64: String,
     val extractedText: String? = null,

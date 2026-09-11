@@ -26,6 +26,7 @@ data class AiChatRequest(
     val attachmentText: String? = null,
     val model: String? = null,
     val effort: String? = null,
+    val sources: List<com.edukasyon.studentai.domain.model.RankedChunk> = emptyList(),
 )
 
 data class AiChatResponse(
@@ -33,6 +34,7 @@ data class AiChatResponse(
     val conversationId: String,
     val reasoning: String? = null,
     val model: String? = null,
+    val citedChunkIds: List<String> = emptyList(),
 )
 
 data class ScheduleAnalysisResult(

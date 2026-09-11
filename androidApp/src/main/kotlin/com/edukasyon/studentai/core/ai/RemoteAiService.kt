@@ -47,6 +47,13 @@ class RemoteAiService @Inject constructor(
                 attachmentText = request.attachmentText,
                 model = request.model,
                 effort = request.effort,
+                sources = request.sources.map {
+                    com.edukasyon.studentai.core.network.CitedChunkDto(
+                        id = it.chunkId.toString(),
+                        label = it.sourceName,
+                        text = it.text,
+                    )
+                },
                 )
         )
         val split = ReasoningContentSplitter.split(
@@ -62,6 +69,7 @@ class RemoteAiService @Inject constructor(
             conversationId = response.conversationId,
             reasoning = recovered.reasoning,
             model = response.model,
+            citedChunkIds = response.citedChunkIds,
         )
     }
 
