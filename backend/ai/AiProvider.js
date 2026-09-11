@@ -94,6 +94,17 @@ function createAiProvider(config = {}) {
     'https://api.orcarouter.ai/v1'
   ).replace(/\/$/, '');
 
+  // Cerebras tertiary provider for fast text chat (OpenAI-compatible /v1).
+  // Text-only: vision requests never route here (Cerebras vision, if any,
+  // is unverified — images stay on OrcaRouter -> MiniMax-M3).
+  const CEREBRAS_API_KEY = config.cerebrasApiKey || process.env.CEREBRAS_API_KEY || '';
+  const CEREBRAS_BASE_URL = (
+    config.cerebrasBaseUrl ||
+    process.env.CEREBRAS_BASE_URL ||
+    'https://api.cerebras.ai/v1'
+  ).replace(/\/$/, '');
+  const CEREBRAS_TEXT_MODEL = process.env.CEREBRAS_MODEL || 'qwen-3.8-27b';
+
   const hasAiKey = Boolean(AI_API_KEY);
 
   function resolveModel(requestedModel, defaultModel = DEFAULT_MODEL) {
@@ -290,12 +301,21 @@ function createAiProvider(config = {}) {
   }
 
   async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, signal, responseFormat, reasoning, wireModelOverride } = {}) {
-    if (!hasAiKey && (!isVision || !ORCA_API_KEY)) throw new Error('AI provider not configured (set AI_API_KEY or ORCA_API_KEY)');
+    if (!hasAiKey && (!isVision || !ORCA_API_KEY)) throw new Error('AI provider not configured (set AI_API_KEY, CEREBRAS_API_KEY or ORCA_API_KEY)');
     const wireModels = wireModelOverride
       ? [{ model: toWireModelSlug(wireModelOverride, { isVision }), provider: 'hcnsec' }]
       : (() => {
           const chain = [];
-          for (const candidate of modelFallbackChain(model || (isVision ? VISION_MODEL : TEXT_MODEL), { isVision })) {
+          // Thinking requests (user picked the REASONING model / agnes slug)
+          // go to hcnsec `auto` — never Cerebras.
+          const thinking = !isVision && normalizeModelSlug(model) === 'agnes-2.5-flash';
+          const primary = thinking ? 'auto' : (model || (isVision ? VISION_MODEL : TEXT_MODEL));
+          // Cerebras goes FIRST for non-thinking text-only chat.
+          // Vision never routes here (see CEREBRAS_* config above).
+          if (!isVision && !thinking && CEREBRAS_API_KEY) {
+            chain.push({ model: CEREBRAS_TEXT_MODEL, provider: 'cerebras' });
+          }
+          for (const candidate of modelFallbackChain(primary, { isVision })) {
             let provider = 'hcnsec';
             let wire = candidate;
             if (candidate === ORCA_VISION_MODEL && ORCA_API_KEY) {
@@ -314,8 +334,8 @@ function createAiProvider(config = {}) {
     let lastError;
     for (let i = 0; i < candidates.length; i += 1) {
       const { model: candidate, provider } = candidates[i];
-      const baseUrl = provider === 'orca' ? ORCA_BASE_URL : AI_BASE_URL;
-      const apiKey = provider === 'orca' ? ORCA_API_KEY : AI_API_KEY;
+      const baseUrl = provider === 'orca' ? ORCA_BASE_URL : provider === 'cerebras' ? CEREBRAS_BASE_URL : AI_BASE_URL;
+      const apiKey = provider === 'orca' ? ORCA_API_KEY : provider === 'cerebras' ? CEREBRAS_API_KEY : AI_API_KEY;
       try {
         if (i > 0) console.warn(`[ai] Retrying with fallback model=${candidate} (provider=${provider})`);
         const result = await chatCompletionOnce(messages, {
@@ -452,7 +472,10 @@ function createAiProvider(config = {}) {
 
   return {
     hasAiKey,
+    hasCerebrasKey: Boolean(CEREBRAS_API_KEY),
     AI_BASE_URL,
+    CEREBRAS_BASE_URL,
+    CEREBRAS_TEXT_MODEL,
     DEFAULT_MODEL,
     TEXT_MODEL,
     VISION_MODEL,
