@@ -129,3 +129,15 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
         db.execSQL("ALTER TABLE exams ADD COLUMN linkedDeckId TEXT")
     }
 }
+
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS sources (id TEXT NOT NULL PRIMARY KEY, uid TEXT NOT NULL, name TEXT NOT NULL, mime TEXT NOT NULL, charCount INTEGER NOT NULL, chunkCount INTEGER NOT NULL, embeddingModel TEXT NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, deletedAt INTEGER)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_sources_uid ON sources(uid)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_sources_updatedAt ON sources(updatedAt)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS source_chunks (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, sourceId TEXT NOT NULL, uid TEXT NOT NULL, ordinal INTEGER NOT NULL, text TEXT NOT NULL, vector BLOB, dims INTEGER NOT NULL, updatedAt INTEGER NOT NULL, FOREIGN KEY(sourceId) REFERENCES sources(id) ON DELETE CASCADE)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_source_chunks_sourceId ON source_chunks(sourceId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_source_chunks_uid ON source_chunks(uid)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_source_chunks_sourceId_ordinal ON source_chunks(sourceId, ordinal)")
+    }
+}
