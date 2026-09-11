@@ -146,7 +146,9 @@ function createAiProvider(config = {}) {
   }
 
   function isRetryableModelError(message) {
-    return /503|502|429|410|404|400|NO_UPSTREAM|empty response|timeout|rate limit/i.test(String(message || ''));
+    // 402/401/403 included: dead/quota-less keys must fall back, not fail.
+    // (Cerebras returns 402 payment_required when free credits run out.)
+    return /503|502|429|410|404|402|401|403|400|NO_UPSTREAM|empty response|timeout|rate limit|payment_required|quota/i.test(String(message || ''));
   }
 
   function modelFallbackChain(primaryModel, { isVision = false } = {}) {
