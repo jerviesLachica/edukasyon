@@ -47,6 +47,11 @@ services:
         value: gemini-embedding-001
       - key: GEMINI_EMBEDDING_DIMS
         value: 768
+      # Gemini vision (OpenAI-compat endpoint) for scans/chat images.
+      # GEMINI_API_KEY falls back to GEMINI_EMBEDDING_API_KEY when unset,
+      # so no extra secret is required.
+      - key: GEMINI_VISION_MODEL
+        value: gemini-2.0-flash
 
   - type: static_site
     name: studentai-download

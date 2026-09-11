@@ -231,7 +231,86 @@ describe('AiProvider OrcaRouter Integration', () => {
         { model: 'agnes-2.5-flash', isVision: false, thinking: false },
       );
       assert.strictEqual(result.reply, 'hello');
-      assert.ok(String(calls[0].url).includes('cerebras'), 'explicit non-thinking uses Cerebras');
+      assert.ok(String(calls[0].url).includes('cerebras'), 'explicit non-thinking uses Cerebras fast path');
+    });
+  });
+
+  describe('Gemini vision routing', () => {
+    let realFetch;
+    let calls;
+
+    const okReply = (model) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: 'seen' } }], model }),
+    });
+
+    beforeEach(() => {
+      realFetch = globalThis.fetch;
+      calls = [];
+    });
+
+    afterEach(() => {
+      globalThis.fetch = realFetch;
+    });
+
+    const visionMsg = [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,xx' } }] }];
+
+    function providerWithGemini() {
+      return createAiProvider({
+        baseUrl: 'https://api.hcnsec.cn/v1',
+        apiKey: 'k-hcnsec',
+        orcaBaseUrl: 'https://api.orcarouter.ai/v1',
+        orcaApiKey: 'k-orca',
+        geminiBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+        geminiApiKey: 'k-gemini',
+      });
+    }
+
+    it('vision hits Gemini FIRST with the Gemini model', async () => {
+      const provider = providerWithGemini();
+      assert.strictEqual(provider.hasGeminiKey, true);
+      globalThis.fetch = async (url, opts) => {
+        calls.push({ url, body: JSON.parse(opts.body) });
+        return okReply(provider.GEMINI_VISION_MODEL);
+      };
+      const result = await provider.chatCompletion(visionMsg, { isVision: true });
+      assert.strictEqual(result.reply, 'seen');
+      assert.ok(String(calls[0].url).includes('googleapis'), 'first call is Gemini');
+      assert.strictEqual(calls[0].body.model, provider.GEMINI_VISION_MODEL);
+    });
+
+    it('vision falls back Gemini -> Orca -> hcnsec on 429s', async () => {
+      const provider = providerWithGemini();
+      const denied = () => ({ ok: false, status: 429, text: async () => 'rate limited' });
+      globalThis.fetch = async (url, opts) => {
+        calls.push({ url, body: JSON.parse(opts.body) });
+        if (String(url).includes('googleapis')) return denied();
+        if (String(url).includes('orcarouter')) return denied();
+        return okReply('MiniMax-M3');
+      };
+      const result = await provider.chatCompletion(visionMsg, { isVision: true });
+      assert.strictEqual(result.reply, 'seen');
+      assert.ok(calls.length >= 3, 'should walk the full chain');
+      assert.ok(String(calls[0].url).includes('googleapis'), '1st is Gemini');
+      assert.ok(String(calls[1].url).includes('orcarouter'), '2nd is OrcaRouter');
+      assert.ok(String(calls[2].url).includes('hcnsec'), '3rd is hcnsec');
+    });
+
+    it('vision without Gemini key keeps Orca-first behavior', async () => {
+      const provider = createAiProvider({
+        baseUrl: 'https://api.hcnsec.cn/v1',
+        apiKey: 'k-hcnsec',
+        orcaBaseUrl: 'https://api.orcarouter.ai/v1',
+        orcaApiKey: 'k-orca',
+      });
+      assert.strictEqual(provider.hasGeminiKey, false);
+      globalThis.fetch = async (url, opts) => {
+        calls.push({ url, body: JSON.parse(opts.body) });
+        return okReply('x');
+      };
+      await provider.chatCompletion(visionMsg, { isVision: true });
+      assert.ok(String(calls[0].url).includes('orcarouter'), 'Orca still first without Gemini key');
     });
   });
 });
