@@ -108,6 +108,17 @@ function createAiProvider(config = {}) {
   ).replace(/\/$/, '');
   const CEREBRAS_TEXT_MODEL = process.env.CEREBRAS_MODEL || 'qwen-3.8-27b';
 
+  // Gemini vision via the OpenAI-compatible endpoint, using the same key as
+  // embeddings (falls back to a dedicated GEMINI_API_KEY when set).
+  // Free AI Studio tier, no card. First in the vision chain when configured.
+  const GEMINI_API_KEY = config.geminiApiKey || process.env.GEMINI_API_KEY || process.env.GEMINI_EMBEDDING_API_KEY || '';
+  const GEMINI_BASE_URL = (
+    config.geminiBaseUrl ||
+    process.env.GEMINI_BASE_URL ||
+    'https://generativelanguage.googleapis.com/v1beta/openai'
+  ).replace(/\/$/, '');
+  const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || 'gemini-2.0-flash';
+
   const hasAiKey = Boolean(AI_API_KEY);
 
   function resolveModel(requestedModel, defaultModel = DEFAULT_MODEL) {
@@ -158,7 +169,11 @@ function createAiProvider(config = {}) {
     const normalizedPrimary = normalizeModelSlug(primaryModel);
     const chain = [];
     if (isVision) {
-      // OrcaRouter goes FIRST — fast free tier (5-12s), rate-limited at 10 RPM
+      // Gemini goes FIRST when configured — free AI Studio tier, own key.
+      if (GEMINI_API_KEY) {
+        chain.push(GEMINI_VISION_MODEL);
+      }
+      // OrcaRouter next — fast free tier (5-12s), rate-limited at 10 RPM
       if (ORCA_API_KEY) {
         chain.push(ORCA_VISION_MODEL);
       }
@@ -325,7 +340,10 @@ function createAiProvider(config = {}) {
           for (const candidate of modelFallbackChain(primary, { isVision })) {
             let provider = 'hcnsec';
             let wire = candidate;
-            if (candidate === ORCA_VISION_MODEL && ORCA_API_KEY) {
+            if (candidate === GEMINI_VISION_MODEL && GEMINI_API_KEY) {
+              provider = 'gemini';
+              wire = GEMINI_VISION_MODEL;
+            } else if (candidate === ORCA_VISION_MODEL && ORCA_API_KEY) {
               provider = 'orca';
               wire = ORCA_VISION_MODEL;
             } else {
@@ -341,8 +359,8 @@ function createAiProvider(config = {}) {
     let lastError;
     for (let i = 0; i < candidates.length; i += 1) {
       const { model: candidate, provider } = candidates[i];
-      const baseUrl = provider === 'orca' ? ORCA_BASE_URL : provider === 'cerebras' ? CEREBRAS_BASE_URL : AI_BASE_URL;
-      const apiKey = provider === 'orca' ? ORCA_API_KEY : provider === 'cerebras' ? CEREBRAS_API_KEY : AI_API_KEY;
+      const baseUrl = provider === 'orca' ? ORCA_BASE_URL : provider === 'cerebras' ? CEREBRAS_BASE_URL : provider === 'gemini' ? GEMINI_BASE_URL : AI_BASE_URL;
+      const apiKey = provider === 'orca' ? ORCA_API_KEY : provider === 'cerebras' ? CEREBRAS_API_KEY : provider === 'gemini' ? GEMINI_API_KEY : AI_API_KEY;
       try {
         if (i > 0) console.warn(`[ai] Retrying with fallback model=${candidate} (provider=${provider})`);
         const result = await chatCompletionOnce(messages, {
@@ -480,9 +498,12 @@ function createAiProvider(config = {}) {
   return {
     hasAiKey,
     hasCerebrasKey: Boolean(CEREBRAS_API_KEY),
+    hasGeminiKey: Boolean(GEMINI_API_KEY),
     AI_BASE_URL,
     CEREBRAS_BASE_URL,
     CEREBRAS_TEXT_MODEL,
+    GEMINI_BASE_URL,
+    GEMINI_VISION_MODEL,
     DEFAULT_MODEL,
     TEXT_MODEL,
     VISION_MODEL,
