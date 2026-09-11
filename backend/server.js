@@ -23,6 +23,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { createGateway } = require('./ai/AiSafetyGateway');
 const { createAiProvider } = require('./ai/AiProvider');
+const { createEmbeddingClient } = require('./ai/Embeddings');
 const { createWebSearchService, parseWebSearchCommand } = require('./ai/WebSearchService');
 const {
   buildJarvisSystemMessage,
@@ -76,6 +77,7 @@ app.use(express.json({ limit: `${Math.ceil((loadSafetyPolicy().maxRequestBodyByt
 
 const policy = loadSafetyPolicy();
 const provider = createAiProvider();
+const embeddings = createEmbeddingClient();
 const webSearch = createWebSearchService();
 const abuseEvents = new AbuseEventRepository();
 const gateway = createGateway({
@@ -519,6 +521,25 @@ function startScheduleScanJob({ body, provider: fallbackProvider, maxTokens }) {
   return { jobId, status: 'processing' };
 }
 
+async function handleEmbed({ body, signal }) {
+  const texts = Array.isArray(body.texts) ? body.texts : [];
+  if (!texts.length || texts.length > 50) {
+    const e = new Error('Provide 1-50 texts to embed.');
+    e.code = 'BAD_EMBED_INPUT';
+    throw e;
+  }
+  for (const t of texts) {
+    if (typeof t !== 'string' || !t.trim() || t.length > 8000) {
+      const e = new Error('Each text must be a non-empty string under 8000 chars.');
+      e.code = 'BAD_EMBED_INPUT';
+      throw e;
+    }
+  }
+  const taskType = body.taskType === 'RETRIEVAL_QUERY' ? 'RETRIEVAL_QUERY' : 'RETRIEVAL_DOCUMENT';
+  const vectors = await embeddings.embedTexts(texts, { taskType, signal });
+  return { vectors, model: embeddings.model, dims: embeddings.dims };
+}
+
 async function handleSummarize({ body, provider: ai, maxTokens, signal }) {
   const text = body.text || '';
   const model = ai.resolveTextModel(body.model);
@@ -891,6 +912,21 @@ app.post('/api/ai/flashcards', (req, res) =>
     },
     handler: handleFlashcards,
     validateOutput: (result) => flashcardValidator.validate(result),
+  })
+);
+
+app.post('/api/ai/embed', (req, res) =>
+  gateway.handle(req, res, {
+    endpoint: 'embed',
+    extractInputText: (body) => (Array.isArray(body.texts) ? body.texts : []).join(' ').slice(0, 20000),
+    validate: (body) => {
+      if (!Array.isArray(body.texts) || !body.texts.length || body.texts.length > 50) {
+        return { ok: false, code: 'BAD_EMBED_INPUT', message: 'Provide 1-50 texts to embed.' };
+      }
+      return { ok: true };
+    },
+    handler: handleEmbed,
+    validateOutput: () => ({ ok: true }),
   })
 );
 

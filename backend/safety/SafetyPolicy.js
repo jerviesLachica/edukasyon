@@ -62,6 +62,12 @@ const ENDPOINT_DEFAULTS = {
     hourlyQuota: 12,
     maxOutputTokens: 2048,
   },
+  embed: {
+    rateLimitPerMin: 10,
+    burstPerMin: 15,
+    dailyQuota: 200,
+    hourlyQuota: 50,
+  },
 };
 
 /** Premium reasoning/vision model chat quota (when client sends model=agnes-2.5-flash; legacy step-3.7-flash also counted). */
