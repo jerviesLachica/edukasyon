@@ -130,6 +130,24 @@ describe('AiProvider OrcaRouter Integration', () => {
       assert.ok(String(calls[1].url).includes('hcnsec'), 'fallback call is hcnsec');
     });
 
+    it('text chat falls back to hcnsec when Cerebras returns 402 payment_required', async () => {
+      const provider = providerWithCerebras();
+      globalThis.fetch = async (url, opts) => {
+        calls.push({ url, body: JSON.parse(opts.body) });
+        if (String(url).includes('cerebras')) {
+          return { ok: false, status: 402, text: async () => 'payment_required' };
+        }
+        return okReply('auto');
+      };
+      const result = await provider.chatCompletion(
+        [{ role: 'user', content: 'hi' }],
+        { isVision: false },
+      );
+      assert.strictEqual(result.reply, 'hello');
+      assert.ok(calls.length >= 2, 'should retry after Cerebras 402');
+      assert.ok(String(calls[1].url).includes('hcnsec'), 'fallback call is hcnsec');
+    });
+
     it('vision requests NEVER touch Cerebras (stay on OrcaRouter -> hcnsec)', async () => {
       const provider = providerWithCerebras();
       globalThis.fetch = async (url, opts) => {
