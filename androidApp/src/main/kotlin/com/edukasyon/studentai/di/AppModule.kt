@@ -27,6 +27,7 @@ import com.edukasyon.studentai.data.repository.GradeRepositoryImpl
 import com.edukasyon.studentai.data.repository.JeviRepositoryImpl
 import com.edukasyon.studentai.data.repository.LectureFileRepositoryImpl
 import com.edukasyon.studentai.data.repository.NoteRepositoryImpl
+import com.edukasyon.studentai.data.repository.SourceRepositoryImpl
 import com.edukasyon.studentai.data.repository.QuizRepositoryImpl
 import com.edukasyon.studentai.data.repository.ScheduleRepositoryImpl
 import com.edukasyon.studentai.data.repository.SearchRepositoryImpl
@@ -42,6 +43,7 @@ import com.edukasyon.studentai.domain.repository.GradeRepository
 import com.edukasyon.studentai.domain.repository.JeviRepository
 import com.edukasyon.studentai.domain.repository.LectureFileRepository
 import com.edukasyon.studentai.domain.repository.NoteRepository
+import com.edukasyon.studentai.domain.repository.SourceRepository
 import com.edukasyon.studentai.domain.repository.QuizRepository
 import com.edukasyon.studentai.domain.repository.ScheduleRepository
 import com.edukasyon.studentai.domain.repository.SearchRepository
@@ -191,6 +193,8 @@ abstract class RepositoryModule {
     @Binds @Singleton abstract fun bindFlashcardRepo(impl: FlashcardRepositoryImpl): FlashcardRepository
     @Suppress("unused")
     @Binds @Singleton abstract fun bindJeviRepo(impl: JeviRepositoryImpl): JeviRepository
+    @Suppress("unused")
+    @Binds @Singleton abstract fun bindSourceRepo(impl: SourceRepositoryImpl): SourceRepository
     @Suppress("unused")
     @Binds @Singleton abstract fun bindQuizRepo(impl: QuizRepositoryImpl): QuizRepository
     @Suppress("unused")
