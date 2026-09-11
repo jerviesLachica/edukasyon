@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.edukasyon.studentai.domain.model.AiModel
+import com.edukasyon.studentai.domain.model.ThinkingLevel
 import com.edukasyon.studentai.domain.model.DayOfWeek
 import com.edukasyon.studentai.domain.model.ScheduleDayTemplate
 import com.edukasyon.studentai.domain.model.ScheduleWeekTemplates
@@ -61,6 +62,7 @@ class UserPreferences @Inject constructor(
         val AI_CONTEXT_ENABLED = booleanPreferencesKey("ai_context_enabled")
         val USE_MOCK_AI = booleanPreferencesKey("use_mock_ai")
         val AI_MODEL = stringPreferencesKey("ai_model")
+        val THINKING_LEVEL = stringPreferencesKey("thinking_level")
         val STEP_MODEL_USAGE_TIMESTAMPS = stringPreferencesKey("step_model_usage_timestamps")
         val SCHEDULE_DAY_TEMPLATES = stringPreferencesKey("schedule_day_templates")
         val FIREBASE_AUTH_EMAIL = stringPreferencesKey("firebase_auth_email")
@@ -102,6 +104,10 @@ class UserPreferences @Inject constructor(
     val useMockAi: Flow<Boolean> = context.dataStore.data.map { it[Keys.USE_MOCK_AI] ?: false }
     val aiModel: Flow<AiModel> = context.dataStore.data.map { prefs ->
         AiModel.fromSlug(prefs[Keys.AI_MODEL] ?: AiModel.AUTO.slug)
+    }
+
+    val thinkingLevel: Flow<ThinkingLevel> = context.dataStore.data.map { prefs ->
+        ThinkingLevel.fromSlug(prefs[Keys.THINKING_LEVEL])
     }
 
     val stepModelUsageTimestamps: Flow<List<Long>> = context.dataStore.data.map { prefs ->
@@ -223,6 +229,10 @@ class UserPreferences @Inject constructor(
 
     suspend fun setAiModel(model: AiModel) {
         context.dataStore.edit { it[Keys.AI_MODEL] = model.slug }
+    }
+
+    suspend fun setThinkingLevel(level: ThinkingLevel) {
+        context.dataStore.edit { it[Keys.THINKING_LEVEL] = level.slug }
     }
 
     suspend fun setStepModelUsageTimestamps(timestamps: List<Long>) {

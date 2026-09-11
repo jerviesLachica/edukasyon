@@ -182,5 +182,36 @@ describe('AiProvider OrcaRouter Integration', () => {
       }
       assert.strictEqual(calls[0].body.model, 'auto', 'thinking resolves to hcnsec auto');
     });
+
+    it('explicit thinking:true forces hcnsec auto even for AUTO model', async () => {
+      const provider = providerWithCerebras();
+      globalThis.fetch = async (url, opts) => {
+        calls.push({ url, body: JSON.parse(opts.body) });
+        return okReply('auto');
+      };
+      const result = await provider.chatCompletion(
+        [{ role: 'user', content: 'think hard' }],
+        { model: 'auto', isVision: false, thinking: true },
+      );
+      assert.strictEqual(result.reply, 'hello');
+      for (const c of calls) {
+        assert.ok(!String(c.url).includes('cerebras'), 'explicit thinking must not hit Cerebras');
+      }
+      assert.strictEqual(calls[0].body.model, 'auto');
+    });
+
+    it('explicit thinking:false sends agnes slug to Cerebras fast path', async () => {
+      const provider = providerWithCerebras();
+      globalThis.fetch = async (url, opts) => {
+        calls.push({ url, body: JSON.parse(opts.body) });
+        return okReply(provider.CEREBRAS_TEXT_MODEL);
+      };
+      const result = await provider.chatCompletion(
+        [{ role: 'user', content: 'quick' }],
+        { model: 'agnes-2.5-flash', isVision: false, thinking: false },
+      );
+      assert.strictEqual(result.reply, 'hello');
+      assert.ok(String(calls[0].url).includes('cerebras'), 'explicit non-thinking uses Cerebras');
+    });
   });
 });

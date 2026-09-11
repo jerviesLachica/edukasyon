@@ -25,6 +25,7 @@ data class AiChatRequest(
     val imageBase64: String? = null,
     val attachmentText: String? = null,
     val model: String? = null,
+    val effort: String? = null,
 )
 
 data class AiChatResponse(

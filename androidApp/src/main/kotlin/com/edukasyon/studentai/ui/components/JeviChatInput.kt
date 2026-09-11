@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.edukasyon.studentai.core.ai.StepModelQuotaTracker
 import com.edukasyon.studentai.domain.model.AiModel
+import com.edukasyon.studentai.domain.model.ThinkingLevel
 import com.edukasyon.studentai.domain.model.ChatAttachmentPayload
 
 /**
@@ -67,6 +68,8 @@ fun JeviChatInputBar(
     onInputChange: (String) -> Unit,
     selectedModel: AiModel,
     onModelSelected: (AiModel) -> Unit,
+    thinkingLevel: ThinkingLevel,
+    onThinkingLevelSelected: (ThinkingLevel) -> Unit,
     stepQuotaRemaining: Int,
     stepQuotaLabel: String,
     stepQuotaExhausted: Boolean,
@@ -93,6 +96,11 @@ fun JeviChatInputBar(
             onModelSelected = onModelSelected,
             stepQuotaLabel = stepQuotaLabel,
             stepQuotaExhausted = stepQuotaExhausted,
+            enabled = enabled,
+        )
+        JeviThinkingLevelRow(
+            selectedLevel = thinkingLevel,
+            onLevelSelected = onThinkingLevelSelected,
             enabled = enabled,
         )
 
@@ -264,6 +272,37 @@ private fun JeviModelSelectorRow(
                 enabled = chipEnabled,
                 subtitle = if (isStep) stepQuotaLabel else model.chatDescription,
                 onClick = { if (chipEnabled) onModelSelected(model) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun JeviThinkingLevelRow(
+    selectedLevel: ThinkingLevel,
+    onLevelSelected: (ThinkingLevel) -> Unit,
+    enabled: Boolean,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ThinkingLevel.entries.forEach { level ->
+            InputChip(
+                selected = selectedLevel == level,
+                onClick = { if (enabled) onLevelSelected(level) },
+                enabled = enabled,
+                label = { Text(level.displayName) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Outlined.Psychology,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
             )
         }
     }

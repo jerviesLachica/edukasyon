@@ -124,6 +124,7 @@ fun AiScreen(
                     onChatInputActive = onChatInputActive,
                     onHeaderExpandedChange = { headerExpanded = it },
                     onModelSelected = { viewModel.setChatModel(it) },
+                    onThinkingLevelSelected = { viewModel.setThinkingLevel(it) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -163,6 +164,7 @@ private fun AiTutorTab(
     onChatInputActive: (Boolean) -> Unit = {},
     onHeaderExpandedChange: (Boolean) -> Unit = {},
     onModelSelected: (com.edukasyon.studentai.domain.model.AiModel) -> Unit = {},
+    onThinkingLevelSelected: (com.edukasyon.studentai.domain.model.ThinkingLevel) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val clipboard = LocalClipboardManager.current
@@ -313,6 +315,8 @@ private fun AiTutorTab(
                         onInputChange = onInputChange,
                         selectedModel = state.selectedChatModel,
                         onModelSelected = onModelSelected,
+                        thinkingLevel = state.thinkingLevel,
+                        onThinkingLevelSelected = onThinkingLevelSelected,
                         stepQuotaRemaining = state.stepQuotaRemaining,
                         stepQuotaLabel = state.stepQuotaLabel,
                         stepQuotaExhausted = state.stepQuotaExhausted,

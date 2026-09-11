@@ -300,15 +300,17 @@ function createAiProvider(config = {}) {
     return parseChatCompletionResult(data);
   }
 
-  async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, signal, responseFormat, reasoning, wireModelOverride } = {}) {
+  async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, thinking: thinkingOpt, signal, responseFormat, reasoning, wireModelOverride } = {}) {
     if (!hasAiKey && (!isVision || !ORCA_API_KEY)) throw new Error('AI provider not configured (set AI_API_KEY, CEREBRAS_API_KEY or ORCA_API_KEY)');
     const wireModels = wireModelOverride
       ? [{ model: toWireModelSlug(wireModelOverride, { isVision }), provider: 'hcnsec' }]
       : (() => {
           const chain = [];
-          // Thinking requests (user picked the REASONING model / agnes slug)
-          // go to hcnsec `auto` — never Cerebras.
-          const thinking = !isVision && normalizeModelSlug(model) === 'agnes-2.5-flash';
+          // Thinking requests (explicit flag from effort, else the REASONING
+          // model / agnes slug) go to hcnsec `auto` — never Cerebras.
+          const thinking = typeof thinkingOpt === 'boolean'
+            ? thinkingOpt
+            : (!isVision && normalizeModelSlug(model) === 'agnes-2.5-flash');
           const primary = thinking ? 'auto' : (model || (isVision ? VISION_MODEL : TEXT_MODEL));
           // Cerebras goes FIRST for non-thinking text-only chat.
           // Vision never routes here (see CEREBRAS_* config above).

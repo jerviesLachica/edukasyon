@@ -46,7 +46,8 @@ class RemoteAiService @Inject constructor(
                 imageBase64 = request.imageBase64,
                 attachmentText = request.attachmentText,
                 model = request.model,
-            )
+                effort = request.effort,
+                )
         )
         val split = ReasoningContentSplitter.split(
             raw = response.reply,
