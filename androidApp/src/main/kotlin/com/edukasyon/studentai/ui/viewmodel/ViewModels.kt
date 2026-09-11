@@ -833,6 +833,7 @@ data class AiUiState(
     val restoredToolInput: String? = null,
     val toolsPdf: ToolsPdfState? = null,
     val selectedChatModel: AiModel = AiModel.AUTO,
+    val thinkingLevel: ThinkingLevel = ThinkingLevel.FLASH,
     val stepQuotaRemaining: Int = StepModelQuotaTracker.LIMIT,
     val stepQuotaLabel: String = "${StepModelQuotaTracker.LIMIT}/${StepModelQuotaTracker.LIMIT} left",
     val stepQuotaExhausted: Boolean = false,
@@ -904,6 +905,11 @@ class AiViewModel @Inject constructor(
                 applyChatModelAndQuota(model, timestamps)
             }
         }
+        viewModelScope.launch {
+            preferences.thinkingLevel.collect { level ->
+                _uiState.update { it.copy(thinkingLevel = level) }
+            }
+        }
     }
 
     private fun applyChatModelAndQuota(model: AiModel, timestamps: List<Long>) {
@@ -941,6 +947,12 @@ class AiViewModel @Inject constructor(
                 return@launch
             }
             preferences.setAiModel(model)
+        }
+    }
+
+    fun setThinkingLevel(level: ThinkingLevel) {
+        viewModelScope.launch {
+            preferences.setThinkingLevel(level)
         }
     }
 
@@ -1255,6 +1267,7 @@ class AiViewModel @Inject constructor(
                 }
                 val selectedModel = resolveModelForSend()
                 val modelOverride = AiModelRouter.chatModelOverride(selectedModel)
+                val effort = AiModelRouter.effortParam(preferences.thinkingLevel.first())
                 if (selectedModel.isStepModel) {
                     recordStepModelUseIfNeeded(selectedModel)
                 }
@@ -1270,6 +1283,7 @@ class AiViewModel @Inject constructor(
                         imageBase64 = imageBase64,
                         attachmentText = attachmentText,
                         model = modelOverride,
+                        effort = effort,
                     )
                 )
                 val reply = response.reply.trim()

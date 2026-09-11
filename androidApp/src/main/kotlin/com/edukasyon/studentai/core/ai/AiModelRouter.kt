@@ -1,6 +1,7 @@
 package com.edukasyon.studentai.core.ai
 
 import com.edukasyon.studentai.domain.model.AiModel
+import com.edukasyon.studentai.domain.model.ThinkingLevel
 
 /**
  * Client-side model hints for the backend proxy.
@@ -17,6 +18,13 @@ object AiModelRouter {
     /** Model slug sent to backend when the user picks a non-default chat model. */
     fun chatModelOverride(preference: AiModel): String? =
         preference.takeIf { it == AiModel.REASONING }?.slug
+
+    /**
+     * Thinking effort sent to backend. Null (FLASH) means non-thinking fast path;
+     * standard/deep force the thinking path server-side.
+     */
+    fun effortParam(level: ThinkingLevel): String? =
+        level.takeIf { it != ThinkingLevel.FLASH }?.slug
 
     @Deprecated("Use chatModelOverride", ReplaceWith("chatModelOverride(preference)"))
     fun textChatModelOverride(preference: AiModel): String? = chatModelOverride(preference)

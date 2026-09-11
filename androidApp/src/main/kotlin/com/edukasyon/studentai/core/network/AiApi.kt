@@ -69,6 +69,7 @@ interface AiApiService {
     val imageBase64: String? = null,
     val attachmentText: String? = null,
     val model: String? = null,
+    val effort: String? = null,
 )
 @Serializable data class ChatResponseDto(
     val reply: String,
