@@ -32,6 +32,12 @@ services:
         sync: false
       - key: ORCA_BASE_URL
         value: https://api.orcarouter.ai/v1
+      # Cerebras for fast non-thinking text chat. Free tier, OpenAI-compatible.
+      # Thinking (agnes slug) stays on hcnsec auto; vision stays OrcaRouter -> MiniMax-M3.
+      - key: CEREBRAS_API_KEY
+        sync: false
+      - key: CEREBRAS_MODEL
+        value: qwen-3.8-27b
 
   - type: static_site
     name: studentai-download
