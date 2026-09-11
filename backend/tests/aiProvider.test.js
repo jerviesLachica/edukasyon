@@ -27,13 +27,13 @@ describe('AiProvider OrcaRouter Integration', () => {
     it('vision model fallback chain should have OrcaRouter FIRST, hcnsec LAST', () => {
       const chain = provider.modelFallbackChain('agnes-2.5-flash', { isVision: true });
       assert.ok(chain.length > 0, 'chain should not be empty');
-      assert.strictEqual(chain[0], 'z-ai/glm-5.3-flash-free', 'OrcaRouter model should be FIRST (fast path)');
+      assert.strictEqual(chain[0], 'orcarouter/auto', 'OrcaRouter model should be FIRST (fast path)');
       assert.ok(chain.includes('agnes-2.5-flash'), 'agnes-2.5-flash should be in chain as hcnsec fallback');
     });
 
     it('wire model mapping should preserve OrcaRouter model id', () => {
-      const wire = require('../ai/AiProvider').toWireModelSlug('z-ai/glm-5.3-flash-free', { isVision: true, provider: 'orca' });
-      assert.strictEqual(wire, 'z-ai/glm-5.3-flash-free', 'OrcaRouter model should pass through unchanged');
+      const wire = require('../ai/AiProvider').toWireModelSlug('orcarouter/auto', { isVision: true, provider: 'orca' });
+      assert.strictEqual(wire, 'orcarouter/auto', 'OrcaRouter model should pass through unchanged');
     });
   });
 
@@ -48,7 +48,7 @@ describe('AiProvider OrcaRouter Integration', () => {
 
     it('vision fallback chain should skip OrcaRouter and wire to MiniMax-M3', () => {
       const chain = provider.modelFallbackChain('agnes-2.5-flash', { isVision: true });
-      assert.ok(!chain.includes('z-ai/glm-5.3-flash-free'), 'OrcaRouter model should not be in chain without API key');
+      assert.ok(!chain.includes('orcarouter/auto'), 'OrcaRouter model should not be in chain without API key');
       // When converted to wire model, agnes-2.5-flash becomes MiniMax-M3
       const { toWireModelSlug } = require('../ai/AiProvider');
       const wire = toWireModelSlug(chain[0], { isVision: true });
@@ -150,7 +150,7 @@ describe('AiProvider OrcaRouter Integration', () => {
       const provider = providerWithCerebras();
       globalThis.fetch = async (url, opts) => {
         calls.push({ url, body: JSON.parse(opts.body) });
-        return okReply('z-ai/glm-5.3-flash-free');
+        return okReply('orcarouter/auto');
       };
       await provider.chatCompletion(
         [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,xx' } }] }],
