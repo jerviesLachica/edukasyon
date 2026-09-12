@@ -38,6 +38,12 @@ services:
         sync: false
       - key: CEREBRAS_MODEL
         value: qwen-3.8-27b
+      # Web search for auto-research + /search command.
+      # Round-robin: Tavily → LangSearch → DuckDuckGo (free fallback).
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: LANGSEARCH_API_KEY
+        sync: false
       # Gemini embeddings for JEVI source citations. Free tier (AI Studio,
       # no card): ~1,500 req/day. Batch document embeds; 768 dims keeps
       # per-user vector rows small. Key is per-deployer secret, never committed.
