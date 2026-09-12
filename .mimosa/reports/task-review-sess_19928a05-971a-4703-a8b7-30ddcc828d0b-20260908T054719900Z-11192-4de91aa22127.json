@@ -1,0 +1,401 @@
+{
+  "schema_version": "mimosa-task-review/v2",
+  "run_id": "20260908T054719900Z-11192-4de91aa22127",
+  "run_status": "inconclusive",
+  "errors": [
+    {
+      "stage": "baseline-read",
+      "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt",
+      "reason": "baseline_snapshot_unreadable: file is missing from task baseline"
+    },
+    {
+      "stage": "scan",
+      "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUi.kt",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBackgroundGenerator.kt",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetAlarmReceiver.kt",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBootReceiver.kt",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUpdater.kt",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    }
+  ],
+  "coverage": {
+    "schema_version": "mimosa-hook-coverage/v1",
+    "status": "partial",
+    "scope": "hook_observed_diff",
+    "baseline": {
+      "complete": true,
+      "captured_files": 1470,
+      "candidate_limit": 5000,
+      "truncated": false,
+      "enumeration_error_count": 0,
+      "snapshot_error_count": 0,
+      "compensated_target_count": 7
+    },
+    "change_tracking": {
+      "touched_observed": 2,
+      "touched_retained": 2,
+      "truncated": false,
+      "bash_mutation": true,
+      "bash_discovered": 8,
+      "bash_discovery_limit": 80,
+      "bash_discovery_truncated": false
+    },
+    "candidates": {
+      "eligible_files": 8,
+      "selected_files": 8,
+      "limit": 20,
+      "truncated": false
+    },
+    "scanning": {
+      "required_files": 7,
+      "scanned_files": 0,
+      "skipped_files": 0,
+      "failed_files": 7,
+      "project_checks_required": 0,
+      "project_checks_completed": 0
+    },
+    "notification": {
+      "eligible_findings": 0,
+      "detailed_findings": 0,
+      "detail_limit": 3,
+      "truncated": false
+    },
+    "reason_counts": {
+      "baseline_snapshot_unreadable": 1,
+      "scanner_failed": 7,
+      "project_check_failed": 8
+    },
+    "reasons": [
+      {
+        "code": "baseline_snapshot_unreadable",
+        "stage": "baseline-read",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt",
+        "detail": "file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUi.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBackgroundGenerator.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetAlarmReceiver.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBootReceiver.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUpdater.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline-read",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt",
+        "detail": "baseline_snapshot_unreadable: file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUi.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBackgroundGenerator.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetAlarmReceiver.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBootReceiver.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUpdater.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      }
+    ],
+    "reasons_truncated": false
+  },
+  "generated_at": "2026-09-08T05:47:19.900Z",
+  "session_id": "sess_19928a05-971a-4703-a8b7-30ddcc828d0b",
+  "target": ".",
+  "revision": "db2c38a9d6310711c4f97681f42c3fcae7eee0f6",
+  "rules_version": "unavailable",
+  "diff_hash": "0eb4cdec3c905222c6cdea6ebe803f8472fb3ef6b956130ed350cc436481fa24",
+  "diff": {
+    "algorithm": "sha256",
+    "changed_file_count": 7,
+    "changed_files": [
+      {
+        "file": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt",
+        "ranges": [
+          {
+            "start": 5,
+            "end": 5
+          },
+          {
+            "start": 50,
+            "end": 50
+          },
+          {
+            "start": 99,
+            "end": 105
+          },
+          {
+            "start": 108,
+            "end": 109
+          },
+          {
+            "start": 158,
+            "end": 168
+          },
+          {
+            "start": 172,
+            "end": 172
+          },
+          {
+            "start": 175,
+            "end": 175
+          },
+          {
+            "start": 183,
+            "end": 193
+          },
+          {
+            "start": 197,
+            "end": 197
+          },
+          {
+            "start": 200,
+            "end": 200
+          }
+        ],
+        "before_hash": "11d8647ca005dd4f04fb94e42bc9b5ca6051b7684da30fbe766fa838e2f3e781",
+        "after_hash": "8324e54efcd60b10279a328a73f7fe81eb6fbca3fbb6cf9cbab42ba0ec74f0a9"
+      },
+      {
+        "file": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetAlarmReceiver.kt",
+        "ranges": [
+          {
+            "start": 22,
+            "end": 23
+          }
+        ],
+        "before_hash": "77dc70234b0fea380fbef1eeba1ea22a4559292ebbac6ed114fdeba1ad6ee895",
+        "after_hash": "1526436a51893d71ddb05978641992f816d55872b3d67b08b2d89b30ae46ba3e"
+      },
+      {
+        "file": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBackgroundGenerator.kt",
+        "ranges": [
+          {
+            "start": 43,
+            "end": 45
+          }
+        ],
+        "before_hash": "def4031f76e0446a53d21d8a6f535a13c1bf30ee2ebc35a792c0c8373f6234aa",
+        "after_hash": "dbdbccdda43b17fb9cc313bee8669f1484b76bd68320c20e97236ae8866e34b7"
+      },
+      {
+        "file": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBootReceiver.kt",
+        "ranges": [
+          {
+            "start": 7,
+            "end": 10
+          },
+          {
+            "start": 17,
+            "end": 17
+          },
+          {
+            "start": 19,
+            "end": 31
+          }
+        ],
+        "before_hash": "1696ebdc44978bb14ac57d62c8648b53e2d4cf4609b4c168d2d6163fa74e552a",
+        "after_hash": "44b00a548e4d2ef0656a4d541d2a27d5fa2fd6785637bc1b3f9c82e557e774da"
+      },
+      {
+        "file": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 167
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "a8858c18acd0de5bfa571273176aecaa028d46e6af71fc3f80163140dad3a9c5"
+      },
+      {
+        "file": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUi.kt",
+        "ranges": [
+          {
+            "start": 73,
+            "end": 99
+          },
+          {
+            "start": 101,
+            "end": 110
+          }
+        ],
+        "before_hash": "2e7775c998d809a7d8c1e8c7118561cc1ed1039db40559e8a5ed9d1b07030c6e",
+        "after_hash": "a4fe5cc06f80e63d864699ccf9cf3b7f0a09c4a6583952021064c13da692a2bc"
+      },
+      {
+        "file": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUpdater.kt",
+        "ranges": [
+          {
+            "start": 110,
+            "end": 117
+          },
+          {
+            "start": 121,
+            "end": 123
+          }
+        ],
+        "before_hash": "7d1248447506390c6f0778afe361d5eeb9c315a24788fc8b2f1a19b75e42c5e3",
+        "after_hash": "874cc041ad3272964e826abf0e48d75f71fa58947cd374dede68ca90f494667a"
+      }
+    ]
+  },
+  "timing": {
+    "started_at": "2026-09-08T05:47:14.505Z",
+    "completed_at": "2026-09-08T05:47:19.900Z",
+    "duration_ms": 5395,
+    "measurement": "hook_wall_clock"
+  },
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "total": 0,
+    "model_calls": 0,
+    "measurement": "known-zero"
+  },
+  "telemetry": {
+    "schemaVersion": "mimosa-gate-telemetry/v1",
+    "profile": "gate",
+    "operation": "Stop",
+    "outcome": "partial/INCONCLUSIVE",
+    "latencyMs": 5395,
+    "peakMemoryBytes": 109907968,
+    "memoryMeasurement": "max-observed-process-rss",
+    "scannedFiles": 0,
+    "cache": {
+      "hits": 0,
+      "misses": 0,
+      "measurement": "not-applicable"
+    },
+    "denyCount": 0,
+    "tokens": {
+      "input": 0,
+      "output": 0,
+      "total": 0,
+      "modelCalls": 0,
+      "measurement": "known-zero"
+    }
+  },
+  "finding_count": 0,
+  "rewake_finding_count": 0,
+  "evidence_boundary": {
+    "scan": "candidate",
+    "static_fix_verification": "observed_static_only",
+    "runtime_verification": "not_performed"
+  },
+  "finding_events": [],
+  "findings": [],
+  "artifacts": {
+    "immutable_report": ".mimosa/reports/task-review-sess_19928a05-971a-4703-a8b7-30ddcc828d0b-20260908T054719900Z-11192-4de91aa22127.json",
+    "latest_report": ".mimosa/reports/task-review-sess_19928a05-971a-4703-a8b7-30ddcc828d0b.json",
+    "history_summary": ".mimosa/history/run-20260908T054719900Z-11192-4de91aa22127.json"
+  }
+}

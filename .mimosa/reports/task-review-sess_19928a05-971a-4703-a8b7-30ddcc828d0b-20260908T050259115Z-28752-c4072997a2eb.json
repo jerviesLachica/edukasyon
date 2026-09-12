@@ -1,0 +1,438 @@
+{
+  "schema_version": "mimosa-task-review/v2",
+  "run_id": "20260908T050259115Z-28752-c4072997a2eb",
+  "run_status": "inconclusive",
+  "errors": [
+    {
+      "stage": "scan",
+      "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/ui/components/WidgetSetupCard.kt",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetConfigureActivity.kt",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "backend/tests/aiProvider.test.js",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    }
+  ],
+  "coverage": {
+    "schema_version": "mimosa-hook-coverage/v1",
+    "status": "partial",
+    "scope": "hook_observed_diff",
+    "baseline": {
+      "complete": true,
+      "captured_files": 1470,
+      "candidate_limit": 5000,
+      "truncated": false,
+      "enumeration_error_count": 0,
+      "snapshot_error_count": 0,
+      "compensated_target_count": 4
+    },
+    "change_tracking": {
+      "touched_observed": 4,
+      "touched_retained": 4,
+      "truncated": false,
+      "bash_mutation": true,
+      "bash_discovered": 4,
+      "bash_discovery_limit": 80,
+      "bash_discovery_truncated": false
+    },
+    "candidates": {
+      "eligible_files": 4,
+      "selected_files": 4,
+      "limit": 20,
+      "truncated": false
+    },
+    "scanning": {
+      "required_files": 4,
+      "scanned_files": 0,
+      "skipped_files": 0,
+      "failed_files": 4,
+      "project_checks_required": 0,
+      "project_checks_completed": 0
+    },
+    "notification": {
+      "eligible_findings": 0,
+      "detailed_findings": 0,
+      "detail_limit": 3,
+      "truncated": false
+    },
+    "reason_counts": {
+      "scanner_failed": 4,
+      "project_check_failed": 4
+    },
+    "reasons": [
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/ui/components/WidgetSetupCard.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetConfigureActivity.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "backend/tests/aiProvider.test.js",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/ui/components/WidgetSetupCard.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetConfigureActivity.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "backend/tests/aiProvider.test.js",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      }
+    ],
+    "reasons_truncated": false
+  },
+  "generated_at": "2026-09-08T05:02:59.115Z",
+  "session_id": "sess_19928a05-971a-4703-a8b7-30ddcc828d0b",
+  "target": ".",
+  "revision": "db2c38a9d6310711c4f97681f42c3fcae7eee0f6",
+  "rules_version": "unavailable",
+  "diff_hash": "9a5bc8a28e535e26693fe4e24ab0a81e363a1e310cd951968ecb5a4301317cd9",
+  "diff": {
+    "algorithm": "sha256",
+    "changed_file_count": 4,
+    "changed_files": [
+      {
+        "file": "androidApp/src/main/kotlin/com/edukasyon/studentai/ui/components/WidgetSetupCard.kt",
+        "ranges": [
+          {
+            "start": 61,
+            "end": 64
+          },
+          {
+            "start": 66,
+            "end": 66
+          },
+          {
+            "start": 70,
+            "end": 70
+          },
+          {
+            "start": 73,
+            "end": 81
+          }
+        ],
+        "before_hash": "9ce56ce794a272951db1365fd4a201ca46d433a42923890229656dd07ed95a0c",
+        "after_hash": "42aa3470cdb019b487321ee0f7ad033f7af23bae3065ad1713261592c12aac1c"
+      },
+      {
+        "file": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt",
+        "ranges": [
+          {
+            "start": 46,
+            "end": 46
+          },
+          {
+            "start": 55,
+            "end": 57
+          },
+          {
+            "start": 60,
+            "end": 61
+          },
+          {
+            "start": 64,
+            "end": 68
+          },
+          {
+            "start": 136,
+            "end": 149
+          }
+        ],
+        "before_hash": "da734acca922f29db9db4501553d2156d2029f9fb4a521e86835020123d9cc58",
+        "after_hash": "11d8647ca005dd4f04fb94e42bc9b5ca6051b7684da30fbe766fa838e2f3e781"
+      },
+      {
+        "file": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetConfigureActivity.kt",
+        "ranges": [
+          {
+            "start": 74,
+            "end": 74
+          },
+          {
+            "start": 118,
+            "end": 118
+          },
+          {
+            "start": 133,
+            "end": 135
+          },
+          {
+            "start": 158,
+            "end": 162
+          }
+        ],
+        "before_hash": "da34321b38b956d17875ab0f52c97be371e87fbaf3d0f46bef01189cee259a2c",
+        "after_hash": "0838ef9acec56d80a3dec2b58bfd968f0117cb3a7ff92d28225f492f55808641"
+      },
+      {
+        "file": "backend/tests/aiProvider.test.js",
+        "ranges": [
+          {
+            "start": 16,
+            "end": 16
+          },
+          {
+            "start": 19,
+            "end": 19
+          },
+          {
+            "start": 21,
+            "end": 21
+          },
+          {
+            "start": 40,
+            "end": 40
+          },
+          {
+            "start": 43,
+            "end": 43
+          }
+        ],
+        "before_hash": "d75d572a1cb21ed9616894974937b2beea2d7c2a4336de225f29724f05b59f3c",
+        "after_hash": "5f0b9b1e7e2f7882ef722a44b60da2c8b8709383b0a5f9c304cb1cad6882ca74"
+      }
+    ]
+  },
+  "timing": {
+    "started_at": "2026-09-08T05:02:49.166Z",
+    "completed_at": "2026-09-08T05:02:59.115Z",
+    "duration_ms": 9949,
+    "measurement": "hook_wall_clock"
+  },
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "total": 0,
+    "model_calls": 0,
+    "measurement": "known-zero"
+  },
+  "telemetry": {
+    "schemaVersion": "mimosa-gate-telemetry/v1",
+    "profile": "gate",
+    "operation": "Stop",
+    "outcome": "partial/INCONCLUSIVE",
+    "latencyMs": 9949,
+    "peakMemoryBytes": 111534080,
+    "memoryMeasurement": "max-observed-process-rss",
+    "scannedFiles": 0,
+    "cache": {
+      "hits": 0,
+      "misses": 0,
+      "measurement": "not-applicable"
+    },
+    "denyCount": 0,
+    "tokens": {
+      "input": 0,
+      "output": 0,
+      "total": 0,
+      "modelCalls": 0,
+      "measurement": "known-zero"
+    }
+  },
+  "finding_count": 0,
+  "rewake_finding_count": 0,
+  "evidence_boundary": {
+    "scan": "candidate",
+    "static_fix_verification": "observed_static_only",
+    "runtime_verification": "not_performed"
+  },
+  "finding_events": [
+    {
+      "finding_id": "mimosa-6b2e4df1498a2e7d7c012098",
+      "file": "backend/tests/aiProvider.test.js",
+      "line": 18,
+      "rule_id": "security",
+      "severity": "high",
+      "category": "硬编码凭据",
+      "status": "blocked",
+      "decision": "deny",
+      "at": "2026-09-08T04:58:49.097Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "b3c28595c3cc5f463c03801e0d22db584e46c7efe5b0118e34fd813c90c98843",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-4c718def17d45002f19f6979",
+      "file": "backend/tests/aiProvider.test.js",
+      "line": 20,
+      "rule_id": "security",
+      "severity": "high",
+      "category": "硬编码凭据",
+      "status": "blocked",
+      "decision": "deny",
+      "at": "2026-09-08T04:58:49.097Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "dabd96545417f7b7688f1a5ba932bc22bd45f443a9a22a7bd440ff948a66bdb1",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-6b2e4df1498a2e7d7c012098",
+      "file": "backend/tests/aiProvider.test.js",
+      "line": 18,
+      "rule_id": "security",
+      "severity": "high",
+      "category": "硬编码凭据",
+      "status": "fixed_candidate",
+      "decision": "repair_observed",
+      "at": "2026-09-08T04:59:53.268Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "b3c28595c3cc5f463c03801e0d22db584e46c7efe5b0118e34fd813c90c98843",
+        "candidate_before_evidence_hash": "b3c28595c3cc5f463c03801e0d22db584e46c7efe5b0118e34fd813c90c98843",
+        "post_change_evidence_hash_at_previous_location": "0abb6272f0b636bacb26110db93c8f3f116a57952061046010fe3f47677f8ae9",
+        "runtime_oracle": false,
+        "verification": {
+          "method": "mimosa-posttool-static-rescan",
+          "finding_absent": true,
+          "runtime_oracle": false
+        }
+      }
+    },
+    {
+      "finding_id": "mimosa-6b2e4df1498a2e7d7c012098",
+      "file": "backend/tests/aiProvider.test.js",
+      "line": 18,
+      "rule_id": "security",
+      "severity": "high",
+      "category": "硬编码凭据",
+      "status": "static_verified",
+      "decision": "static_rescan_passed",
+      "at": "2026-09-08T04:59:53.268Z",
+      "evidence": {
+        "kind": "static_scan",
+        "boundary": "observed",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "b3c28595c3cc5f463c03801e0d22db584e46c7efe5b0118e34fd813c90c98843",
+        "candidate_before_evidence_hash": "b3c28595c3cc5f463c03801e0d22db584e46c7efe5b0118e34fd813c90c98843",
+        "post_change_evidence_hash_at_previous_location": "0abb6272f0b636bacb26110db93c8f3f116a57952061046010fe3f47677f8ae9",
+        "runtime_oracle": false,
+        "verification": {
+          "method": "mimosa-posttool-static-rescan",
+          "finding_absent": true,
+          "runtime_oracle": false
+        }
+      }
+    },
+    {
+      "finding_id": "mimosa-4c718def17d45002f19f6979",
+      "file": "backend/tests/aiProvider.test.js",
+      "line": 20,
+      "rule_id": "security",
+      "severity": "high",
+      "category": "硬编码凭据",
+      "status": "fixed_candidate",
+      "decision": "repair_observed",
+      "at": "2026-09-08T04:59:53.268Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "dabd96545417f7b7688f1a5ba932bc22bd45f443a9a22a7bd440ff948a66bdb1",
+        "candidate_before_evidence_hash": "dabd96545417f7b7688f1a5ba932bc22bd45f443a9a22a7bd440ff948a66bdb1",
+        "post_change_evidence_hash_at_previous_location": "42bd933956c456a954c07336ff0b72c7446948037829ca8079a7cb3b76d68033",
+        "runtime_oracle": false,
+        "verification": {
+          "method": "mimosa-posttool-static-rescan",
+          "finding_absent": true,
+          "runtime_oracle": false
+        }
+      }
+    },
+    {
+      "finding_id": "mimosa-4c718def17d45002f19f6979",
+      "file": "backend/tests/aiProvider.test.js",
+      "line": 20,
+      "rule_id": "security",
+      "severity": "high",
+      "category": "硬编码凭据",
+      "status": "static_verified",
+      "decision": "static_rescan_passed",
+      "at": "2026-09-08T04:59:53.268Z",
+      "evidence": {
+        "kind": "static_scan",
+        "boundary": "observed",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "dabd96545417f7b7688f1a5ba932bc22bd45f443a9a22a7bd440ff948a66bdb1",
+        "candidate_before_evidence_hash": "dabd96545417f7b7688f1a5ba932bc22bd45f443a9a22a7bd440ff948a66bdb1",
+        "post_change_evidence_hash_at_previous_location": "42bd933956c456a954c07336ff0b72c7446948037829ca8079a7cb3b76d68033",
+        "runtime_oracle": false,
+        "verification": {
+          "method": "mimosa-posttool-static-rescan",
+          "finding_absent": true,
+          "runtime_oracle": false
+        }
+      }
+    }
+  ],
+  "findings": [],
+  "artifacts": {
+    "immutable_report": ".mimosa/reports/task-review-sess_19928a05-971a-4703-a8b7-30ddcc828d0b-20260908T050259115Z-28752-c4072997a2eb.json",
+    "latest_report": ".mimosa/reports/task-review-sess_19928a05-971a-4703-a8b7-30ddcc828d0b.json",
+    "history_summary": ".mimosa/history/run-20260908T050259115Z-28752-c4072997a2eb.json"
+  }
+}

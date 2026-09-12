@@ -9,4 +9,5 @@ interface SourceRepository {
     suspend fun ingestSource(name: String, mime: String, text: String): String
     suspend fun deleteSource(id: String)
     suspend fun retrieve(query: String, sourceIds: Set<String>? = null, topK: Int = 5): List<RankedChunk>
+    suspend fun chunksForSource(sourceId: String): List<RankedChunk>
 }

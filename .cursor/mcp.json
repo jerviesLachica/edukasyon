@@ -1,19 +1,10 @@
 {
   "mcpServers": {
-    "jetbrains-android-studio": {
-      "command": "npx",
-      "args": ["-y", "@jetbrains/mcp-proxy"]
-    },
-    "android-pilot": {
-      "command": "npx",
-      "args": ["-y", "android-pilot-mcp"],
-      "env": {
-        "ANDROID_HOME": "C:\\Users\\HP\\AppData\\Local\\Android\\Sdk",
-        "ANDROID_SDK_ROOT": "C:\\Users\\HP\\AppData\\Local\\Android\\Sdk"
+    "composio": {
+      "url": "https://connect.composio.dev/mcp",
+      "headers": {
+        "x-consumer-api-key": "ck_oz0Vit4CRlfLfyqxH_a_"
       }
-    },
-    "android-studio-index": {
-      "url": "http://127.0.0.1:29171/index-mcp/streamable-http"
     }
   }
 }

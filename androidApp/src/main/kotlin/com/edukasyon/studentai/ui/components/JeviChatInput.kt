@@ -1,16 +1,18 @@
 package com.edukasyon.studentai.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -18,6 +20,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Image
@@ -46,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.edukasyon.studentai.core.ai.StepModelQuotaTracker
 import com.edukasyon.studentai.domain.model.AiModel
+import com.edukasyon.studentai.domain.model.CitedSource
 import com.edukasyon.studentai.domain.model.ThinkingLevel
 import com.edukasyon.studentai.domain.model.ChatAttachmentPayload
 
@@ -78,32 +84,35 @@ fun JeviChatInputBar(
     onSend: () -> Unit,
     onPickImage: () -> Unit,
     onPickFile: () -> Unit,
+    sources: List<CitedSource> = emptyList(),
+    selectedSourceIds: Set<String>? = null,
+    onSourceToggle: ((String) -> Unit)? = null,
+    onAddSource: ((String, String) -> Unit)? = null,
+    onDeleteSource: ((String) -> Unit)? = null,
     enabled: Boolean,
     isOnline: Boolean,
     onFocusChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showAttachMenu by remember { mutableStateOf(false) }
+    var showModelDropdown by remember { mutableStateOf(false) }
+    var showAddSourceDialog by remember { mutableStateOf(false) }
+
+    if (showAddSourceDialog && onAddSource != null) {
+        AddSourceDialog(
+            onDismiss = { showAddSourceDialog = false },
+            onConfirm = { name, text ->
+                showAddSourceDialog = false
+                onAddSource(name, text)
+            },
+        )
+    }
 
     Column(
         modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        JeviModelSelectorRow(
-            selectedModel = selectedModel,
-            onModelSelected = onModelSelected,
-            stepQuotaLabel = stepQuotaLabel,
-            stepQuotaExhausted = stepQuotaExhausted,
-            enabled = enabled,
-        )
-        JeviThinkingLevelRow(
-            selectedLevel = thinkingLevel,
-            onLevelSelected = onThinkingLevelSelected,
-            enabled = enabled,
-        )
-
         pendingAttachment?.let { attachment ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -143,6 +152,59 @@ fun JeviChatInputBar(
             }
         }
 
+        // Source chips — horizontal scroll inside a compact row above input
+        if (sources.isNotEmpty()) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                shape = RoundedCornerShape(8.dp),
+                tonalElevation = 0.dp,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Add Source chip
+                    if (onAddSource != null) {
+                        FilterChipSmall(
+                            onClick = { showAddSourceDialog = true },
+                            label = { Text("+ Add Source") },
+                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = "Add Source", modifier = Modifier.size(14.dp)) },
+                            enabled = enabled,
+                        )
+                    }
+                    sources.forEach { source ->
+                        val isSelected = selectedSourceIds == null || selectedSourceIds.contains(source.id)
+                        FilterChipSmall(
+                            selected = isSelected,
+                            onClick = { onSourceToggle?.invoke(source.id) },
+                            label = { Text(source.name) },
+                            leadingIcon = {
+                                if (isSelected) {
+                                    Icon(Icons.Default.Check, contentDescription = "Selected", modifier = Modifier.size(14.dp))
+                                } else {
+                                    Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+                                }
+                            },
+                            trailingIcon = {
+                                if (onDeleteSource != null) {
+                                    IconButton(onClick = { onDeleteSource.invoke(source.id) }, modifier = Modifier.size(20.dp)) {
+                                        Icon(Icons.Filled.Close, contentDescription = "Delete source", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(12.dp))
+                                    }
+                                }
+                            },
+                            enabled = enabled,
+                        )
+                    }
+                }
+            }
+        }
+
         val scheme = MaterialTheme.colorScheme
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -150,7 +212,7 @@ fun JeviChatInputBar(
             color = scheme.surface,
             tonalElevation = 0.dp,
             shadowElevation = 0.dp,
-            border = BorderStroke(1.dp, scheme.outlineVariant),
+            border = androidx.compose.foundation.BorderStroke(1.dp, scheme.outlineVariant),
         ) {
             Row(
                 Modifier
@@ -224,6 +286,36 @@ fun JeviChatInputBar(
                     },
                 )
 
+                // Model selector dropdown (compact, next to send)
+                Box {
+                    IconButton(
+                        onClick = { showModelDropdown = !showModelDropdown },
+                        enabled = enabled,
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.ArrowDropDown,
+                            contentDescription = "Select model",
+                            tint = scheme.primary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showModelDropdown,
+                        onDismissRequest = { showModelDropdown = false },
+                    ) {
+                        AiModel.entries.forEach { model ->
+                            DropdownMenuItem(
+                                text = { Text(model.displayName) },
+                                onClick = {
+                                    showModelDropdown = false
+                                    onModelSelected(model)
+                                },
+                            )
+                        }
+                    }
+                }
+
                 val canSend = enabled && (input.isNotBlank() || pendingAttachment != null)
                 IconButton(
                     onClick = onSend,
@@ -249,139 +341,53 @@ fun JeviChatInputBar(
 }
 
 @Composable
-private fun JeviModelSelectorRow(
-    selectedModel: AiModel,
-    onModelSelected: (AiModel) -> Unit,
-    stepQuotaLabel: String,
-    stepQuotaExhausted: Boolean,
-    enabled: Boolean,
+private fun FilterChipSmall(
+    selected: Boolean = false,
+    onClick: () -> Unit,
+    label: @Composable () -> Unit,
+    leadingIcon: @Composable (() -> Unit)? = null,
+    trailingIcon: @Composable (() -> Unit)? = null,
+    enabled: Boolean = true,
 ) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Top,
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(16.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant),
     ) {
-        AiModel.entries.forEach { model ->
-            val isStep = model.isStepModel
-            val chipEnabled = enabled && (!isStep || !stepQuotaExhausted || selectedModel == model)
-            JeviModelChip(
-                model = model,
-                selected = selectedModel == model,
-                enabled = chipEnabled,
-                subtitle = if (isStep) stepQuotaLabel else model.chatDescription,
-                onClick = { if (chipEnabled) onModelSelected(model) },
-            )
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            leadingIcon?.invoke()
+            label()
+            trailingIcon?.invoke()
         }
     }
 }
 
 @Composable
-private fun JeviThinkingLevelRow(
+private fun JeviThinkingLevelChip(
     selectedLevel: ThinkingLevel,
     onLevelSelected: (ThinkingLevel) -> Unit,
     enabled: Boolean,
 ) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ThinkingLevel.entries.forEach { level ->
-            InputChip(
-                selected = selectedLevel == level,
-                onClick = { if (enabled) onLevelSelected(level) },
-                enabled = enabled,
-                label = { Text(level.displayName) },
-                leadingIcon = {
-                    Icon(
-                        Icons.Outlined.Psychology,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                },
+    InputChip(
+        selected = selectedLevel == ThinkingLevel.STANDARD,
+        onClick = { if (enabled) onLevelSelected(ThinkingLevel.STANDARD) },
+        enabled = enabled,
+        label = { Text("Thinking") },
+        leadingIcon = {
+            Icon(
+                Icons.Outlined.Psychology,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
             )
-        }
-    }
-}
-
-@Composable
-private fun JeviModelChip(
-    model: AiModel,
-    selected: Boolean,
-    enabled: Boolean,
-    subtitle: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val scheme = MaterialTheme.colorScheme
-    val containerColor = when {
-        !enabled -> scheme.surfaceVariant.copy(alpha = 0.4f)
-        selected -> scheme.primaryContainer
-        else -> scheme.surface
-    }
-    val borderColor = when {
-        selected -> scheme.primary.copy(alpha = 0.5f)
-        else -> scheme.outlineVariant
-    }
-    val titleColor = when {
-        !enabled -> scheme.onSurface.copy(alpha = 0.4f)
-        selected -> scheme.onPrimaryContainer
-        else -> scheme.onSurface
-    }
-    val subtitleColor = when {
-        !enabled -> scheme.onSurfaceVariant.copy(alpha = 0.5f)
-        selected -> scheme.onPrimaryContainer.copy(alpha = 0.75f)
-        else -> scheme.onSurfaceVariant
-    }
-
-    Surface(
-        modifier = modifier
-            .widthIn(min = 120.dp, max = 180.dp)
-            .then(
-                if (enabled) Modifier.clickable(onClick = onClick)
-                else Modifier,
-            ),
-        shape = RoundedCornerShape(12.dp),
-        color = containerColor,
-        border = BorderStroke(1.dp, borderColor),
-        tonalElevation = 0.dp,
-    ) {
-        Column(
-            Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                if (model.isStepModel) {
-                    Icon(
-                        Icons.Outlined.Psychology,
-                        contentDescription = null,
-                        tint = titleColor,
-                        modifier = Modifier.size(14.dp),
-                    )
-                }
-                Text(
-                    model.displayName,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                    color = titleColor,
-                    maxLines = 1,
-                )
-            }
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = subtitleColor,
-                maxLines = 1,
-            )
-        }
-    }
+        },
+        modifier = Modifier.padding(end = 4.dp),
+    )
 }
 
 fun stepQuotaLabelFromStatus(status: StepModelQuotaTracker.Status): String =

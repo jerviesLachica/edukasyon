@@ -21,8 +21,8 @@ android {
         applicationId = "com.edukasyon.studentai"
         minSdk = 24
         targetSdk = 34
-        versionCode = 9
-        versionName = "1.2.6"
+        versionCode = 12
+        versionName = "1.2.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -126,8 +126,6 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.datastore)
     implementation(libs.androidx.work.runtime)
-    implementation(libs.androidx.glance.appwidget)
-    implementation(libs.androidx.glance.material3)
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)

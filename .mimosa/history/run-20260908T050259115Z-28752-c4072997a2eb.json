@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "mimosa-finding-history/v1",
+  "runId": "20260908T050259115Z-28752-c4072997a2eb",
+  "runStatus": "inconclusive",
+  "errors": [
+    "scan:androidApp/src/main/kotlin/com/edukasyon/studentai/ui/components/WidgetSetupCard.kt: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetConfigureActivity.kt: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:backend/tests/aiProvider.test.js: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+  ],
+  "target": ".",
+  "revision": "db2c38a9d6310711c4f97681f42c3fcae7eee0f6",
+  "diffHash": "9a5bc8a28e535e26693fe4e24ab0a81e363a1e310cd951968ecb5a4301317cd9",
+  "rulesVersion": "unavailable",
+  "recordedAt": "2026-09-08T05:02:59.115Z",
+  "timing": {
+    "startedAt": "2026-09-08T05:02:49.166Z",
+    "completedAt": "2026-09-08T05:02:59.115Z",
+    "durationMs": 9949
+  },
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "total": 0,
+    "modelCalls": 0,
+    "measurement": "known-zero"
+  },
+  "findings": {
+    "total": 2,
+    "bySeverity": {
+      "high": 2
+    },
+    "byStatus": {
+      "static_verified": 2
+    }
+  },
+  "coverage": {
+    "status": "partial",
+    "reasonCounts": {
+      "scanner_failed": 4,
+      "project_check_failed": 4
+    }
+  },
+  "evidenceBoundary": "static_only",
+  "immutableReport": ".mimosa/reports/task-review-sess_19928a05-971a-4703-a8b7-30ddcc828d0b-20260908T050259115Z-28752-c4072997a2eb.json"
+}

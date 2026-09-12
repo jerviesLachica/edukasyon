@@ -81,6 +81,13 @@ interface AiApiService {
     val reasoning: String? = null,
     val model: String? = null,
     val citedChunkIds: List<String> = emptyList(),
+    // NEW: web results cited in the response (URL, title, snippet)
+    val citedWebResults: List<CitedWebResultDto> = emptyList(),
+)
+@Serializable data class CitedWebResultDto(
+    val url: String,
+    val title: String = "",
+    val snippet: String = "",
 )
 @Serializable data class CitedChunkDto(val id: String, val label: String, val text: String)
 @Serializable data class ScheduleAnalysisRequest(

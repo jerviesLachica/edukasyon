@@ -11,7 +11,6 @@ import com.edukasyon.studentai.core.sync.HolidaySyncScheduler
 import com.edukasyon.studentai.data.local.StudentAiDatabase
 import com.edukasyon.studentai.data.preferences.UserPreferences
 import com.edukasyon.studentai.data.repository.HolidayRepository
-import com.edukasyon.studentai.widget.WidgetUpdater
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -60,8 +59,21 @@ class StudentAiApplication : Application(), Configuration.Provider {
                         )
                 }.onFailure { Log.w("StudentAiApp", "FCM topic subscribe failed", it) }
                 reminderSyncService.rescheduleAll()
-                WidgetUpdater.schedulePeriodicRefresh(this@StudentAiApplication)
-                WidgetUpdater.refreshAll(this@StudentAiApplication)
+                // V2 subsystem: safety-net worker, boundary chain, immediate refresh.
+                com.edukasyon.studentai.worker.WidgetSyncWorker.schedulePeriodic(this@StudentAiApplication)
+                kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching {
+                        com.edukasyon.studentai.worker.WidgetBoundaryScheduler.scheduleNext(this@StudentAiApplication)
+                    }
+                }
+                com.edukasyon.studentai.widget.update.WidgetUpdateManager.refreshAllAsync(
+                    this@StudentAiApplication,
+                    com.edukasyon.studentai.widget.update.WidgetUpdateManager.RefreshReason.SYSTEM_UPDATE
+                )
+                com.edukasyon.studentai.widget.WidgetRealtimeObserver.start(
+                    this@StudentAiApplication,
+                    database
+                )
                 if (firebaseAuthManager.isGoogleSignedIn && connectivityMonitor.isCurrentlyOnline()) {
                     when (firestoreSyncService.syncAll()) {
                         is com.edukasyon.studentai.domain.model.SyncResult.Success ->

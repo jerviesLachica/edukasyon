@@ -44,17 +44,7 @@
         </activity>
 
         <activity
-            android:name=".widget.WidgetConfigureActivity2x2"
-            android:exported="true"
-            android:theme="@style/Theme.Edukasyon">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name=".widget.WidgetConfigureActivity2x3"
+            android:name=".widget.lifecycle.WidgetConfigActivity"
             android:exported="true"
             android:theme="@style/Theme.Edukasyon">
             <intent-filter>
@@ -71,52 +61,33 @@
             </intent-filter>
         </service>
 
+        <!-- V2 provider: classic RemoteViews, own config + update path. -->
         <receiver
-            android:name=".widget.StudentAiWidget2x2Receiver"
+            android:name=".widget.lifecycle.ScheduleWidgetProvider"
             android:exported="true"
-            android:label="@string/widget_2x2_label">
+            android:label="@string/widget_v2_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/studentai_widget_info_2x2" />
+                android:resource="@xml/schedmate_widget_info" />
         </receiver>
 
+        <!-- V2 explicit checkbox toggle target (same-process explicit broadcast). -->
         <receiver
-            android:name=".widget.StudentAiWidget2x3Receiver"
-            android:exported="true"
-            android:label="@string/widget_2x3_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/studentai_widget_info_2x3" />
-        </receiver>
-
-        <!-- Midnight alarm target: must be declared or the scheduled alarm silently never fires. -->
-        <receiver
-            android:name=".widget.WidgetAlarmReceiver"
+            android:name=".widget.update.WidgetToggleReceiver"
             android:exported="false" />
 
-        <!-- Re-arm widget refresh after reboot / update / clock changes. -->
+        <!-- V2 restoration receiver (own entry, same system broadcasts). -->
         <receiver
-            android:name=".widget.WidgetBootReceiver"
+            android:name=".widget.lifecycle.WidgetV2BootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Glance action callback for task checkbox toggle in widget. -->
-        <receiver
-            android:name=".widget.ToggleTaskActionCallback"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="androidx.glance.appwidget.action.ACTION_RUN_CALLBACK" />
             </intent-filter>
         </receiver>
 

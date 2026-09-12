@@ -159,7 +159,13 @@ internal fun Map<String, Any?>.toTaskEntity(): TaskEntity = TaskEntity(
     reminderAt = long("reminderAt"),
     createdAt = long("createdAt") ?: System.currentTimeMillis(),
     updatedAt = long("updatedAt") ?: System.currentTimeMillis(),
-    completedAt = long("completedAt"),
+    // A completedAt in the future is clock skew from another writer, not
+    // causality. Unclamped, it permanently outranks fresh taps in the
+    // widget's ORDER BY completedAt DESC window (stale task squats row 1
+    // while Planner sorts pending-first). Clamp on read: single choke
+    // point covering every sync pull. updatedAt is intentionally NOT
+    // clamped — LWW causality + future-heal own that axis.
+    completedAt = long("completedAt")?.let { minOf(it, System.currentTimeMillis()) },
     deletedAt = long("deletedAt"),
     syncState = SyncState.SYNCED.name,
 )

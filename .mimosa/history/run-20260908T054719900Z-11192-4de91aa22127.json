@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "mimosa-finding-history/v1",
+  "runId": "20260908T054719900Z-11192-4de91aa22127",
+  "runStatus": "inconclusive",
+  "errors": [
+    "baseline-read:androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt: baseline_snapshot_unreadable: file is missing from task baseline",
+    "scan:androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUi.kt: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBackgroundGenerator.kt: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetAlarmReceiver.kt: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBootReceiver.kt: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUpdater.kt: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+  ],
+  "target": ".",
+  "revision": "db2c38a9d6310711c4f97681f42c3fcae7eee0f6",
+  "diffHash": "0eb4cdec3c905222c6cdea6ebe803f8472fb3ef6b956130ed350cc436481fa24",
+  "rulesVersion": "unavailable",
+  "recordedAt": "2026-09-08T05:47:19.900Z",
+  "timing": {
+    "startedAt": "2026-09-08T05:47:14.505Z",
+    "completedAt": "2026-09-08T05:47:19.900Z",
+    "durationMs": 5395
+  },
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "total": 0,
+    "modelCalls": 0,
+    "measurement": "known-zero"
+  },
+  "findings": {
+    "total": 0,
+    "bySeverity": {},
+    "byStatus": {}
+  },
+  "coverage": {
+    "status": "partial",
+    "reasonCounts": {
+      "baseline_snapshot_unreadable": 1,
+      "scanner_failed": 7,
+      "project_check_failed": 8
+    }
+  },
+  "evidenceBoundary": "static_only",
+  "immutableReport": ".mimosa/reports/task-review-sess_19928a05-971a-4703-a8b7-30ddcc828d0b-20260908T054719900Z-11192-4de91aa22127.json"
+}

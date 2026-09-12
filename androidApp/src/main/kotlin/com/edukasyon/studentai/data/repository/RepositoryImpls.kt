@@ -7,7 +7,7 @@ import com.edukasyon.studentai.data.local.dao.*
 import com.edukasyon.studentai.data.mapper.*
 import com.edukasyon.studentai.domain.model.*
 import com.edukasyon.studentai.domain.repository.*
-import com.edukasyon.studentai.widget.WidgetUpdater
+import com.edukasyon.studentai.widget.update.WidgetUpdateManager
 import dagger.Lazy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -39,20 +39,20 @@ class ScheduleRepositoryImpl @Inject constructor(
         scheduleDao.observeByDay(day.name).map { it.map { e -> e.toDomain() } }
 
     override suspend fun addScheduleItem(item: ScheduleItem) {
-        scheduleDao.insert(item.toEntity())
-        WidgetUpdater.notifyDataChanged(context)
-    }
+            scheduleDao.insert(item.toEntity())
+            WidgetUpdateManager.refreshAllAsync(context, WidgetUpdateManager.RefreshReason.SCHEDULE_CHANGED)
+        }
 
-    override suspend fun updateScheduleItem(item: ScheduleItem) {
-        scheduleDao.insert(item.toEntity())
-        WidgetUpdater.notifyDataChanged(context)
-    }
+        override suspend fun updateScheduleItem(item: ScheduleItem) {
+            scheduleDao.insert(item.toEntity())
+            WidgetUpdateManager.refreshAllAsync(context, WidgetUpdateManager.RefreshReason.SCHEDULE_CHANGED)
+        }
 
-    override suspend fun deleteScheduleItem(id: String) {
-        val now = System.currentTimeMillis()
-        scheduleDao.softDelete(id, now, now)
-        WidgetUpdater.notifyDataChanged(context)
-    }
+        override suspend fun deleteScheduleItem(id: String) {
+            val now = System.currentTimeMillis()
+            scheduleDao.softDelete(id, now, now)
+            WidgetUpdateManager.refreshAllAsync(context, WidgetUpdateManager.RefreshReason.SCHEDULE_CHANGED)
+        }
 
     override fun search(query: String): Flow<List<ScheduleItem>> =
         scheduleDao.search(query).map { it.map { e -> e.toDomain() } }
@@ -77,63 +77,63 @@ class TaskRepositoryImpl @Inject constructor(
         taskDao.observeUpcoming(limit).map { TaskSorter.sortByPriorityAndDueDate(it.map { t -> t.toDomain() }) }
 
     override suspend fun createTask(task: Task) {
-        taskDao.insert(task.toEntity())
-        subtaskDao.deleteByTask(task.id)
-        task.subtasks.forEach { subtaskDao.insert(it.toEntity()) }
-        reminderSyncService.get().scheduleTaskReminder(task)
-        WidgetUpdater.notifyDataChanged(context)
-    }
+            taskDao.insert(task.toEntity())
+            subtaskDao.deleteByTask(task.id)
+            task.subtasks.forEach { subtaskDao.insert(it.toEntity()) }
+            reminderSyncService.get().scheduleTaskReminder(task)
+            WidgetUpdateManager.refreshAllAsync(context, WidgetUpdateManager.RefreshReason.TASK_CHANGED)
+        }
 
-    override suspend fun updateTask(task: Task) = createTask(task)
+        override suspend fun updateTask(task: Task) = createTask(task)
 
-    override suspend fun completeTask(id: String) {
-        val tasks = taskDao.observeAll().first()
-        tasks.find { it.id == id }?.let { entity ->
-            taskDao.insert(entity.copy(status = TaskStatus.COMPLETED.name, completedAt = System.currentTimeMillis(), updatedAt = System.currentTimeMillis()))
+        override suspend fun completeTask(id: String) {
+            val tasks = taskDao.observeAll().first()
+            tasks.find { it.id == id }?.let { entity ->
+                taskDao.insert(entity.copy(status = TaskStatus.COMPLETED.name, completedAt = System.currentTimeMillis(), updatedAt = System.currentTimeMillis()))
+                reminderSyncService.get().cancelTaskReminder(id)
+            }
+            WidgetUpdateManager.refreshAllAsync(context, WidgetUpdateManager.RefreshReason.TASK_CHANGED)
+        }
+
+        override suspend fun uncompleteTask(id: String) {
+            val tasks = taskDao.observeAll().first()
+            tasks.find { it.id == id }?.let { entity ->
+                val updated = entity.copy(
+                    status = TaskStatus.PENDING.name,
+                    completedAt = null,
+                    updatedAt = System.currentTimeMillis(),
+                )
+                taskDao.insert(updated)
+                val subtasks = subtaskDao.observeByTask(id).first().map { it.toDomain() }
+                reminderSyncService.get().scheduleTaskReminder(updated.toDomain(subtasks))
+            }
+            WidgetUpdateManager.refreshAllAsync(context, WidgetUpdateManager.RefreshReason.TASK_CHANGED)
+        }
+
+        override suspend fun insertSubtask(subtask: Subtask) {
+            subtaskDao.insert(subtask.toEntity())
+            touchTaskUpdatedAt(subtask.taskId)
+            WidgetUpdateManager.refreshAllAsync(context, WidgetUpdateManager.RefreshReason.TASK_CHANGED)
+        }
+
+        override suspend fun updateSubtask(subtask: Subtask) {
+            subtaskDao.insert(subtask.toEntity())
+            touchTaskUpdatedAt(subtask.taskId)
+            WidgetUpdateManager.refreshAllAsync(context, WidgetUpdateManager.RefreshReason.TASK_CHANGED)
+        }
+
+        override suspend fun deleteSubtask(taskId: String, subtaskId: String) {
+            subtaskDao.deleteById(subtaskId)
+            touchTaskUpdatedAt(taskId)
+            WidgetUpdateManager.refreshAllAsync(context, WidgetUpdateManager.RefreshReason.TASK_CHANGED)
+        }
+
+        override suspend fun deleteTask(id: String) {
+            val now = System.currentTimeMillis()
+            taskDao.softDelete(id, now, now)
             reminderSyncService.get().cancelTaskReminder(id)
+            WidgetUpdateManager.refreshAllAsync(context, WidgetUpdateManager.RefreshReason.TASK_CHANGED)
         }
-        WidgetUpdater.notifyDataChanged(context)
-    }
-
-    override suspend fun uncompleteTask(id: String) {
-        val tasks = taskDao.observeAll().first()
-        tasks.find { it.id == id }?.let { entity ->
-            val updated = entity.copy(
-                status = TaskStatus.PENDING.name,
-                completedAt = null,
-                updatedAt = System.currentTimeMillis(),
-            )
-            taskDao.insert(updated)
-            val subtasks = subtaskDao.observeByTask(id).first().map { it.toDomain() }
-            reminderSyncService.get().scheduleTaskReminder(updated.toDomain(subtasks))
-        }
-        WidgetUpdater.notifyDataChanged(context)
-    }
-
-    override suspend fun insertSubtask(subtask: Subtask) {
-        subtaskDao.insert(subtask.toEntity())
-        touchTaskUpdatedAt(subtask.taskId)
-        WidgetUpdater.notifyDataChanged(context)
-    }
-
-    override suspend fun updateSubtask(subtask: Subtask) {
-        subtaskDao.insert(subtask.toEntity())
-        touchTaskUpdatedAt(subtask.taskId)
-        WidgetUpdater.notifyDataChanged(context)
-    }
-
-    override suspend fun deleteSubtask(taskId: String, subtaskId: String) {
-        subtaskDao.deleteById(subtaskId)
-        touchTaskUpdatedAt(taskId)
-        WidgetUpdater.notifyDataChanged(context)
-    }
-
-    override suspend fun deleteTask(id: String) {
-        val now = System.currentTimeMillis()
-        taskDao.softDelete(id, now, now)
-        reminderSyncService.get().cancelTaskReminder(id)
-        WidgetUpdater.notifyDataChanged(context)
-    }
 
     override fun search(query: String): Flow<List<Task>> =
         taskDao.search(query).map { it.map { e -> e.toDomain() } }

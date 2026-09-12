@@ -1,0 +1,177 @@
+{
+  "schemaVersion": "mimosa-finding-ledger-batch/v1",
+  "batchId": "stop-20260908T050259115Z-28752-c4072997a2eb",
+  "runId": "20260908T050259115Z-28752-c4072997a2eb",
+  "runStatus": "inconclusive",
+  "coverage": {
+    "status": "partial",
+    "reasons": [
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/ui/components/WidgetSetupCard.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetConfigureActivity.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "backend/tests/aiProvider.test.js",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/ui/components/WidgetSetupCard.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetConfigureActivity.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "backend/tests/aiProvider.test.js",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      }
+    ]
+  },
+  "source": {
+    "component": "zcode-hook",
+    "operationId": "Stop"
+  },
+  "revision": "db2c38a9d6310711c4f97681f42c3fcae7eee0f6",
+  "diffHash": "9a5bc8a28e535e26693fe4e24ab0a81e363a1e310cd951968ecb5a4301317cd9",
+  "rulesVersion": "unavailable",
+  "sessionHash": "b0f947e0fb18afd5a13b179d255c2942e8d6764938a743736033116297a51b05",
+  "reportRef": ".mimosa/reports/task-review-sess_19928a05-971a-4703-a8b7-30ddcc828d0b-20260908T050259115Z-28752-c4072997a2eb.json",
+  "events": [
+    {
+      "eventId": "hook-514ae41385cf7faf29683a0175cb78f2",
+      "findingId": "mimosa-6b2e4df1498a2e7d7c012098",
+      "type": "finding_blocked",
+      "at": "2026-09-08T04:58:49.097Z",
+      "identity": {
+        "projectRelativeFile": "backend/tests/aiProvider.test.js",
+        "ruleId": "security",
+        "codeEvidenceHash": "b3c28595c3cc5f463c03801e0d22db584e46c7efe5b0118e34fd813c90c98843",
+        "confidence": "stable"
+      },
+      "scope": "direct",
+      "line": 18,
+      "endLine": 18,
+      "reasonCode": "deny",
+      "reportedToAgent": true,
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "evidenceHash": "b3c28595c3cc5f463c03801e0d22db584e46c7efe5b0118e34fd813c90c98843"
+      },
+      "sequence": 0
+    },
+    {
+      "eventId": "hook-a85e84762862503e3ef4ea4bb8bbea3a",
+      "findingId": "mimosa-4c718def17d45002f19f6979",
+      "type": "finding_blocked",
+      "at": "2026-09-08T04:58:49.097Z",
+      "identity": {
+        "projectRelativeFile": "backend/tests/aiProvider.test.js",
+        "ruleId": "security",
+        "codeEvidenceHash": "dabd96545417f7b7688f1a5ba932bc22bd45f443a9a22a7bd440ff948a66bdb1",
+        "confidence": "stable"
+      },
+      "scope": "direct",
+      "line": 20,
+      "endLine": 20,
+      "reasonCode": "deny",
+      "reportedToAgent": true,
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "evidenceHash": "dabd96545417f7b7688f1a5ba932bc22bd45f443a9a22a7bd440ff948a66bdb1"
+      },
+      "sequence": 1
+    },
+    {
+      "eventId": "hook-a4d33c23a16b5c2fafcdcf7c89684afb",
+      "findingId": "mimosa-6b2e4df1498a2e7d7c012098",
+      "type": "static_fix_verified",
+      "at": "2026-09-08T04:59:53.268Z",
+      "identity": {
+        "projectRelativeFile": "backend/tests/aiProvider.test.js",
+        "ruleId": "security",
+        "codeEvidenceHash": "b3c28595c3cc5f463c03801e0d22db584e46c7efe5b0118e34fd813c90c98843",
+        "confidence": "stable"
+      },
+      "scope": "direct",
+      "line": 18,
+      "endLine": 18,
+      "reasonCode": "static_rescan_passed",
+      "reportedToAgent": false,
+      "evidence": {
+        "kind": "static_scan",
+        "boundary": "observed",
+        "producer": "deterministic",
+        "evidenceHash": "b3c28595c3cc5f463c03801e0d22db584e46c7efe5b0118e34fd813c90c98843"
+      },
+      "sequence": 2
+    },
+    {
+      "eventId": "hook-f5b907f3a2692692f96705c3b269ad2e",
+      "findingId": "mimosa-4c718def17d45002f19f6979",
+      "type": "static_fix_verified",
+      "at": "2026-09-08T04:59:53.268Z",
+      "identity": {
+        "projectRelativeFile": "backend/tests/aiProvider.test.js",
+        "ruleId": "security",
+        "codeEvidenceHash": "dabd96545417f7b7688f1a5ba932bc22bd45f443a9a22a7bd440ff948a66bdb1",
+        "confidence": "stable"
+      },
+      "scope": "direct",
+      "line": 20,
+      "endLine": 20,
+      "reasonCode": "static_rescan_passed",
+      "reportedToAgent": false,
+      "evidence": {
+        "kind": "static_scan",
+        "boundary": "observed",
+        "producer": "deterministic",
+        "evidenceHash": "dabd96545417f7b7688f1a5ba932bc22bd45f443a9a22a7bd440ff948a66bdb1"
+      },
+      "sequence": 3
+    }
+  ],
+  "observedFindingIds": [],
+  "verifiedFiles": [],
+  "recordedAt": "2026-09-08T05:03:00.964Z"
+}

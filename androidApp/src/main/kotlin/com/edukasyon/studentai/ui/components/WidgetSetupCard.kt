@@ -24,19 +24,24 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.edukasyon.studentai.R
 import com.edukasyon.studentai.ui.theme.StudentAiGradients
 import com.edukasyon.studentai.ui.theme.StudentAiShapes
@@ -58,6 +63,7 @@ fun WidgetSetupCard(
     val context = LocalContext.current
     var showSizePicker by remember { mutableStateOf(false) }
     var showManualSteps by remember { mutableStateOf(false) }
+    var showDiagnostics by remember { mutableStateOf(false) }
     // Synchronous guard against double-tap double-pin: the dialog is async to dismiss
     // so a second tap on the same button before recomposition would otherwise fire
     // requestPinWidget twice and end up with two pinned widgets.
@@ -173,6 +179,15 @@ fun WidgetSetupCard(
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             ) {
                 Text(stringResource(R.string.widget_customize_button))
+            }
+            TextButton(
+                onClick = { showDiagnostics = true },
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            ) {
+                Text("Diagnose widgets")
+            }
+            if (showDiagnostics) {
+                WidgetDiagnosticsDialog(onDismiss = { showDiagnostics = false })
             }
             Text(
                 text = stringResource(R.string.widget_manual_hint_short),
@@ -303,3 +318,78 @@ private fun WidgetManualStepsDialog(
         },
     )
 }
+
+@Composable
+private fun WidgetDiagnosticsDialog(
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+    var report by remember { mutableStateOf("Loading…") }
+    var refreshing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        report = buildV2WidgetReport(context)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Widget diagnostics") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    report,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (refreshing) {
+                    Text(
+                        "Refreshing…",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (!refreshing) {
+                        refreshing = true
+                        scope.launch {
+                            try {
+                                com.edukasyon.studentai.widget.update.WidgetUpdateManager.refreshAll(
+                                    context,
+                                    com.edukasyon.studentai.widget.update.WidgetUpdateManager.RefreshReason.SYSTEM_UPDATE
+                                )
+                            } finally {
+                                refreshing = false
+                            }
+                            report = buildV2WidgetReport(context)
+                        }
+                    }
+                }
+            ) {
+                Text("Refresh all")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = {
+                    clipboard.setText(AnnotatedString(report))
+                }
+            ) {
+                Text("Copy")
+            }
+        },
+    )
+}
+
+private suspend fun buildV2WidgetReport(context: android.content.Context): String =
+    runCatching {
+        com.edukasyon.studentai.widget.update.WidgetUpdateManager.diagnose(context)
+            .joinToString("\n")
+            .ifBlank { "No widget instances found." } + "\n" +
+            com.edukasyon.studentai.widget.WidgetTapDiagnostics.summary() + "\n" +
+            com.edukasyon.studentai.widget.update.WidgetV2Diagnostics.summary()
+    }.getOrElse { "Diagnostics failed: ${it.message}" }

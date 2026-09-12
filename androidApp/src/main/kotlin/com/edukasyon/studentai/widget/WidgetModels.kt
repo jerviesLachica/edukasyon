@@ -2,18 +2,23 @@ package com.edukasyon.studentai.widget
 
 import androidx.compose.ui.graphics.Color
 import com.edukasyon.studentai.ui.theme.parseHexColor
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
+@Serializable
 enum class WidgetSize {
     SMALL_2X2,
     TALL_2X3
 }
 
+@Serializable
 enum class WidgetDisplayType {
     TASKS,
     SCHEDULE,
     COMBINED
 }
 
+@Serializable
 enum class WidgetDesignPreset {
     MINIMAL,
     CORAL_CHEVRON,
@@ -71,6 +76,7 @@ enum class WidgetDesignPreset {
         get() = this != MINIMAL
 }
 
+@Serializable
 data class WidgetDesignColors(
     val color1: String,
     val color2: String,
@@ -86,6 +92,8 @@ data class WidgetDesignColors(
     fun cacheKey(): String = listOfNotNull(color1, color2, color3).joinToString("|")
 }
 
+// Not serialized: Compose Color has no serializer. WidgetSnapshot marks
+// themeColors @Transient and recomputes it from designPreset+designColors.
 data class WidgetThemeColors(
     val onSurface: Color,
     val muted: Color,
@@ -93,6 +101,7 @@ data class WidgetThemeColors(
     val isLightBackground: Boolean
 )
 
+@Serializable
 data class WidgetTaskItem(
     val id: String,
     val title: String,
@@ -102,6 +111,7 @@ data class WidgetTaskItem(
     val isCompleted: Boolean = false
 )
 
+@Serializable
 data class WidgetScheduleItem(
     val id: String,
     val title: String,
@@ -110,6 +120,7 @@ data class WidgetScheduleItem(
     val isCurrent: Boolean = false
 )
 
+@Serializable
 data class WidgetCalendarDay(
     val dayOfMonth: Int,
     val isToday: Boolean,
@@ -117,6 +128,7 @@ data class WidgetCalendarDay(
     val dotColorHex: String?
 )
 
+@Serializable
 data class WidgetSnapshot(
     val dayName: String,
     val monthName: String,
@@ -132,7 +144,8 @@ data class WidgetSnapshot(
     val widgetSize: WidgetSize = WidgetSize.SMALL_2X2,
     val designPreset: WidgetDesignPreset = WidgetDesignPreset.MINIMAL,
     val designColors: WidgetDesignColors = WidgetDesignPreset.MINIMAL.defaultColors(),
-    val themeColors: WidgetThemeColors = widgetThemeFor(WidgetDesignPreset.MINIMAL, WidgetDesignPreset.MINIMAL.defaultColors()),
+    @Transient
+    val themeColors: WidgetThemeColors = widgetThemeFor(designPreset, designColors),
     val currentTaskProgress: Float? = null,
     val currentTaskTimeLeft: String? = null,
     val isLoading: Boolean = false

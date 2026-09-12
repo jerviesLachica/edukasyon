@@ -15,6 +15,15 @@ data class AiToolMetadataDto(
     val reasoning: String? = null,
     val flashcards: List<FlashcardDto>? = null,
     val quiz: QuizDto? = null,
+    val citations: List<CitedChunkMeta>? = null,
+)
+
+@Serializable
+data class CitedChunkMeta(
+    val id: String,
+    val sourceId: String,
+    val label: String,
+    val text: String,
 )
 
 @Serializable
@@ -49,10 +58,18 @@ object AiConversationMetadata {
     fun encodeSummary(summary: String): String =
         json.encodeToString(AiToolMetadataDto(kind = "SUMMARY", summary = summary))
 
-    fun encodeTutorReasoning(reasoning: String?): String? =
-        reasoning?.trim()?.takeIf { it.isNotEmpty() }?.let {
-            json.encodeToString(AiToolMetadataDto(kind = "TUTOR", reasoning = it))
-        }
+    fun encodeTutorReasoning(
+        reasoning: String?,
+        citations: List<CitedChunkMeta>? = null,
+    ): String? {
+        val cleanReasoning = reasoning?.trim()?.takeIf { it.isNotEmpty() }
+        val cleanCites = citations?.takeIf { it.isNotEmpty() }
+        if (cleanReasoning == null && cleanCites == null) return null
+        return json.encodeToString(AiToolMetadataDto(kind = "TUTOR", reasoning = cleanReasoning, citations = cleanCites))
+    }
+
+    fun decodeCitations(raw: String?): List<CitedChunkMeta> =
+        decode(raw)?.takeIf { it.kind == "TUTOR" }?.citations.orEmpty()
 
     fun decodeTutorReasoning(raw: String?): String? =
         decode(raw)?.takeIf { it.kind == "TUTOR" }?.reasoning?.trim()?.takeIf { it.isNotEmpty() }

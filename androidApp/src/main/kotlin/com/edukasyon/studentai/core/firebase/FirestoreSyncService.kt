@@ -1,5 +1,6 @@
 package com.edukasyon.studentai.core.firebase
 
+import android.content.Context
 import android.util.Log
 import com.edukasyon.studentai.core.network.ConnectivityMonitor
 import com.edukasyon.studentai.data.local.dao.*
@@ -15,6 +16,7 @@ import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,6 +27,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class FirestoreSyncService @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val firestore: FirebaseFirestore,
     private val authManager: FirebaseAuthManager,
     private val connectivity: ConnectivityMonitor,
@@ -91,6 +94,14 @@ class FirestoreSyncService @Inject constructor(
             )
             preferences.setLastSyncedAt(now)
             Log.i(TAG, "Sync complete: pushed=$pushed pulled=$pulled")
+            if (pulled > 0) {
+                // Remote changed local data → widgets rebuild from Room.
+                // Fire-and-forget; failures never fail the sync itself.
+                com.edukasyon.studentai.widget.update.WidgetUpdateManager.refreshAllAsync(
+                    appContext,
+                    com.edukasyon.studentai.widget.update.WidgetUpdateManager.RefreshReason.REMOTE_SYNC
+                )
+            }
             SyncResult.Success(summary)
         }.getOrElse { error ->
             Log.w(TAG, "Sync failed", error)
@@ -254,8 +265,8 @@ class FirestoreSyncService @Inject constructor(
             upsertLocal = { scheduleDao.insert(it) },
         )
 
-    private suspend fun syncTasks(uid: String): Pair<Int, Int> =
-        syncWithUpdatedAt(
+    private suspend fun syncTasks(uid: String): Pair<Int, Int> {
+        val result = syncWithUpdatedAt(
             uid = uid,
             collection = COLLECTION_TASKS,
             localItems = taskDao.getAllForSync(),
@@ -265,6 +276,15 @@ class FirestoreSyncService @Inject constructor(
             fromMap = { _, map -> map.toTaskEntity() },
             upsertLocal = { taskDao.insert(it) },
         )
+        // Heal skew-poisoned rows already in Room (pull-side mapper clamp only
+        // covers newly pulled docs; rows written earlier keep vetoing).
+        runCatching {
+            val now = System.currentTimeMillis()
+            taskDao.clampFutureCompletedAt(now)
+            taskDao.clampFutureUpdatedAt(now)
+        }
+        return result
+    }
 
     private suspend fun syncSubtasks(uid: String): Pair<Int, Int> {
         // SubtaskEntity now carries updatedAt + deletedAt (schema v10), so
@@ -374,7 +394,17 @@ class FirestoreSyncService @Inject constructor(
                 local != null && remote != null -> {
                     val localTs = getTimestamp(local)
                     val remoteTs = remote.second.long(mapTimestampKey) ?: 0L
-                    if (localTs > remoteTs) {
+                    val now = System.currentTimeMillis()
+                    // A remote timestamp impossibly far in the future is clock
+                    // skew, not causality: pulling it would let one bad doc
+                    // veto every future local edit (e.g. a widget check that
+                    // "never sticks"). Push local instead, which also heals
+                    // the bad remote stamp.
+                    val remoteIsFromTheFuture = remoteTs > now + FUTURE_SKEW_TOLERANCE_MS
+                    if (localTs > remoteTs || remoteIsFromTheFuture) {
+                        if (remoteIsFromTheFuture) {
+                            Log.w(TAG, "Remote $collection/$id has future timestamp ($remoteTs > $now), healing with local")
+                        }
                         pushRemote(uid, collection, id, toMap(local))
                         upsertLocal(local)
                         pushed++
@@ -441,6 +471,7 @@ class FirestoreSyncService @Inject constructor(
 
     companion object {
         private const val TAG = "FirestoreSyncService"
+        private const val FUTURE_SKEW_TOLERANCE_MS = 5 * 60_000L
         private const val COLLECTION_USERS = "users"
         private const val COLLECTION_JEVI_DECKS = "jevi_decks"
         private const val COLLECTION_FLASHCARDS = "flashcards"

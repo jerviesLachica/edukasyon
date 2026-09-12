@@ -17,6 +17,16 @@ data class GizmoChatMessage(
     val attachmentName: String? = null,
     val attachmentIsImage: Boolean = false,
     val reasoning: String? = null,
+    val citations: List<CitedChunkView> = emptyList(),
+)
+
+data class CitedChunkView(
+    val id: String,
+    val sourceId: String,
+    val label: String,
+    val text: String,
+    // URL for web citations (non-empty for web sources)
+    val url: String = "",
 )
 
 /** Pending attachment selected in the Tutor tab before send. */

@@ -15,7 +15,7 @@ import com.edukasyon.studentai.core.update.AppUpdateMessagingService
 import com.edukasyon.studentai.core.update.UpdateManager
 import com.edukasyon.studentai.ui.StudentAiAppContent
 import com.edukasyon.studentai.ui.navigation.MainTab
-import com.edukasyon.studentai.widget.WidgetActions
+import com.edukasyon.studentai.widget.render.WidgetRenderer
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
         // ONLY the widget sets START_TAB_KEY, always with a MainTab route name.
         // A notification's reference id must never leak in here — it's a data
         // UUID, not a navigation route (navigating it crashes the NavController).
-        return extras.getString(WidgetActions.START_TAB_KEY)
+        return extras.getString(WidgetRenderer.START_TAB_KEY)
             ?: notificationStartTab(extras)
     }
 
@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
 
     private fun extractTaskId(intent: Intent?): String? {
         val extras = intent?.extras ?: return null
-        extras.getString(WidgetActions.TASK_ID_KEY)?.let { return it }
+        extras.getString(WidgetRenderer.TASK_ID_KEY)?.let { return it }
         // Task reminders deep-link to the Planner with the task preselected,
         // mirroring the widget's tap-through flow.
         if (extras.getString(NotificationHelper.REFERENCE_TYPE_EXTRA) == ReminderType.TASK.name) {

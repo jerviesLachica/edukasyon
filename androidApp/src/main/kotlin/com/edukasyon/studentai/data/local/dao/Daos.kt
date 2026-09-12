@@ -84,11 +84,40 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE deletedAt IS NULL AND status != 'COMPLETED' AND status != 'ARCHIVED' ORDER BY dueDate ASC LIMIT :limit")
     suspend fun getUpcoming(limit: Int): List<TaskEntity>
 
+    @Query("SELECT COUNT(*) FROM tasks WHERE deletedAt IS NULL AND status != 'COMPLETED' AND status != 'ARCHIVED'")
+    suspend fun countUpcoming(): Int
+
+    /**
+     * Tasks the user just checked off. The widget merges these into the snapshot
+     * (marked completed) so the tap shows a checked state; without this the
+     * completed task would vanish from getUpcoming instantly and the checkbox
+     * would appear to never check.
+     */
+    @Query("SELECT * FROM tasks WHERE deletedAt IS NULL AND status = 'COMPLETED' AND completedAt >= :since ORDER BY completedAt DESC LIMIT :limit")
+    suspend fun getRecentlyCompleted(since: Long, limit: Int): List<TaskEntity>
+
+    @Query("SELECT * FROM tasks WHERE id IN (:ids) AND deletedAt IS NULL")
+    suspend fun getByIds(ids: List<String>): List<TaskEntity>
+
     @Query("SELECT * FROM tasks WHERE deletedAt IS NULL AND status != 'COMPLETED' AND status != 'ARCHIVED' AND dueDate >= :from AND dueDate <= :to")
     suspend fun getDueInRange(from: Long, to: Long): List<TaskEntity>
 
     @Upsert
     suspend fun insert(task: TaskEntity)
+
+    /**
+     * Heals clock-skew poisoning: a completedAt/updatedAt in the future (written
+     * by a device with a fast clock, then synced) permanently outranks fresh
+     * local taps in ORDER BY completedAt DESC windows and LWW comparisons, so
+     * the widget shows stale rows that taps can never dislodge. Clamping to
+     * now keeps the rows newest-local without letting them veto the future.
+     * Returns rows touched (0 = clean, no-op).
+     */
+    @Query("UPDATE tasks SET completedAt = :now WHERE deletedAt IS NULL AND completedAt IS NOT NULL AND completedAt > :now")
+    suspend fun clampFutureCompletedAt(now: Long): Int
+
+    @Query("UPDATE tasks SET updatedAt = :now WHERE deletedAt IS NULL AND updatedAt > :now")
+    suspend fun clampFutureUpdatedAt(now: Long): Int
 
     @Query("UPDATE tasks SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: String, deletedAt: Long, updatedAt: Long)

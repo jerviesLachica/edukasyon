@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "mimosa-finding-ledger-batch/v1",
+  "batchId": "stop-20260910T071042733Z-496-a3981e4a1cef",
+  "runId": "20260910T071042733Z-496-a3981e4a1cef",
+  "runStatus": "completed",
+  "coverage": {
+    "status": "complete",
+    "reasons": []
+  },
+  "source": {
+    "component": "zcode-hook",
+    "operationId": "Stop"
+  },
+  "revision": "db2c38a9d6310711c4f97681f42c3fcae7eee0f6",
+  "diffHash": "7fe46e2056f257ab50e8e47101d4212f6fd9f320245796736408534a8e2fa870",
+  "rulesVersion": "unavailable",
+  "sessionHash": "e59853bfc274428d1e43f5594a8bfc41b8e83c1fb4435524e4f798400051832b",
+  "reportRef": ".mimosa/reports/task-review-sess_0fd403c4-7655-446a-8109-febb10cb2dba-20260910T071042733Z-496-a3981e4a1cef.json",
+  "events": [],
+  "observedFindingIds": [],
+  "verifiedFiles": [
+    {
+      "file": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt",
+      "direct": "complete",
+      "projectContext": "partial"
+    }
+  ],
+  "recordedAt": "2026-09-10T07:10:44.110Z"
+}

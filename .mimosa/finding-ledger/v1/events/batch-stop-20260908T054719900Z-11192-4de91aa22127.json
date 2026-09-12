@@ -1,0 +1,136 @@
+{
+  "schemaVersion": "mimosa-finding-ledger-batch/v1",
+  "batchId": "stop-20260908T054719900Z-11192-4de91aa22127",
+  "runId": "20260908T054719900Z-11192-4de91aa22127",
+  "runStatus": "inconclusive",
+  "coverage": {
+    "status": "partial",
+    "reasons": [
+      {
+        "code": "baseline_snapshot_unreadable",
+        "stage": "baseline-read",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt",
+        "detail": "file is missing from task baseline",
+        "affectsCompletion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUi.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBackgroundGenerator.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetAlarmReceiver.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBootReceiver.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUpdater.kt",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline-read",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt",
+        "detail": "baseline_snapshot_unreadable: file is missing from task baseline",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUi.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBackgroundGenerator.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/StudentAiWidget.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetAlarmReceiver.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetBootReceiver.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetRefreshCoordinator.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "androidApp/src/main/kotlin/com/edukasyon/studentai/widget/WidgetUpdater.kt",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affectsCompletion": true
+      }
+    ]
+  },
+  "source": {
+    "component": "zcode-hook",
+    "operationId": "Stop"
+  },
+  "revision": "db2c38a9d6310711c4f97681f42c3fcae7eee0f6",
+  "diffHash": "0eb4cdec3c905222c6cdea6ebe803f8472fb3ef6b956130ed350cc436481fa24",
+  "rulesVersion": "unavailable",
+  "sessionHash": "b0f947e0fb18afd5a13b179d255c2942e8d6764938a743736033116297a51b05",
+  "reportRef": ".mimosa/reports/task-review-sess_19928a05-971a-4703-a8b7-30ddcc828d0b-20260908T054719900Z-11192-4de91aa22127.json",
+  "events": [],
+  "observedFindingIds": [],
+  "verifiedFiles": [],
+  "recordedAt": "2026-09-08T05:47:21.174Z"
+}

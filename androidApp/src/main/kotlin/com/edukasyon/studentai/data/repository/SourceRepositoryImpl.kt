@@ -83,6 +83,17 @@ class SourceRepositoryImpl @Inject constructor(
         sourceDao.softDeleteSource(id, uid, now, now)
     }
 
+    override suspend fun chunksForSource(sourceId: String): List<RankedChunk> {
+        val uid = uid()
+        val name = sourceDao.getSource(sourceId, uid)?.name ?: "Source"
+        return sourceDao.getChunksForSource(sourceId, uid).map { row ->
+            RankedChunk(
+                chunkId = row.id, sourceId = row.sourceId, sourceName = name,
+                ordinal = row.ordinal, text = row.text, score = 1.0
+            )
+        }
+    }
+
     override suspend fun retrieve(query: String, sourceIds: Set<String>?, topK: Int): List<RankedChunk> {
         val uid = uid()
         val qres = api.embed(EmbedRequest(listOf(query), "RETRIEVAL_QUERY"))

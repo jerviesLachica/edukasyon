@@ -70,7 +70,6 @@ fun AiScreen(
 
     Scaffold(
         snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
-        contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
                 title = { Text("Jevi AI") },
@@ -101,6 +100,7 @@ fun AiScreen(
             Column(
                 contentModifier
                     .fillMaxSize()
+                    .navigationBarsPadding()
                     .imePadding(),
             ) {
                 GizmoCompanionHeader(
@@ -125,6 +125,12 @@ fun AiScreen(
                     onHeaderExpandedChange = { headerExpanded = it },
                     onModelSelected = { viewModel.setChatModel(it) },
                     onThinkingLevelSelected = { viewModel.setThinkingLevel(it) },
+                    onCitationClick = { viewModel.openCitation(it) },
+                    onToggleSource = { viewModel.toggleSource(it) },
+                    onAddSource = { name, text -> viewModel.addSource(name, text) },
+                    onDeleteSource = { viewModel.deleteSource(it) },
+                    onViewerStep = { viewModel.stepViewer(it) },
+                    onViewerClose = { viewModel.closeViewer() },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -165,6 +171,12 @@ private fun AiTutorTab(
     onHeaderExpandedChange: (Boolean) -> Unit = {},
     onModelSelected: (com.edukasyon.studentai.domain.model.AiModel) -> Unit = {},
     onThinkingLevelSelected: (com.edukasyon.studentai.domain.model.ThinkingLevel) -> Unit = {},
+    onCitationClick: (com.edukasyon.studentai.domain.model.CitedChunkView) -> Unit = {},
+    onToggleSource: (String) -> Unit = {},
+    onAddSource: (String, String) -> Unit = { _, _ -> },
+    onDeleteSource: (String) -> Unit = {},
+    onViewerStep: (Int) -> Unit = {},
+    onViewerClose: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val clipboard = LocalClipboardManager.current
@@ -281,6 +293,12 @@ private fun AiTutorTab(
                             attachmentName = msg.attachmentName,
                             attachmentIsImage = msg.attachmentIsImage,
                             reasoning = msg.reasoning,
+                            citations = msg.citations,
+                            onCitationClick = if (!msg.isUser && msg.citations.isNotEmpty()) {
+                                { onCitationClick(it) }
+                            } else {
+                                null
+                            },
                             onCopy = if (!msg.isUser) {
                                 {
                                     clipboard.setText(AnnotatedString(msg.content))
@@ -328,6 +346,11 @@ private fun AiTutorTab(
                         },
                         onPickImage = { imagePicker.launch("image/*") },
                         onPickFile = { filePicker.launch(arrayOf("*/*")) },
+                        sources = state.sources,
+                        selectedSourceIds = state.selectedSourceIds,
+                        onSourceToggle = onToggleSource,
+                        onAddSource = onAddSource,
+                        onDeleteSource = onDeleteSource,
                         enabled = !state.isLoading,
                         isOnline = state.isOnline,
                         onFocusChanged = { focused ->
@@ -347,6 +370,16 @@ private fun AiTutorTab(
                     .padding(end = 16.dp, top = 12.dp, bottom = 12.dp),
             )
         }
+    }
+
+    // Citation passage viewer bottom sheet
+    if (state.viewerChunks.isNotEmpty() && state.viewerIndex >= 0) {
+        CitationPassageBottomSheet(
+            chunks = state.viewerChunks,
+            currentIndex = state.viewerIndex,
+            onStep = onViewerStep,
+            onClose = onViewerClose,
+        )
     }
 }
 
