@@ -152,8 +152,9 @@ fun JeviChatInputBar(
             }
         }
 
-        // Source chips — horizontal scroll inside a compact row above input
-        if (sources.isNotEmpty()) {
+        // Source chips — horizontal scroll inside a compact row above input.
+        // Always visible when adding is supported so the first source can be added.
+        if (sources.isNotEmpty() || onAddSource != null) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -173,7 +174,7 @@ fun JeviChatInputBar(
                     if (onAddSource != null) {
                         FilterChipSmall(
                             onClick = { showAddSourceDialog = true },
-                            label = { Text("+ Add Source") },
+                            label = { Text("Add Source") },
                             leadingIcon = { Icon(Icons.Default.Add, contentDescription = "Add Source", modifier = Modifier.size(14.dp)) },
                             enabled = enabled,
                         )
