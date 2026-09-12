@@ -113,17 +113,21 @@ enum class AiModel(val slug: String, val displayName: String, val chatDescriptio
 }
 
 /**
- * Thinking effort for JEVI chat. FLASH is non-thinking (fast path);
- * STANDARD and DEEP force the thinking path (hcnsec auto) with DEEP
- * adding more output tokens and step-by-step prompting server-side.
+ * Thinking effort for JEVI chat. NONE is non-thinking (fast path);
+ * MINIMAL adds minimal reasoning;
+ * LOW includes reasoning (default, previous FLASH ≈ fast but now with reasoning);
+ * MEDIUM adds step-by-step prompting;
+ * HIGH adds longest reasoning with more output tokens.
  */
 enum class ThinkingLevel(val slug: String, val displayName: String, val description: String) {
-    FLASH("flash", "Flash", "Fastest answers"),
-    STANDARD("standard", "Standard", "Thinks before answering"),
-    DEEP("deep", "Deep", "Longest reasoning");
+    NONE("none", "None", "Fastest answers, no reasoning"),
+    MINIMAL("minimal", "Minimal", "Minimal reasoning before answering"),
+    LOW("low", "Low", "Includes reasoning before answering (default)"),
+    MEDIUM("medium", "Medium", "Step-by-step reasoning with additional output tokens"),
+    HIGH("high", "High", "Longest reasoning with maximum output tokens and detailed step-by-step prompts");
 
     companion object {
         fun fromSlug(slug: String?): ThinkingLevel =
-            entries.find { it.slug == slug } ?: FLASH
+            entries.find { it.slug == slug } ?: LOW
     }
 }

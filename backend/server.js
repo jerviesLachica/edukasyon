@@ -293,6 +293,17 @@ const MAX_RESULTS = 5;
 const AUTO_MAX_RESULTS = 5;
 const MAX_RESULT_CHARS = 1_200;
 
+// Pure gate: is this message a real learning topic (needs enforced citations)
+// or small talk / a command (keep citations soft)? False when the trimmed
+// message is very short, is a bare greeting/acknowledgement, or is a command.
+function isLearningTopic(message) {
+  const text = String(message || '').trim();
+  if (text.length < 12) return false;
+  if (text.startsWith('/')) return false;
+  if (/^(hi+|hello|hey|thanks?|thank you|ok|okay|yes|no|bye)\b[\s!.]*$/i.test(text)) return false;
+  return true;
+}
+
 // ── Route handlers (business logic only — safety handled by gateway) ─────────
 
 async function handleChat({ body, provider: ai, webSearch: searchService, maxTokens, signal }) {
@@ -324,12 +335,15 @@ async function handleChat({ body, provider: ai, webSearch: searchService, maxTok
   const hasVisionAttachment = Boolean(imageBase64) || ai.requestHasVisionContent(body);
   const model = ai.resolveChatModel(requestedModel, hasVisionAttachment);
 
-  // Thinking level from the app (flash/standard/deep, default flash).
-  // standard/deep force the thinking path; deep also raises the token
-  // budget and asks for step-by-step reasoning in the system prompt.
-  const effort = ['standard', 'deep'].includes(requestedEffort) ? requestedEffort : 'flash';
-  const thinking = effort !== 'flash';
-  const chatMaxTokens = effort === 'deep' ? Math.min(maxTokens * 2, 4096) : maxTokens;
+  // Thinking level from the app (none/minimal/low/medium/high, default low).
+  // none: no thinking (fastest); minimal/low: includes reasoning (low is default);
+  // medium: step-by-step reasoning with more tokens; high: maximum reasoning.
+  const effort = ['none', 'minimal', 'low', 'medium', 'high'].includes(requestedEffort) ? requestedEffort : 'low';
+  const thinking = effort !== 'none';
+  const chatMaxTokens = 
+    effort === 'high' ? Math.min(maxTokens * 2, 4096) :
+    effort === 'medium' ? Math.min(maxTokens * 1.5, 3000) :
+    maxTokens;
 
   const systemContent = buildJarvisSystemMessage({
     subject,
@@ -358,7 +372,7 @@ Answer using ONLY the numbered sources below. Cite every factual claim with its 
 ${numbered}`;
   }
 
-  if (effort === 'deep') {
+  if (effort === 'medium' || effort === 'high') {
     userContent += '\n\nThink step by step through this problem before giving your final answer.';
   }
 
@@ -383,7 +397,12 @@ ${numbered}`;
     const webNumbered = webResults
       .map((r, i) => `[${sources.length + i + 1}] ${r.title || 'Web source'}\nURL: ${r.url}\n${String(r.content || '').slice(0, MAX_RESULT_CHARS)}`)
       .join('\n\n');
-    userContent += `\n\nCurrent web search results (cite with matching numbers if relevant):\n${webNumbered}`;
+    if (isLearningTopic(webSearchRequest.query)) {
+      const totalSources = sources.length + webResults.length;
+      userContent += `\n\nCurrent web search results (cite at least 5 distinct numbered sources [1]-[${totalSources}] in your answer; every factual paragraph needs at least one citation):\n${webNumbered}\n\nThis is a learning topic. Your answer MUST include at least 5 citations [1]-[5] drawn from the numbered sources above; every factual paragraph needs at least one.`;
+    } else {
+      userContent += `\n\nCurrent web search results (cite with matching numbers if relevant):\n${webNumbered}`;
+    }
   }
 
   const history = normalizeHistoryMessages(historyMessages || clientMessagesAlias);
@@ -405,8 +424,22 @@ ${numbered}`;
     new Set(Array.from(String(reply || '').matchAll(/\[(\d+)\]/g)).map((m) => m[1]))
   ).filter((n) => Number(n) >= 1 && Number(n) <= sources.length + webResults.length);
 
+  // Guaranteed-5 citations: pad with unused web results first, then unused
+  // local sources, until 5 total (or fewer when sources are exhausted).
+  const citedNumbers = [...citedFromReply];
+  if (citedNumbers.length < 5) {
+    const used = new Set(citedNumbers.map(Number));
+    const total = sources.length + webResults.length;
+    for (let n = sources.length + 1; n <= total && citedNumbers.length < 5; n++) {
+      if (!used.has(n)) { citedNumbers.push(String(n)); used.add(n); }
+    }
+    for (let n = 1; n <= sources.length && citedNumbers.length < 5; n++) {
+      if (!used.has(n)) { citedNumbers.push(String(n)); used.add(n); }
+    }
+  }
+
   // Prefix scheme: local:<sourceId>  |  web:<urlHash>:<ordinal>
-  const citedChunkIds = citedFromReply.map((n) => {
+  const citedChunkIds = citedNumbers.map((n) => {
     const idx = Number(n) - 1;
     if (idx < sources.length) {
       return `local:${sources[idx].id}`;
@@ -419,7 +452,7 @@ ${numbered}`;
   });
 
   // Return web result metadata so Android can open URLs
-  const citedWebResults = citedFromReply
+  const citedWebResults = citedNumbers
     .map(n => Number(n) - 1)
     .filter(i => i >= sources.length)
     .map(i => webResults[i - sources.length])
@@ -1129,4 +1162,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, handleChat };
+module.exports = { app, handleChat, isLearningTopic };

@@ -833,7 +833,7 @@ data class AiUiState(
     val restoredToolInput: String? = null,
     val toolsPdf: ToolsPdfState? = null,
     val selectedChatModel: AiModel = AiModel.AUTO,
-    val thinkingLevel: ThinkingLevel = ThinkingLevel.FLASH,
+    val thinkingLevel: ThinkingLevel = ThinkingLevel.LOW,
     val sources: List<CitedSource> = emptyList(),
     val selectedSourceIds: Set<String>? = null,
     val viewerChunks: List<RankedChunk> = emptyList(),

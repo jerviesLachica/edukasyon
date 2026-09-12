@@ -20,11 +20,11 @@ object AiModelRouter {
         preference.takeIf { it == AiModel.REASONING }?.slug
 
     /**
-     * Thinking effort sent to backend. Null (FLASH) means non-thinking fast path;
-     * standard/deep force the thinking path server-side.
+     * Thinking effort sent to backend. Null (LOW) means default reasoning path;
+     * NONE/MINIMAL/MEDIUM/HIGH override the default with explicit effort levels.
      */
     fun effortParam(level: ThinkingLevel): String? =
-        level.takeIf { it != ThinkingLevel.FLASH }?.slug
+        level.takeIf { it != ThinkingLevel.LOW }?.slug
 
     @Deprecated("Use chatModelOverride", ReplaceWith("chatModelOverride(preference)"))
     fun textChatModelOverride(preference: AiModel): String? = chatModelOverride(preference)
