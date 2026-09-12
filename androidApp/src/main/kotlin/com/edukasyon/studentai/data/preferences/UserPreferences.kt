@@ -63,6 +63,7 @@ class UserPreferences @Inject constructor(
         val USE_MOCK_AI = booleanPreferencesKey("use_mock_ai")
         val AI_MODEL = stringPreferencesKey("ai_model")
         val THINKING_LEVEL = stringPreferencesKey("thinking_level")
+        val SOURCES_SEEDED = booleanPreferencesKey("sources_seeded")
         val STEP_MODEL_USAGE_TIMESTAMPS = stringPreferencesKey("step_model_usage_timestamps")
         val SCHEDULE_DAY_TEMPLATES = stringPreferencesKey("schedule_day_templates")
         val FIREBASE_AUTH_EMAIL = stringPreferencesKey("firebase_auth_email")
@@ -108,6 +109,10 @@ class UserPreferences @Inject constructor(
 
     val thinkingLevel: Flow<ThinkingLevel> = context.dataStore.data.map { prefs ->
         ThinkingLevel.fromSlug(prefs[Keys.THINKING_LEVEL])
+    }
+
+    val sourcesSeeded: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.SOURCES_SEEDED] ?: false
     }
 
     val stepModelUsageTimestamps: Flow<List<Long>> = context.dataStore.data.map { prefs ->
@@ -233,6 +238,10 @@ class UserPreferences @Inject constructor(
 
     suspend fun setThinkingLevel(level: ThinkingLevel) {
         context.dataStore.edit { it[Keys.THINKING_LEVEL] = level.slug }
+    }
+
+    suspend fun setSourcesSeeded() {
+        context.dataStore.edit { it[Keys.SOURCES_SEEDED] = true }
     }
 
     suspend fun setStepModelUsageTimestamps(timestamps: List<Long>) {

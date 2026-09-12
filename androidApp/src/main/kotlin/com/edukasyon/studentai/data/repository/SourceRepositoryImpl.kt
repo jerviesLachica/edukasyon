@@ -8,6 +8,7 @@ import com.edukasyon.studentai.core.network.EmbedRequest
 import com.edukasyon.studentai.data.local.dao.SourceDao
 import com.edukasyon.studentai.data.local.entity.SourceChunkEntity
 import com.edukasyon.studentai.data.local.entity.SourceEntity
+import com.edukasyon.studentai.data.preferences.UserPreferences
 import com.edukasyon.studentai.domain.model.CitedSource
 import com.edukasyon.studentai.domain.model.RankedChunk
 import com.edukasyon.studentai.domain.repository.SourceRepository
@@ -17,12 +18,14 @@ import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 
 @Singleton
 class SourceRepositoryImpl @Inject constructor(
     private val sourceDao: SourceDao,
     private val api: AiApiService,
     private val authManager: FirebaseAuthManager,
+    private val preferences: UserPreferences,
 ) : SourceRepository {
 
     private fun uid(): String = authManager.currentUserId ?: "local"
@@ -31,7 +34,24 @@ class SourceRepositoryImpl @Inject constructor(
         val id = uid()
         return sourceDao.observeSources(id).map { list ->
             list.map { CitedSource(it.id, it.name, it.chunkCount, it.updatedAt) }
+        }.onStart { seedWelcomeSourceIfNeeded() }
+    }
+
+    /**
+     * One-time starter source so the picker and citations are useful immediately:
+     * 1 local source + auto web research yields citations [1]–[6]. Runs once per
+     * install; deleting it never re-seeds. Text is persisted even when the
+     * embedding call fails offline (vectors backfill on next ingest).
+     */
+    private suspend fun seedWelcomeSourceIfNeeded() {
+        if (preferences.sourcesSeeded.first()) return
+        val id = uid()
+        if (sourceDao.observeSources(id).first().isNotEmpty()) {
+            preferences.setSourcesSeeded()
+            return
         }
+        runCatching { ingestSource(WELCOME_NAME, "text/plain", WELCOME_TEXT) }
+        preferences.setSourcesSeeded()
     }
 
     override suspend fun ingestSource(name: String, mime: String, text: String): String {
@@ -114,5 +134,14 @@ class SourceRepositoryImpl @Inject constructor(
             }
             .sortedByDescending { it.score }
             .take(topK)
+    }
+
+    companion object {
+        const val WELCOME_NAME = "Welcome to JEVI Sources"
+        val WELCOME_TEXT = """
+            JEVI answers using your sources. Add class notes, chapters, or pasted text with Add Source, then tap a chip to include or exclude it; JEVI reads the selected ones before answering.
+            Factual claims carry numbered citations like [1] that point back to these sources. Tap a citation to read the exact passage it came from.
+            JEVI also searches the web automatically for every question. Web citations show a link icon and open in your browser when tapped, so local notes and fresh web results appear side by side.
+            """.trimIndent()
     }
 }

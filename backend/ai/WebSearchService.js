@@ -14,7 +14,7 @@
  */
 
 const MAX_RESULTS = 5;
-const AUTO_MAX_RESULTS = 3;
+const AUTO_MAX_RESULTS = 5;
 const MAX_RESULT_CHARS = 1_200;
 
 function parseWebSearchCommand(message) {
