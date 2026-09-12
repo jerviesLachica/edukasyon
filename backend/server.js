@@ -1117,12 +1117,16 @@ app.get('/health/safety', (_, res) => {
   });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`SchedMate backend listening on :${PORT}`);
-  if (provider.hasAiKey) {
-    console.log(`AI provider: ${provider.AI_BASE_URL} (text: ${provider.TEXT_MODEL}, vision: ${provider.VISION_MODEL})`);
-  } else {
-    console.log('AI provider: mock mode (set AI_API_KEY in backend/.env)');
-  }
-  console.log(`Safety gateway: moderation=${policy.moderationEnabled}, chat rate=${policy.endpoints.chat.rateLimitPerMin}/min`);
-});
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`SchedMate backend listening on :${PORT}`);
+    if (provider.hasAiKey) {
+      console.log(`AI provider: ${provider.AI_BASE_URL} (text: ${provider.TEXT_MODEL}, vision: ${provider.VISION_MODEL})`);
+    } else {
+      console.log('AI provider: mock mode (set AI_API_KEY in backend/.env)');
+    }
+    console.log(`Safety gateway: moderation=${policy.moderationEnabled}, chat rate=${policy.endpoints.chat.rateLimitPerMin}/min`);
+  });
+}
+
+module.exports = { app, handleChat };

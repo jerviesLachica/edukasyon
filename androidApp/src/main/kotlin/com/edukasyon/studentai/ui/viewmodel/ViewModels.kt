@@ -999,6 +999,7 @@ class AiViewModel @Inject constructor(
             if (cite.id.startsWith("web:") && cite.url.isNotEmpty()) {
                 runCatching {
                     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(cite.url))
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                     appContext.startActivity(intent)
                 }
                 return@launch
