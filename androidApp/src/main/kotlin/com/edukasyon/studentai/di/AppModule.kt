@@ -17,6 +17,7 @@ import com.edukasyon.studentai.data.local.MIGRATION_6_7
 import com.edukasyon.studentai.data.local.MIGRATION_7_8
 import com.edukasyon.studentai.data.local.MIGRATION_8_9
 import com.edukasyon.studentai.data.local.MIGRATION_9_10
+import com.edukasyon.studentai.data.local.MIGRATION_10_11
 import com.edukasyon.studentai.data.repository.AiConversationRepositoryImpl
 import com.edukasyon.studentai.data.repository.AssignmentRepositoryImpl
 import com.edukasyon.studentai.data.repository.CalendarRepositoryImpl
@@ -26,6 +27,7 @@ import com.edukasyon.studentai.data.repository.GradeRepositoryImpl
 import com.edukasyon.studentai.data.repository.JeviRepositoryImpl
 import com.edukasyon.studentai.data.repository.LectureFileRepositoryImpl
 import com.edukasyon.studentai.data.repository.NoteRepositoryImpl
+import com.edukasyon.studentai.data.repository.SourceRepositoryImpl
 import com.edukasyon.studentai.data.repository.QuizRepositoryImpl
 import com.edukasyon.studentai.data.repository.ScheduleRepositoryImpl
 import com.edukasyon.studentai.data.repository.SearchRepositoryImpl
@@ -41,6 +43,7 @@ import com.edukasyon.studentai.domain.repository.GradeRepository
 import com.edukasyon.studentai.domain.repository.JeviRepository
 import com.edukasyon.studentai.domain.repository.LectureFileRepository
 import com.edukasyon.studentai.domain.repository.NoteRepository
+import com.edukasyon.studentai.domain.repository.SourceRepository
 import com.edukasyon.studentai.domain.repository.QuizRepository
 import com.edukasyon.studentai.domain.repository.ScheduleRepository
 import com.edukasyon.studentai.domain.repository.SearchRepository
@@ -79,6 +82,7 @@ object DatabaseModule {
                 MIGRATION_7_8,
                 MIGRATION_8_9,
                 MIGRATION_9_10,
+                MIGRATION_10_11,
             )
         if (BuildConfig.DEBUG) {
             // Recover from schema validation failures during development without manual app-data clears.
@@ -110,6 +114,7 @@ object DatabaseModule {
     @Provides fun provideAiConversationDao(db: StudentAiDatabase) = db.aiConversationDao()
     @Provides fun provideCachedHolidayDao(db: StudentAiDatabase) = db.cachedHolidayDao()
     @Provides fun provideLectureFileDao(db: StudentAiDatabase) = db.lectureFileDao()
+    @Provides fun provideSourceDao(db: StudentAiDatabase) = db.sourceDao()
 }
 
 @Module
@@ -188,6 +193,8 @@ abstract class RepositoryModule {
     @Binds @Singleton abstract fun bindFlashcardRepo(impl: FlashcardRepositoryImpl): FlashcardRepository
     @Suppress("unused")
     @Binds @Singleton abstract fun bindJeviRepo(impl: JeviRepositoryImpl): JeviRepository
+    @Suppress("unused")
+    @Binds @Singleton abstract fun bindSourceRepo(impl: SourceRepositoryImpl): SourceRepository
     @Suppress("unused")
     @Binds @Singleton abstract fun bindQuizRepo(impl: QuizRepositoryImpl): QuizRepository
     @Suppress("unused")

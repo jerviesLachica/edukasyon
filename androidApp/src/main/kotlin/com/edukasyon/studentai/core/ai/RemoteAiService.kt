@@ -65,12 +65,15 @@ class RemoteAiService @Inject constructor(
             throw AiException("Jevi returned an empty reply.")
         }
         AiChatResponse(
-            reply = recovered.reply,
-            conversationId = response.conversationId,
-            reasoning = recovered.reasoning,
-            model = response.model,
-            citedChunkIds = response.citedChunkIds,
-        )
+                    reply = recovered.reply,
+                    conversationId = response.conversationId,
+                    reasoning = recovered.reasoning,
+                    model = response.model,
+                    citedChunkIds = response.citedChunkIds,
+                    citedWebResults = response.citedWebResults.map {
+                        CitedWebResult(url = it.url, title = it.title, snippet = it.snippet)
+                    },
+                )
     }
 
     override suspend fun analyzeSchedule(input: ScheduleScanInput): ScheduleAnalysisResult {

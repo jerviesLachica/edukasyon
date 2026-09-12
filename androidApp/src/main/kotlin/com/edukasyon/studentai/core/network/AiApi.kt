@@ -25,6 +25,9 @@ interface AiApiService {
     @GET("api/ai/schedule-analysis/{jobId}")
     suspend fun getScheduleScanJob(@Path("jobId") jobId: String): ScheduleScanJobStatusDto
 
+    @POST("api/ai/embed")
+    suspend fun embed(@Body request: EmbedRequest): EmbedResponseDto
+
     @POST("api/ai/summarize")
     suspend fun summarize(@Body request: TextRequest): TextResponseDto
 
@@ -78,6 +81,13 @@ interface AiApiService {
     val reasoning: String? = null,
     val model: String? = null,
     val citedChunkIds: List<String> = emptyList(),
+    // NEW: web results cited in the response (URL, title, snippet)
+    val citedWebResults: List<CitedWebResultDto> = emptyList(),
+)
+@Serializable data class CitedWebResultDto(
+    val url: String,
+    val title: String = "",
+    val snippet: String = "",
 )
 @Serializable data class CitedChunkDto(val id: String, val label: String, val text: String)
 @Serializable data class ScheduleAnalysisRequest(
@@ -104,6 +114,8 @@ interface AiApiService {
     val endTime: String = "",
 )
 @Serializable data class ScheduleAnalysisResponseDto(val classes: List<ExtractedClassDto>, val uncertainFields: List<String> = emptyList())
+@Serializable data class EmbedRequest(val texts: List<String>, val taskType: String = "RETRIEVAL_DOCUMENT")
+@Serializable data class EmbedResponseDto(val vectors: List<List<Double>>, val model: String, val dims: Int)
 @Serializable data class TextRequest(val text: String)
 @Serializable data class TextResponseDto(val result: String)
 @Serializable data class FlashcardDto(val question: String, val answer: String, val topic: String? = null)

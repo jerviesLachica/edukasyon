@@ -834,6 +834,10 @@ data class AiUiState(
     val toolsPdf: ToolsPdfState? = null,
     val selectedChatModel: AiModel = AiModel.AUTO,
     val thinkingLevel: ThinkingLevel = ThinkingLevel.FLASH,
+    val sources: List<CitedSource> = emptyList(),
+    val selectedSourceIds: Set<String>? = null,
+    val viewerChunks: List<RankedChunk> = emptyList(),
+    val viewerIndex: Int = -1,
     val stepQuotaRemaining: Int = StepModelQuotaTracker.LIMIT,
     val stepQuotaLabel: String = "${StepModelQuotaTracker.LIMIT}/${StepModelQuotaTracker.LIMIT} left",
     val stepQuotaExhausted: Boolean = false,
@@ -911,6 +915,14 @@ class AiViewModel @Inject constructor(
                 _uiState.update { it.copy(thinkingLevel = level) }
             }
         }
+        viewModelScope.launch {
+            sourceRepository.observeSources().collect { list ->
+                _uiState.update { st ->
+                    val valid = st.selectedSourceIds?.intersect(list.map { it.id }.toSet())
+                    st.copy(sources = list, selectedSourceIds = valid)
+                }
+            }
+        }
     }
 
     private fun applyChatModelAndQuota(model: AiModel, timestamps: List<Long>) {
@@ -955,6 +967,63 @@ class AiViewModel @Inject constructor(
         viewModelScope.launch {
             preferences.setThinkingLevel(level)
         }
+    }
+
+    fun toggleSource(id: String) {
+        val current = _uiState.value.selectedSourceIds
+        val all = _uiState.value.sources.map { it.id }.toSet()
+        val next = when {
+            current == null -> all - id
+            current.contains(id) -> (current - id).ifEmpty { emptySet() }
+            else -> current + id
+        }
+        _uiState.update { it.copy(selectedSourceIds = next) }
+    }
+
+    fun addSource(name: String, text: String, mime: String = "text/plain") {
+        viewModelScope.launch {
+            runCatching { sourceRepository.ingestSource(name, mime, text) }
+                .onFailure { e -> _uiState.update { it.copy(statusMessage = e.message) } }
+        }
+    }
+
+    fun deleteSource(id: String) {
+        viewModelScope.launch {
+            runCatching { sourceRepository.deleteSource(id) }
+        }
+    }
+
+    fun openCitation(cite: CitedChunkView) {
+        viewModelScope.launch {
+            // Web citations: open in browser
+            if (cite.id.startsWith("web:") && cite.url.isNotEmpty()) {
+                runCatching {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(cite.url))
+                    appContext.startActivity(intent)
+                }
+                return@launch
+            }
+            
+            // Local citations: show passage viewer
+            val chunks = runCatching { sourceRepository.chunksForSource(cite.sourceId) }
+                .getOrDefault(emptyList())
+            val idx = chunks.indexOfFirst { it.chunkId.toString() == cite.id || it.chunkId.toString().removePrefix("local:") == cite.id.removePrefix("local:") }.takeIf { it >= 0 } ?: 0
+            val shown = chunks.ifEmpty {
+                listOf(RankedChunk(-1, cite.sourceId, cite.label, 0, cite.text, 1.0))
+            }
+            _uiState.update { it.copy(viewerChunks = shown, viewerIndex = idx.coerceIn(shown.indices)) }
+        }
+    }
+
+    fun stepViewer(dir: Int) {
+        val st = _uiState.value
+        if (st.viewerChunks.isEmpty()) return
+        val next = (st.viewerIndex + dir).coerceIn(st.viewerChunks.indices)
+        _uiState.update { it.copy(viewerIndex = next) }
+    }
+
+    fun closeViewer() {
+        _uiState.update { it.copy(viewerChunks = emptyList(), viewerIndex = -1) }
     }
 
     private suspend fun resolveModelForSend(): AiModel {
@@ -1052,6 +1121,17 @@ class AiViewModel @Inject constructor(
                                     .decodeTutorReasoning(msg.metadataJson)
                             } else {
                                 null
+                            },
+                            citations = if (!msg.isUser) {
+                                com.edukasyon.studentai.core.ai.AiConversationMetadata
+                                    .decodeCitations(msg.metadataJson)
+                                    .map {
+                                        com.edukasyon.studentai.domain.model.CitedChunkView(
+                                            id = it.id, sourceId = it.sourceId, label = it.label, text = it.text
+                                        )
+                                    }
+                            } else {
+                                emptyList()
                             },
                         )
                     }
@@ -1270,7 +1350,7 @@ class AiViewModel @Inject constructor(
                 val modelOverride = AiModelRouter.chatModelOverride(selectedModel)
                 val effort = AiModelRouter.effortParam(preferences.thinkingLevel.first())
                 val groundedSources: List<com.edukasyon.studentai.domain.model.RankedChunk> = try {
-                    sourceRepository.retrieve(displayMessage, null, 5)
+                    sourceRepository.retrieve(displayMessage, _uiState.value.selectedSourceIds, 5)
                 } catch (_: Exception) {
                     emptyList()
                 }
@@ -1306,6 +1386,23 @@ class AiViewModel @Inject constructor(
                     if (parsed.actions.isNotEmpty()) aiActionExecutor.execute(parsed.actions) else emptyList()
                 }.getOrElse { emptyList() }
                 val assistantTimestamp = System.currentTimeMillis()
+                val localCites = groundedSources
+                    .filter { g -> response.citedChunkIds.contains(g.chunkId.toString()) || response.citedChunkIds.contains("local:${g.chunkId}") }
+                    .map {
+                        com.edukasyon.studentai.domain.model.CitedChunkView(
+                            id = "local:${it.chunkId}", sourceId = it.sourceId, label = it.sourceName, text = it.text
+                        )
+                    }
+                val webCites = response.citedWebResults.mapIndexed { idx, web ->
+                    com.edukasyon.studentai.domain.model.CitedChunkView(
+                        id = "web:$idx",
+                        sourceId = "web",
+                        label = web.title.ifBlank { "Web Source" },
+                        text = web.snippet,
+                        url = web.url,
+                    )
+                }
+                val citedViews = localCites + webCites
                 safePersistMessage(
                     AiConversationMessage(
                         id = aiMessageId(),
@@ -1314,7 +1411,12 @@ class AiViewModel @Inject constructor(
                         content = parsed.displayText,
                         sentAt = assistantTimestamp,
                         metadataJson = com.edukasyon.studentai.core.ai.AiConversationMetadata
-                            .encodeTutorReasoning(reasoning),
+                            .encodeTutorReasoning(
+                                reasoning,
+                                citedViews.map {
+                                    com.edukasyon.studentai.core.ai.CitedChunkMeta(it.id, it.sourceId, it.label, it.text)
+                                },
+                            ),
                     )
                 )
                 awardXp(GizmoConstants.XP_CHAT)
@@ -1328,6 +1430,7 @@ class AiViewModel @Inject constructor(
                             isUser = false,
                             timestamp = assistantTimestamp,
                             reasoning = reasoning,
+                            citations = citedViews,
                         ),
                         statusMessage = appliedActions.takeIf { it.isNotEmpty() }?.joinToString(" · "),
                     )

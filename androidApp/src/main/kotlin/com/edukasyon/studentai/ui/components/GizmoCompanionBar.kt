@@ -20,11 +20,13 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -346,6 +348,8 @@ fun GizmoChatBubble(
     attachmentIsImage: Boolean = false,
     reasoning: String? = null,
     onCopy: (() -> Unit)? = null,
+    citations: List<com.edukasyon.studentai.domain.model.CitedChunkView> = emptyList(),
+    onCitationClick: ((com.edukasyon.studentai.domain.model.CitedChunkView) -> Unit)? = null,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -415,6 +419,43 @@ fun GizmoChatBubble(
                                 )
                             } else {
                                 MarkdownChatText(markdown = message)
+                            }
+                        }
+                        if (!isUser && citations.isNotEmpty() && onCitationClick != null) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Text(
+                                    text = "Sources:",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.align(Alignment.CenterVertically),
+                                )
+                                citations.forEachIndexed { index, cite ->
+                                    val isWeb = cite.url.isNotEmpty()
+                                    InputChip(
+                                        selected = false,
+                                        onClick = { onCitationClick(cite) },
+                                        label = {
+                                            Row(
+                                                modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Text("[${index + 1}] ${cite.label}")
+                                                if (isWeb) {
+                                                    Icon(
+                                                        Icons.Outlined.OpenInNew,
+                                                        contentDescription = "Open in browser",
+                                                        modifier = Modifier.size(12.dp),
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                    )
+                                                }
+                                            }
+                                        },
+                                    )
+                                }
                             }
                         }
                         if (!isUser && onCopy != null && message.isNotBlank()) {

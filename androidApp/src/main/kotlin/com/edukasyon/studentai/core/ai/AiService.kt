@@ -35,6 +35,13 @@ data class AiChatResponse(
     val reasoning: String? = null,
     val model: String? = null,
     val citedChunkIds: List<String> = emptyList(),
+    val citedWebResults: List<CitedWebResult> = emptyList(),
+)
+
+data class CitedWebResult(
+    val url: String,
+    val title: String = "",
+    val snippet: String = "",
 )
 
 data class ScheduleAnalysisResult(
