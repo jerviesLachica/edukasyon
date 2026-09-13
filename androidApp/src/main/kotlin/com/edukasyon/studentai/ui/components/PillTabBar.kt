@@ -97,12 +97,12 @@ private fun rememberPillTabColors(): PillTabColors {
         } else {
             PillTabColors(
                 container = Color.White,
-                glider = Color(0xFFE6EEF9),
-                selectedContent = Color(0xFF185EE0),
+                glider = scheme.primaryContainer.copy(alpha = 0.55f),
+                selectedContent = scheme.primary,
                 unselectedContent = Color(0xFF1A1A1A),
-                badgeDefault = Color(0xFFE6EEF9),
-                badgeSelected = Color(0xFF185EE0),
-                badgeText = Color.White,
+                badgeDefault = scheme.primaryContainer.copy(alpha = 0.55f),
+                badgeSelected = scheme.primary,
+                badgeText = scheme.onPrimary,
             )
         }
     }

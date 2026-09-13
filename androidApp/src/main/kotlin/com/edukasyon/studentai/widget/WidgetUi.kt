@@ -40,7 +40,7 @@ internal object WidgetColors {
 }
 
 internal fun accentColor(hex: String): Color =
-    parseHexColor(hex) ?: Color(0xFF3949AB)
+    parseHexColor(hex) ?: Color(0xFFF97316)
 
 @Composable
 internal fun WidgetRoot(

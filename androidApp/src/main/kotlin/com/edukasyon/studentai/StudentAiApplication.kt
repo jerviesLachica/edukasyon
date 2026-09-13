@@ -48,6 +48,7 @@ class StudentAiApplication : Application(), Configuration.Provider {
         appScope.launch {
             runCatching {
                 preferences.ensureRemoteAiEnabled()
+                preferences.ensureThemeOrangeMigrated()
                 database.openHelper.writableDatabase
                 syncScheduler.schedulePeriodicSync()
                 holidaySyncScheduler.schedulePeriodicSync()

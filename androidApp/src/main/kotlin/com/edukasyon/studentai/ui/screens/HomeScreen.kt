@@ -842,23 +842,18 @@ private fun formatDueBadge(dueDate: Long): String {
     }
 }
 
+@Composable
 private fun parseScheduleColor(colorHex: String): Color =
     runCatching { Color(android.graphics.Color.parseColor(colorHex)) }
-        .getOrDefault(Color(0xFF1976D2))
+        .getOrDefault(MaterialTheme.colorScheme.primary)
 
 @Composable
-private fun homePastelBlue(isDark: Boolean): Color = if (isDark) {
-    Color(0xFF1A2940)
-} else {
-    Color(0xFFE3F2FD)
-}
+private fun homePastelBlue(isDark: Boolean): Color =
+    MaterialTheme.colorScheme.primaryContainer
 
 @Composable
-private fun homePastelBlueContent(isDark: Boolean): Color = if (isDark) {
-    Color(0xFF90CAF9)
-} else {
-    Color(0xFF1565C0)
-}
+private fun homePastelBlueContent(isDark: Boolean): Color =
+    MaterialTheme.colorScheme.onPrimaryContainer
 
 @Composable
 private fun homePastelOrange(isDark: Boolean): Color = if (isDark) {

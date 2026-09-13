@@ -602,8 +602,9 @@ private fun FocusModeChip(
     )
 }
 
+@Composable
 private fun focusPastelCard(isDark: Boolean): Color =
-    if (isDark) Color(0xFF2A3140) else Color(0xFFEEF2FF)
+    MaterialTheme.colorScheme.primaryContainer
 
 private fun formatCountdown(totalSeconds: Int): String {
     val minutes = totalSeconds / 60

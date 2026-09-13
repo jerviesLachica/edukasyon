@@ -163,12 +163,12 @@ private fun rememberStudentAiSnackbarColors(type: StudentAiSnackbarType): Studen
                 iconBackground = when (type) {
                     StudentAiSnackbarType.Success -> scheme.primaryContainer.copy(alpha = 0.65f)
                     StudentAiSnackbarType.Error -> scheme.errorContainer.copy(alpha = 0.65f)
-                    StudentAiSnackbarType.Info -> Color(0xFFE6EEF9)
+                    StudentAiSnackbarType.Info -> scheme.primaryContainer.copy(alpha = 0.65f)
                 },
                 iconTint = when (type) {
-                    StudentAiSnackbarType.Success -> Color(0xFF185EE0)
+                    StudentAiSnackbarType.Success -> scheme.primary
                     StudentAiSnackbarType.Error -> scheme.error
-                    StudentAiSnackbarType.Info -> Color(0xFF185EE0)
+                    StudentAiSnackbarType.Info -> scheme.primary
                 },
             )
         }

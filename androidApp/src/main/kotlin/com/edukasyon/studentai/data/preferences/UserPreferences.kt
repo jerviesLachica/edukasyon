@@ -29,8 +29,8 @@ class UserPreferences @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     companion object {
-        const val DEFAULT_PRIMARY_COLOR = "#3949AB"
-    }
+            const val DEFAULT_PRIMARY_COLOR = "#F97316"
+        }
 
     /** Persisted first-launch choice for how the app authenticates the user. */
     enum class AuthStrategy(val key: String) {
@@ -45,10 +45,11 @@ class UserPreferences @Inject constructor(
     }
 
     private object Keys {
-        val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
-        val THEME_MODE = stringPreferencesKey("theme_mode")
-        val PRIMARY_COLOR_HEX = stringPreferencesKey("primary_color_hex")
-        val SECONDARY_COLOR_HEX = stringPreferencesKey("secondary_color_hex")
+            val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
+            val THEME_MODE = stringPreferencesKey("theme_mode")
+            val PRIMARY_COLOR_HEX = stringPreferencesKey("primary_color_hex")
+            val SECONDARY_COLOR_HEX = stringPreferencesKey("secondary_color_hex")
+            val THEME_ORANGE_MIGRATED = booleanPreferencesKey("theme_orange_migrated")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val CLASS_REMINDERS = booleanPreferencesKey("class_reminders")
         val TASK_REMINDERS = booleanPreferencesKey("task_reminders")
@@ -134,6 +135,16 @@ class UserPreferences @Inject constructor(
         context.dataStore.edit { prefs ->
             if (prefs[Keys.USE_MOCK_AI] != false) {
                 prefs[Keys.USE_MOCK_AI] = false
+            }
+        }
+    }
+
+    /** One-time migration: migrate theme to orange default if not already done. */
+    suspend fun ensureThemeOrangeMigrated() {
+        context.dataStore.edit { prefs ->
+            if (prefs[Keys.THEME_ORANGE_MIGRATED] != true) {
+                prefs[Keys.PRIMARY_COLOR_HEX] = "#F97316"
+                prefs[Keys.THEME_ORANGE_MIGRATED] = true
             }
         }
     }
