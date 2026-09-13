@@ -26,10 +26,10 @@ describe('AiProvider OrcaRouter Integration', () => {
     });
 
     it('vision model fallback chain should have OrcaRouter FIRST, hcnsec LAST', () => {
-      const chain = provider.modelFallbackChain('agnes-2.5-flash', { isVision: true });
+      const chain = provider.modelFallbackChain('nemotron-3.5-lightning-free', { isVision: true });
       assert.ok(chain.length > 0, 'chain should not be empty');
       assert.strictEqual(chain[0], 'z-ai/glm-5.3-flash-free', 'OrcaRouter model should be FIRST (fast path)');
-      assert.ok(chain.includes('agnes-2.5-flash'), 'agnes-2.5-flash should be in chain as hcnsec fallback');
+      assert.ok(chain.includes('nemotron-3.5-lightning-free'), 'nemotron-3.5-lightning-free should be in chain as hcnsec fallback');
     });
 
     it('wire model mapping should preserve OrcaRouter model id', () => {
@@ -48,9 +48,9 @@ describe('AiProvider OrcaRouter Integration', () => {
     });
 
     it('vision fallback chain should skip OrcaRouter and wire to MiniMax-M3', () => {
-      const chain = provider.modelFallbackChain('agnes-2.5-flash', { isVision: true });
+      const chain = provider.modelFallbackChain('nemotron-3.5-lightning-free', { isVision: true });
       assert.ok(!chain.includes('z-ai/glm-5.3-flash-free'), 'OrcaRouter model should not be in chain without API key');
-      // When converted to wire model, agnes-2.5-flash becomes MiniMax-M3
+      // When converted to wire model, nemotron-3.5-lightning-free becomes MiniMax-M3
       const { toWireModelSlug } = require('../ai/AiProvider');
       const wire = toWireModelSlug(chain[0], { isVision: true });
       assert.strictEqual(wire, 'MiniMax-M3', 'Primary vision wire model should be MiniMax-M3');
@@ -214,7 +214,7 @@ describe('AiProvider OrcaRouter Integration', () => {
       assert.ok(String(calls[0].url).includes('hcnsec'), 'goes straight to hcnsec');
     });
 
-    it('thinking requests (agnes slug) go to hcnsec auto, never Zen', async () => {
+    it('thinking requests (nemotron-3.5-lightning-free slug) go to hcnsec auto, never Zen', async () => {
       const provider = providerWithZen();
       globalThis.fetch = async (url, opts) => {
         calls.push({ url, body: JSON.parse(opts.body) });
@@ -222,7 +222,7 @@ describe('AiProvider OrcaRouter Integration', () => {
       };
       const result = await provider.chatCompletion(
         [{ role: 'user', content: 'think hard' }],
-        { model: 'agnes-2.5-flash', isVision: false },
+        { model: 'nemotron-3.5-lightning-free', isVision: false },
       );
       assert.strictEqual(result.reply, 'hello');
       assert.ok(calls.length >= 1, 'should make at least one call');
@@ -250,7 +250,7 @@ describe('AiProvider OrcaRouter Integration', () => {
       assert.strictEqual(calls[0].body.model, 'auto');
     });
 
-    it('explicit thinking:false sends agnes slug to Zen fast path', async () => {
+    it('explicit thinking:false sends nemotron-3.5-lightning-free slug to Zen fast path', async () => {
       const provider = providerWithZen();
       globalThis.fetch = async (url, opts) => {
         calls.push({ url, body: JSON.parse(opts.body) });
@@ -258,7 +258,7 @@ describe('AiProvider OrcaRouter Integration', () => {
       };
       const result = await provider.chatCompletion(
         [{ role: 'user', content: 'quick' }],
-        { model: 'agnes-2.5-flash', isVision: false, thinking: false },
+        { model: 'nemotron-3.5-lightning-free', isVision: false, thinking: false },
       );
       assert.strictEqual(result.reply, 'hello');
       assert.ok(String(calls[0].url).includes('opencode.ai'), 'explicit non-thinking uses Zen fast path');

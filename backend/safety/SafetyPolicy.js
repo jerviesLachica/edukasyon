@@ -70,7 +70,7 @@ const ENDPOINT_DEFAULTS = {
   },
 };
 
-/** Premium reasoning/vision model chat quota (when client sends model=agnes-2.5-flash; legacy step-3.7-flash also counted). */
+/** Premium reasoning/vision model chat quota (when client sends model=nemotron-3.5-lightning-free; legacy step-3.7-flash/agnes also counted). */
 const STEP_MODEL_CHAT_DEFAULTS = {
   limit: 25,
   windowMs: 10 * 60 * 1000,

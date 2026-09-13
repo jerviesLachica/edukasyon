@@ -97,16 +97,16 @@ enum class QuestionType {
 
 enum class AiModel(val slug: String, val displayName: String, val chatDescription: String) {
     AUTO("auto", "Auto", "Fast general answers"),
-    REASONING("agnes-2.5-flash", "Agnes 2.5 Flash", "Stronger reasoning & vision");
+    REASONING("nemotron-3.5-lightning-free", "Zen Flash", "Stronger reasoning & vision");
 
     val isStepModel: Boolean get() = this == REASONING
 
     companion object {
         fun fromSlug(slug: String): AiModel = when (slug) {
             "mimo-v2.5", "mimo-v2.5-pro" -> AUTO
-            // Legacy slug from before the agnes migration — map to REASONING
-            // so old saved preferences keep working.
-            "step-3.7-flash" -> REASONING
+                        // Legacy slug from before the agnes migration — map to REASONING
+                        // so old saved preferences keep working.
+                        "agnes-2.5-flash", "step-3.7-flash" -> REASONING
             else -> entries.find { it.slug == slug } ?: AUTO
         }
     }

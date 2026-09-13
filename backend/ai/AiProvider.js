@@ -10,23 +10,23 @@ function envModelList(name) {
     .filter(Boolean);
 }
 
-const BASE_ALLOWED_MODELS = ['auto', 'agnes-2.5-flash'];
+const BASE_ALLOWED_MODELS = ['auto', 'nemotron-3.5-lightning-free'];
 // Operators extend the catalog via env (e.g. NVIDIA NIM ids) without code changes.
 const CONFIGURED_MODELS = envModelList('ALLOWED_MODELS');
 const ALLOWED_MODELS = [...new Set([...BASE_ALLOWED_MODELS, ...CONFIGURED_MODELS])];
 const VISION_CAPABLE_MODELS = [
   ...new Set([
-    'agnes-2.5-flash',
+    'nemotron-3.5-lightning-free',
     ...envModelList('VISION_CAPABLE_MODELS'),
     ...CONFIGURED_MODELS,
   ]),
 ];
 const DEFAULT_TEXT_MODEL = 'auto';
-// Vision default is the canonical agnes slug — the wire layer maps it to the
+// Vision default is the canonical Zen slug — the wire layer maps it to the
 // upstream multimodal model (`auto` routing returns a text-only model,
 // 400: does not support multimodal). Zen vision (when configured) goes first
 // in the chain; Gemini / OrcaRouter / hcnsec remain as fallbacks.
-const DEFAULT_VISION_MODEL = 'agnes-2.5-flash';
+const DEFAULT_VISION_MODEL = 'nemotron-3.5-lightning-free';
 // OrcaRouter free tier for faster vision (5-12s vs 60-120s).
 // free tier: 10 RPM, ~1440/day, $0 forever. Falls back to MiniMax-M3 on 429.
 // NOTE: `orcarouter/auto` is key-permission gated (403 model_access_denied
@@ -34,11 +34,12 @@ const DEFAULT_VISION_MODEL = 'agnes-2.5-flash';
 // ORCA_MODEL env if the key ever gains auto access.
 const ORCA_VISION_MODEL = process.env.ORCA_MODEL || 'z-ai/glm-5.3-flash-free';
 
-// Legacy slug from before the agnes migration. Old clients / Render envs may
-// still send `step-3.7-flash` — normalize it to `agnes-2.5-flash` so quota
+// Legacy slug from before the Zen migration. Old clients / Render envs may
+// still send `step-3.7-flash` or `agnes-2.5-flash` — normalize them to `nemotron-3.5-lightning-free` so quota
 // attribution and logs stay consistent; the wire layer maps it to `MiniMax-M3`.
 const LEGACY_VISION_ALIASES = {
-  'step-3.7-flash': 'agnes-2.5-flash',
+  'step-3.7-flash': 'nemotron-3.5-lightning-free',
+  'agnes-2.5-flash': 'nemotron-3.5-lightning-free',
 };
 
 function normalizeModelSlug(slug) {
@@ -53,16 +54,16 @@ function toWireModelSlug(slug, { isVision = false, provider = 'hcnsec' } = {}) {
   const normalized = normalizeModelSlug(slug);
   // OrcaRouter provider (if explicitly requested or auto-selected)
   if (provider === 'orca') {
-    if (isVision && (normalized === 'agnes-2.5-flash' || normalized === 'auto')) {
+    if (isVision && (normalized === 'nemotron-3.5-lightning-free' || normalized === 'auto')) {
       return ORCA_VISION_MODEL;
     }
     return normalized;
   }
   // Default hcnsec provider
-  if (isVision && (normalized === 'agnes-2.5-flash' || normalized === 'auto')) {
+  if (isVision && (normalized === 'nemotron-3.5-lightning-free' || normalized === 'auto')) {
     return 'MiniMax-M3';
   }
-  if (normalized === 'agnes-2.5-flash') return 'MiniMax-M3';
+  if (normalized === 'nemotron-3.5-lightning-free') return 'MiniMax-M3';
   return normalized;
 }
 
@@ -168,10 +169,10 @@ function createAiProvider(config = {}) {
   function resolveChatModel(requestedModel, hasVisionAttachment) {
     if (hasVisionAttachment) {
       const normalized = normalizeModelSlug(requestedModel);
-      // All vision requests route to agnes-2.5-flash (most reliable for images).
-      // Legacy `step-3.7-flash` clients also land here via normalizeModelSlug.
+      // All vision requests route to nemotron-3.5-lightning-free (most reliable for images).
+      // Legacy `step-3.7-flash` / `agnes-2.5-flash` clients also land here via normalizeModelSlug.
       if (normalized && VISION_CAPABLE_MODELS.includes(normalized)) return normalized;
-      return 'agnes-2.5-flash';
+      return 'nemotron-3.5-lightning-free';
     }
     return resolveTextModel(normalizeModelSlug(requestedModel));
   }
@@ -306,7 +307,7 @@ function createAiProvider(config = {}) {
     const embedded = splitEmbeddedReasoning(rawContent);
     const reasoningParts = [providerReasoning, embedded.reasoning].filter(Boolean);
     const reasoning = reasoningParts.join('\n\n').trim() || null;
-    // Some models (e.g. agnes-2.5-flash) put the structured answer in `reasoning`
+    // Some models (e.g. nemotron-3.5-lightning-free) put the structured answer in `reasoning`
     // and leave `content` empty when response_format=json_object is requested.
     // Use reasoning as a fallback so downstream extractJson can still parse JSON.
     let reply = embedded.reply.trim();
@@ -325,7 +326,7 @@ function createAiProvider(config = {}) {
     const payload = { model, messages, temperature, max_tokens: maxTokens };
     // Structured-output hint; providers that don't support it are handled by the caller's fallback.
     if (responseFormat) payload.response_format = responseFormat;
-    // reasoning parameter (e.g. for agnes-2.5-flash or OpenRouter thinking)
+    // reasoning parameter (e.g. for nemotron-3.5-lightning-free or OpenRouter thinking)
     // Only pass if it is an object (e.g. { effort: 'medium' }) or boolean
     if (reasoning && typeof reasoning !== 'string') payload.reasoning = reasoning;
     const url = baseUrl || AI_BASE_URL;
@@ -351,13 +352,13 @@ function createAiProvider(config = {}) {
       : (() => {
           const chain = [];
           // Thinking requests (explicit flag from effort, else the REASONING
-          // model / agnes slug) go to hcnsec `auto` — never Cerebras.
+          // model / Zen slug) go to hcnsec `auto` — never Cerebras.
           const thinking = typeof thinkingOpt === 'boolean'
             ? thinkingOpt
-            : (!isVision && normalizeModelSlug(model) === 'agnes-2.5-flash');
+            : (!isVision && normalizeModelSlug(model) === 'nemotron-3.5-lightning-free');
           const primary = thinking ? 'auto' : (model || (isVision ? VISION_MODEL : TEXT_MODEL));
           // Zen (OpenCode) fast lane goes FIRST for non-thinking text-only chat.
-          // Thinking (agnes slug / explicit flag) stays on hcnsec auto.
+          // Thinking (Zen slug / explicit flag) stays on hcnsec auto.
           if (!isVision && !thinking && ZEN_API_KEY) {
             for (const zenModel of ZEN_TEXT_MODELS) {
               chain.push({ model: zenModel, provider: 'zen' });

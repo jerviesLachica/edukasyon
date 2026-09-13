@@ -129,8 +129,8 @@ describe('QuizValidator', () => {
 });
 
 describe('AiProvider vision routing', () => {
-  it('treats agnes-2.5-flash as vision-capable for proxy fallback', () => {
-    assert.ok(VISION_CAPABLE_MODELS.includes('agnes-2.5-flash'));
+  it('treats nemotron-3.5-lightning-free as vision-capable for proxy fallback', () => {
+    assert.ok(VISION_CAPABLE_MODELS.includes('nemotron-3.5-lightning-free'));
   });
 });
 
