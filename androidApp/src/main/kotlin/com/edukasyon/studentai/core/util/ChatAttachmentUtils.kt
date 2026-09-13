@@ -98,6 +98,21 @@ object ChatAttachmentUtils {
      * Best-effort extraction of embedded text from text-based PDFs (no OCR).
      * Returns null when the PDF appears scanned or has insufficient extractable text.
      */
+    fun isLegibleText(s: String): Boolean {
+        if (s.isBlank()) return false
+        // Count ASCII letters only: font-encoded PDF streams decode to high-byte
+        // chars that are Unicode letters but carry no readable meaning.
+        fun isAsciiLetter(c: Char): Boolean = c in 'a'..'z' || c in 'A'..'Z'
+        val letterCount = s.count { isAsciiLetter(it) }
+        if (letterCount.toDouble() / s.length < 0.5) return false
+        val tokens = s.split(Regex("\\s+")).filter { it.length >= 3 }
+        if (tokens.isEmpty()) return false
+        val wordLike = tokens.count { token ->
+            token.count { isAsciiLetter(it) }.toDouble() / token.length >= 0.6
+        }
+        return wordLike.toDouble() / tokens.size >= 0.4
+    }
+
     fun extractEmbeddedPdfText(bytes: ByteArray): String? {
         if (bytes.isEmpty()) return null
         val raw = bytes.toString(Charsets.ISO_8859_1)
@@ -136,7 +151,7 @@ object ChatAttachmentUtils {
             .joinToString(" ")
             .replace(Regex("\\s+"), " ")
             .trim()
-        return joined.takeIf { it.length >= 150 }
+        return joined.takeIf { it.length >= 150 && isLegibleText(it) }
     }
 
     /**

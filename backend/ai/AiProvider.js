@@ -22,10 +22,11 @@ const VISION_CAPABLE_MODELS = [
   ]),
 ];
 const DEFAULT_TEXT_MODEL = 'auto';
-// Vision requests use MiniMax-M3 directly — the upstream distributor's
-// `auto` routing returns a non-vision model (400: does not support multimodal).
-// MiniMax-M3 is the only verified working vision model (~120s per scan).
-const DEFAULT_VISION_MODEL = 'MiniMax-M3';
+// Vision default is the canonical agnes slug — the wire layer maps it to the
+// upstream multimodal model (`auto` routing returns a text-only model,
+// 400: does not support multimodal). Zen vision (when configured) goes first
+// in the chain; Gemini / OrcaRouter / hcnsec remain as fallbacks.
+const DEFAULT_VISION_MODEL = 'agnes-2.5-flash';
 // OrcaRouter free tier for faster vision (5-12s vs 60-120s).
 // free tier: 10 RPM, ~1440/day, $0 forever. Falls back to MiniMax-M3 on 429.
 // NOTE: `orcarouter/auto` is key-permission gated (403 model_access_denied
@@ -97,7 +98,9 @@ function createAiProvider(config = {}) {
     'https://api.orcarouter.ai/v1'
   ).replace(/\/$/, '');
 
-  // Cerebras tertiary provider for fast text chat (OpenAI-compatible /v1).
+  // Cerebras legacy provider (OpenAI-compatible /v1). Removed from the routing
+  // chain in favor of the Zen fast lane — config/exports stay so existing
+  // envs and callers keep compiling.
   // Text-only: vision requests never route here (Cerebras vision, if any,
   // is unverified — images stay on OrcaRouter -> MiniMax-M3).
   const CEREBRAS_API_KEY = config.cerebrasApiKey || process.env.CEREBRAS_API_KEY || '';
@@ -107,6 +110,27 @@ function createAiProvider(config = {}) {
     'https://api.cerebras.ai/v1'
   ).replace(/\/$/, '');
   const CEREBRAS_TEXT_MODEL = process.env.CEREBRAS_MODEL || 'qwen-3.8-27b';
+
+  // OpenCode Zen provider for the text fast lane + vision-first
+  // (OpenAI-compatible /v1, Authorization Bearer — same sender shape as
+  // orca/cerebras, only base URL and key differ). Free tier models;
+  // 401/402/403/429 advance to the next candidate (see isRetryableModelError).
+  const ZEN_API_KEY = config.zenApiKey || process.env.ZEN_API_KEY || process.env.OPENCODE_API_KEY || '';
+  const ZEN_BASE_URL = (
+    config.zenBaseUrl ||
+    process.env.ZEN_BASE_URL ||
+    'https://opencode.ai/zen/v1'
+  ).replace(/\/$/, '');
+  const ZEN_TEXT_MODEL = process.env.ZEN_TEXT_MODEL || 'nemotron-3.5-lightning-free';
+  // Text fast lane in fixed order, then the existing hcnsec auto fallback.
+  const ZEN_TEXT_MODELS = [...new Set([
+    ZEN_TEXT_MODEL,
+    'deepseek-v4-flash-free',
+    'mimo-v2.5-free',
+    'nemotron-3-ultra-free',
+    'ling-3.0-flash-fin-free',
+  ])];
+  const ZEN_VISION_MODEL = process.env.ZEN_VISION_MODEL || 'deepseek-v4-flash-vision-exp';
 
   // Gemini vision via the OpenAI-compatible endpoint, using the same key as
   // embeddings (falls back to a dedicated GEMINI_API_KEY when set).
@@ -321,7 +345,7 @@ function createAiProvider(config = {}) {
   }
 
   async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, thinking: thinkingOpt, signal, responseFormat, reasoning, wireModelOverride } = {}) {
-    if (!hasAiKey && (!isVision || !ORCA_API_KEY)) throw new Error('AI provider not configured (set AI_API_KEY, CEREBRAS_API_KEY or ORCA_API_KEY)');
+    if (!hasAiKey && !ZEN_API_KEY && (!isVision || !ORCA_API_KEY)) throw new Error('AI provider not configured (set AI_API_KEY, OPENCODE_API_KEY or ORCA_API_KEY)');
     const wireModels = wireModelOverride
       ? [{ model: toWireModelSlug(wireModelOverride, { isVision }), provider: 'hcnsec' }]
       : (() => {
@@ -332,10 +356,17 @@ function createAiProvider(config = {}) {
             ? thinkingOpt
             : (!isVision && normalizeModelSlug(model) === 'agnes-2.5-flash');
           const primary = thinking ? 'auto' : (model || (isVision ? VISION_MODEL : TEXT_MODEL));
-          // Cerebras goes FIRST for non-thinking text-only chat.
-          // Vision never routes here (see CEREBRAS_* config above).
-          if (!isVision && !thinking && CEREBRAS_API_KEY) {
-            chain.push({ model: CEREBRAS_TEXT_MODEL, provider: 'cerebras' });
+          // Zen (OpenCode) fast lane goes FIRST for non-thinking text-only chat.
+          // Thinking (agnes slug / explicit flag) stays on hcnsec auto.
+          if (!isVision && !thinking && ZEN_API_KEY) {
+            for (const zenModel of ZEN_TEXT_MODELS) {
+              chain.push({ model: zenModel, provider: 'zen' });
+            }
+          }
+          // Zen vision goes FIRST when configured — Gemini, OrcaRouter and
+          // hcnsec (via modelFallbackChain below) remain as fallbacks.
+          if (isVision && ZEN_API_KEY) {
+            chain.push({ model: ZEN_VISION_MODEL, provider: 'zen' });
           }
           for (const candidate of modelFallbackChain(primary, { isVision })) {
             let provider = 'hcnsec';
@@ -359,8 +390,8 @@ function createAiProvider(config = {}) {
     let lastError;
     for (let i = 0; i < candidates.length; i += 1) {
       const { model: candidate, provider } = candidates[i];
-      const baseUrl = provider === 'orca' ? ORCA_BASE_URL : provider === 'cerebras' ? CEREBRAS_BASE_URL : provider === 'gemini' ? GEMINI_BASE_URL : AI_BASE_URL;
-      const apiKey = provider === 'orca' ? ORCA_API_KEY : provider === 'cerebras' ? CEREBRAS_API_KEY : provider === 'gemini' ? GEMINI_API_KEY : AI_API_KEY;
+      const baseUrl = provider === 'orca' ? ORCA_BASE_URL : provider === 'cerebras' ? CEREBRAS_BASE_URL : provider === 'zen' ? ZEN_BASE_URL : provider === 'gemini' ? GEMINI_BASE_URL : AI_BASE_URL;
+      const apiKey = provider === 'orca' ? ORCA_API_KEY : provider === 'cerebras' ? CEREBRAS_API_KEY : provider === 'zen' ? ZEN_API_KEY : provider === 'gemini' ? GEMINI_API_KEY : AI_API_KEY;
       try {
         if (i > 0) console.warn(`[ai] Retrying with fallback model=${candidate} (provider=${provider})`);
         const result = await chatCompletionOnce(messages, {
@@ -498,10 +529,15 @@ function createAiProvider(config = {}) {
   return {
     hasAiKey,
     hasCerebrasKey: Boolean(CEREBRAS_API_KEY),
+    hasZenKey: Boolean(ZEN_API_KEY),
     hasGeminiKey: Boolean(GEMINI_API_KEY),
     AI_BASE_URL,
     CEREBRAS_BASE_URL,
     CEREBRAS_TEXT_MODEL,
+    ZEN_BASE_URL,
+    ZEN_TEXT_MODEL,
+    ZEN_TEXT_MODELS,
+    ZEN_VISION_MODEL,
     GEMINI_BASE_URL,
     GEMINI_VISION_MODEL,
     DEFAULT_MODEL,
