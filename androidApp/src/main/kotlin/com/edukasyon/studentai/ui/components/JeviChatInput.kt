@@ -206,15 +206,6 @@ fun JeviChatInputBar(
             }
         }
 
-        // Thinking level — compact 3-level selector inside the composer bar
-        // (part of the bottom input area, never blocking chat messages)
-        JeviThinkingLevelRow(
-            selectedLevel = thinkingLevel,
-            onLevelSelected = onThinkingLevelSelected,
-            enabled = enabled,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-
         val scheme = MaterialTheme.colorScheme
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -374,38 +365,6 @@ private fun FilterChipSmall(
             leadingIcon?.invoke()
             label()
             trailingIcon?.invoke()
-        }
-    }
-}
-
-@Composable
-private fun JeviThinkingLevelRow(
-    selectedLevel: ThinkingLevel,
-    onLevelSelected: (ThinkingLevel) -> Unit,
-    enabled: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ThinkingLevel.entries.forEach { level ->
-            InputChip(
-                selected = selectedLevel == level,
-                onClick = { if (enabled) onLevelSelected(level) },
-                enabled = enabled,
-                label = { Text(level.displayName) },
-                leadingIcon = {
-                    Icon(
-                        Icons.Outlined.Psychology,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                },
-            )
         }
     }
 }

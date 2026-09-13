@@ -120,11 +120,11 @@ enum class AiModel(val slug: String, val displayName: String, val chatDescriptio
  * HIGH adds longest reasoning with more output tokens.
  */
 enum class ThinkingLevel(val slug: String, val displayName: String, val description: String) {
-    NONE("none", "None", "Fastest answers, no reasoning"),
-    MINIMAL("minimal", "Minimal", "Minimal reasoning before answering"),
-    LOW("low", "Low", "Includes reasoning before answering (default)"),
-    MEDIUM("medium", "Medium", "Step-by-step reasoning with additional output tokens"),
-    HIGH("high", "High", "Longest reasoning with maximum output tokens and detailed step-by-step prompts");
+    NONE("none", "No thinking", "No reasoning"),
+    MINIMAL("minimal", "Minimal thinking", "Minimal reasoning effort"),
+    LOW("low", "Low thinking", "Low reasoning effort"),
+    MEDIUM("medium", "Medium thinking", "Medium reasoning effort"),
+    HIGH("high", "High thinking", "High reasoning effort");
 
     companion object {
         fun fromSlug(slug: String?): ThinkingLevel =

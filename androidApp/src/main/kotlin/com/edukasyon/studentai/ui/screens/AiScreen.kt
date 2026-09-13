@@ -67,6 +67,7 @@ fun AiScreen(
     }
 
     var headerExpanded by remember { mutableStateOf(true) }
+    var showSourcesSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
@@ -83,15 +84,18 @@ fun AiScreen(
                     }) {
                         Icon(Icons.Outlined.NoteAdd, contentDescription = "New conversation")
                     }
-                    if (state.xpEarnedThisSession > 0) {
-                        AssistChip(
-                            onClick = {},
-                            label = { Text("+${state.xpEarnedThisSession} XP") },
-                            leadingIcon = {
-                                Icon(Icons.Default.Star, contentDescription = null, Modifier.size(16.dp))
-                            },
-                        )
-                    }
+                    AssistChip(
+                        onClick = { showSourcesSheet = true },
+                        label = {
+                            Text(
+                                if (state.sources.isEmpty()) "Add sources"
+                                else "Sources (${state.sources.size})",
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Add, contentDescription = null, Modifier.size(16.dp))
+                        },
+                    )
                 },
             )
         },
@@ -108,6 +112,8 @@ fun AiScreen(
                     isOnline = state.isOnline,
                     expanded = headerExpanded,
                     onToggleExpanded = { headerExpanded = !headerExpanded },
+                    thinkingLevel = state.thinkingLevel,
+                    onThinkingLevelSelected = { viewModel.setThinkingLevel(it) },
                 )
                 AiTutorTab(
                     state = state,
@@ -135,6 +141,17 @@ fun AiScreen(
                 )
             }
         }
+    }
+
+    if (showSourcesSheet) {
+        SourcesBottomSheet(
+            sources = state.sources,
+            selectedSourceIds = state.selectedSourceIds,
+            onToggleSource = { viewModel.toggleSource(it) },
+            onAddSource = { name, text -> viewModel.addSource(name, text) },
+            onDeleteSource = { viewModel.deleteSource(it) },
+            onDismiss = { showSourcesSheet = false },
+        )
     }
 }
 

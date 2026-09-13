@@ -25,6 +25,8 @@ import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
@@ -32,6 +34,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -56,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.edukasyon.studentai.domain.model.GizmoCompanionState
 import com.edukasyon.studentai.domain.model.GizmoMood
+import com.edukasyon.studentai.domain.model.ThinkingLevel
 import com.edukasyon.studentai.R
 
 /**
@@ -70,6 +75,8 @@ fun GizmoCompanionHeader(
     isOnline: Boolean = true,
     expanded: Boolean = true,
     onToggleExpanded: () -> Unit = {},
+    thinkingLevel: ThinkingLevel = ThinkingLevel.LOW,
+    onThinkingLevelSelected: (ThinkingLevel) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val expandSpring = spring<IntSize>(stiffness = Spring.StiffnessMediumLow)
@@ -107,6 +114,11 @@ fun GizmoCompanionHeader(
                         )
                         Spacer(Modifier.width(6.dp))
                         StatusDot(isOnline)
+                        Spacer(Modifier.width(8.dp))
+                        ThinkingLevelButton(
+                            level = thinkingLevel,
+                            onLevelSelected = onThinkingLevelSelected,
+                        )
                     }
                     if (expanded) {
                         Text(
@@ -196,6 +208,87 @@ private fun GizmoInlineStats(gizmo: GizmoCompanionState) {
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
             )
+        }
+    }
+}
+
+@Composable
+fun ThinkingLevelButton(
+    level: ThinkingLevel,
+    onLevelSelected: (ThinkingLevel) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier) {
+        Surface(
+            onClick = { expanded = true },
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 0.dp,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(
+                    Icons.Outlined.Psychology,
+                    contentDescription = null,
+                    modifier = Modifier.size(13.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = level.displayName,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Icon(
+                    Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            ThinkingLevel.entries.forEach { item ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(
+                                item.displayName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (item == level) FontWeight.Bold else FontWeight.Normal,
+                            )
+                            Text(
+                                item.description,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                    onClick = {
+                        onLevelSelected(item)
+                        expanded = false
+                    },
+                    leadingIcon = if (item == level) {
+                        {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    } else null,
+                )
+            }
         }
     }
 }
