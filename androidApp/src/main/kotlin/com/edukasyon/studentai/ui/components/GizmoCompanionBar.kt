@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -422,39 +423,50 @@ fun GizmoChatBubble(
                             }
                         }
                         if (!isUser && citations.isNotEmpty() && onCitationClick != null) {
-                            Row(
+                            Column(
                                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
-                                Text(
-                                    text = "Sources:",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.align(Alignment.CenterVertically),
-                                )
                                 citations.forEachIndexed { index, cite ->
                                     val isWeb = cite.url.isNotEmpty()
-                                    InputChip(
-                                        selected = false,
-                                        onClick = { onCitationClick(cite) },
-                                        label = {
-                                            Row(
-                                                modifier = Modifier.padding(start = 4.dp, end = 4.dp),
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                            ) {
-                                                Text("[${index + 1}] ${cite.label}")
-                                                if (isWeb) {
-                                                    Icon(
-                                                        Icons.Outlined.OpenInNew,
-                                                        contentDescription = "Open in browser",
-                                                        modifier = Modifier.size(12.dp),
-                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = if (index < citations.size - 1) 4.dp else 0.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = "[${index + 1}]",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.widthIn(max = 28.dp),
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        InputChip(
+                                            selected = false,
+                                            onClick = { onCitationClick(cite) },
+                                            label = {
+                                                Row(
+                                                    modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                ) {
+                                                    Text(
+                                                        "[${index + 1}] ${cite.label}",
+                                                        style = MaterialTheme.typography.labelSmall,
                                                     )
+                                                    if (isWeb) {
+                                                        Icon(
+                                                                                                                Icons.Outlined.OpenInNew,
+                                                                                                                contentDescription = "Open in browser",
+                                                                                                                modifier = Modifier.size(12.dp),
+                                                                                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                                                                            )
+                                                    }
                                                 }
-                                            }
-                                        },
-                                    )
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                    }
                                 }
                             }
                         }
