@@ -376,10 +376,12 @@ ${numbered}`;
     userContent += '\n\nThink step by step through this problem before giving your final answer.';
   }
 
-  // Automatic web research: run lightweight search for every chat message
-  // when Tavily is configured, in addition to any explicit /search command.
+  // Automatic web research: only for genuine learning topics (not greetings
+  // or short chatter). Greetings like "hi" should not trigger web searches
+  // or force-citations. Explicit /search commands always search regardless.
   let webResults = [];
-  const shouldAutoSearch = searchService.isConfigured && !webSearchRequest.requested;
+  const topic = isLearningTopic(message);
+  const shouldAutoSearch = searchService.isConfigured && !webSearchRequest.requested && topic;
   if (shouldAutoSearch) {
     const autoResults = await searchService.searchAuto(message, signal);
     if (autoResults.length) {
@@ -424,10 +426,11 @@ ${numbered}`;
     new Set(Array.from(String(reply || '').matchAll(/\[(\d+)\]/g)).map((m) => m[1]))
   ).filter((n) => Number(n) >= 1 && Number(n) <= sources.length + webResults.length);
 
-  // Guaranteed-5 citations: pad with unused web results first, then unused
-  // local sources, until 5 total (or fewer when sources are exhausted).
+  // Guaranteed-5 citations: ONLY for learning topics. Pad with unused web
+  // results first, then unused local sources, until 5 total. Non-topic
+  // messages (greetings, short chatter) keep only what the model cited.
   const citedNumbers = [...citedFromReply];
-  if (citedNumbers.length < 5) {
+  if (topic && citedNumbers.length < 5) {
     const used = new Set(citedNumbers.map(Number));
     const total = sources.length + webResults.length;
     for (let n = sources.length + 1; n <= total && citedNumbers.length < 5; n++) {
