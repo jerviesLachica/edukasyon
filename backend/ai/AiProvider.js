@@ -300,24 +300,36 @@ function createAiProvider(config = {}) {
   }
 
   function parseChatCompletionResult(data) {
-    const message = data.choices?.[0]?.message;
+    const choice = data.choices?.[0];
+    const message = choice?.message;
     if (!message) throw new Error('AI API returned empty response');
+    const finishReason = choice?.finish_reason || null;
     const rawContent = typeof message.content === 'string' ? message.content : '';
     const providerReasoning = extractProviderReasoning(message);
     const embedded = splitEmbeddedReasoning(rawContent);
     const reasoningParts = [providerReasoning, embedded.reasoning].filter(Boolean);
-    const reasoning = reasoningParts.join('\n\n').trim() || null;
-    // Some models (e.g. nemotron-3.5-lightning-free) put the structured answer in `reasoning`
-    // and leave `content` empty when response_format=json_object is requested.
-    // Use reasoning as a fallback so downstream extractJson can still parse JSON.
+    let reasoning = reasoningParts.join('\n\n').trim() || null;
     let reply = embedded.reply.trim();
-    if (!reply && reasoning) {
-      reply = reasoning;
+    // Heuristic laundering: when splitEmbeddedReasoning files the WHOLE content
+    // as reasoning (thinking models write CoT into content and get truncated
+    // before the answer), surface that text as the reply — but flag it
+    // (replyHeuristic) so callers know the "answer" is really deliberation and
+    // clients render it verbatim instead of re-splitting it away.
+    // Provider-side reasoning_content is NEVER laundered: the real reasoning
+    // channel is not an answer — leave reply empty so chatCompletion's
+    // no-thinking retry can produce one (and fail empty-response otherwise).
+    let replyHeuristic = false;
+    if (!reply && embedded.reasoning && !providerReasoning) {
+      reply = embedded.reasoning;
+      reasoning = null;
+      replyHeuristic = true;
     }
     if (!reply && !reasoning) throw new Error('AI API returned empty response');
     return {
       reply: reply || (reasoning ? '' : '(No response text)'),
       reasoning,
+      replyHeuristic,
+      finishReason,
       model: data.model || null,
     };
   }
@@ -347,95 +359,120 @@ function createAiProvider(config = {}) {
 
   async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, thinking: thinkingOpt, signal, responseFormat, reasoning, wireModelOverride } = {}) {
     if (!hasAiKey && !ZEN_API_KEY && (!isVision || !ORCA_API_KEY)) throw new Error('AI provider not configured (set AI_API_KEY, OPENCODE_API_KEY or ORCA_API_KEY)');
-    const wireModels = wireModelOverride
-      ? [{ model: toWireModelSlug(wireModelOverride, { isVision }), provider: 'hcnsec' }]
-      : (() => {
-          const chain = [];
-          // Thinking requests (explicit flag from effort, else the REASONING
-          // model / Zen slug) go to hcnsec `auto` — never Cerebras.
-          const thinking = typeof thinkingOpt === 'boolean'
-            ? thinkingOpt
-            : (!isVision && normalizeModelSlug(model) === 'nemotron-3.5-lightning-free');
-          const primary = thinking ? 'auto' : (model || (isVision ? VISION_MODEL : TEXT_MODEL));
-          // Zen (OpenCode) fast lane goes FIRST for non-thinking text-only chat.
-          // Thinking (Zen slug / explicit flag) stays on hcnsec auto.
-          if (!isVision && !thinking && ZEN_API_KEY) {
-            for (const zenModel of ZEN_TEXT_MODELS) {
-              chain.push({ model: zenModel, provider: 'zen' });
-            }
-          }
-          // Zen vision goes FIRST when configured — Gemini, OrcaRouter and
-          // hcnsec (via modelFallbackChain below) remain as fallbacks.
-          if (isVision && ZEN_API_KEY) {
-            chain.push({ model: ZEN_VISION_MODEL, provider: 'zen' });
-          }
-          for (const candidate of modelFallbackChain(primary, { isVision })) {
-            let provider = 'hcnsec';
-            let wire = candidate;
-            if (candidate === GEMINI_VISION_MODEL && GEMINI_API_KEY) {
-              provider = 'gemini';
-              wire = GEMINI_VISION_MODEL;
-            } else if (candidate === ORCA_VISION_MODEL && ORCA_API_KEY) {
-              provider = 'orca';
-              wire = ORCA_VISION_MODEL;
-            } else {
-              wire = toWireModelSlug(candidate, { isVision });
-            }
-            if (wire && !chain.find((c) => c.model === wire)) {
-              chain.push({ model: wire, provider });
-            }
-          }
-          return chain;
-        })();
-    const candidates = wireModels.length ? wireModels : [{ model: isVision ? 'MiniMax-M3' : 'auto', provider: 'hcnsec' }];
-    let lastError;
-    for (let i = 0; i < candidates.length; i += 1) {
-      const { model: candidate, provider } = candidates[i];
-      const baseUrl = provider === 'orca' ? ORCA_BASE_URL : provider === 'cerebras' ? CEREBRAS_BASE_URL : provider === 'zen' ? ZEN_BASE_URL : provider === 'gemini' ? GEMINI_BASE_URL : AI_BASE_URL;
-      const apiKey = provider === 'orca' ? ORCA_API_KEY : provider === 'cerebras' ? CEREBRAS_API_KEY : provider === 'zen' ? ZEN_API_KEY : provider === 'gemini' ? GEMINI_API_KEY : AI_API_KEY;
-      try {
-        if (i > 0) console.warn(`[ai] Retrying with fallback model=${candidate} (provider=${provider})`);
-        const result = await chatCompletionOnce(messages, {
-          temperature,
-          maxTokens,
-          model: candidate,
-          signal,
-          responseFormat,
-          reasoning,
-          baseUrl,
-          apiKey,
-        });
-        return { ...result, model: result.model || candidate };
-      } catch (err) {
-        if (err.message && err.message.includes('429')) {
-          console.warn(`[ai] Provider ${provider} rate limited; trying next fallback`);
-        }
-        // Some providers reject response_format outright — drop it and retry the same model once.
-        if (responseFormat && /response_format|unsupported|invalid.*format/i.test(String(err.message || ''))) {
-          console.warn('[ai] response_format rejected; retrying without it');
-          try {
-            const retry = await chatCompletionOnce(messages, {
-              temperature,
-              maxTokens,
-              model: candidate,
-              signal,
-              baseUrl,
-              apiKey,
-            });
-            return { ...retry, model: retry.model || candidate };
-          } catch (retryErr) {
-            lastError = retryErr;
-            if (i < candidates.length - 1 && isRetryableModelError(retryErr.message)) continue;
-            throw retryErr;
-          }
-        }
-        lastError = err;
-        const hasNext = i < candidates.length - 1;
-        if (!hasNext || !isRetryableModelError(err.message)) throw err;
-        console.warn(`[ai] Model ${candidate} failed: ${String(err.message || err).slice(0, 160)}`);
+    // Thinking requests (explicit flag from effort, else the REASONING
+    // model / Zen slug) go to hcnsec `auto` — never Cerebras.
+    const thinkingRequested = typeof thinkingOpt === 'boolean'
+      ? thinkingOpt
+      : (!isVision && normalizeModelSlug(model) === 'nemotron-3.5-lightning-free');
+
+    function buildWireCandidates(thinking) {
+      if (wireModelOverride) {
+        return [{ model: toWireModelSlug(wireModelOverride, { isVision }), provider: 'hcnsec' }];
       }
+      const chain = [];
+      const primary = thinking ? 'auto' : (model || (isVision ? VISION_MODEL : TEXT_MODEL));
+      // Zen (OpenCode) fast lane goes FIRST for non-thinking text-only chat.
+      // Thinking (Zen slug / explicit flag) stays on hcnsec auto.
+      if (!isVision && !thinking && ZEN_API_KEY) {
+        for (const zenModel of ZEN_TEXT_MODELS) {
+          chain.push({ model: zenModel, provider: 'zen' });
+        }
+      }
+      // Zen vision goes FIRST when configured — Gemini, OrcaRouter and
+      // hcnsec (via modelFallbackChain below) remain as fallbacks.
+      if (isVision && ZEN_API_KEY) {
+        chain.push({ model: ZEN_VISION_MODEL, provider: 'zen' });
+      }
+      for (const candidate of modelFallbackChain(primary, { isVision })) {
+        let provider = 'hcnsec';
+        let wire = candidate;
+        if (candidate === GEMINI_VISION_MODEL && GEMINI_API_KEY) {
+          provider = 'gemini';
+          wire = GEMINI_VISION_MODEL;
+        } else if (candidate === ORCA_VISION_MODEL && ORCA_API_KEY) {
+          provider = 'orca';
+          wire = ORCA_VISION_MODEL;
+        } else {
+          wire = toWireModelSlug(candidate, { isVision });
+        }
+        if (wire && !chain.find((c) => c.model === wire)) {
+          chain.push({ model: wire, provider });
+        }
+      }
+      return chain.length ? chain : [{ model: isVision ? 'MiniMax-M3' : 'auto', provider: 'hcnsec' }];
     }
-    throw lastError || new Error('AI API request failed');
+
+    async function runChain(candidates) {
+      let lastError;
+      for (let i = 0; i < candidates.length; i += 1) {
+        const { model: candidate, provider } = candidates[i];
+        const baseUrl = provider === 'orca' ? ORCA_BASE_URL : provider === 'cerebras' ? CEREBRAS_BASE_URL : provider === 'zen' ? ZEN_BASE_URL : provider === 'gemini' ? GEMINI_BASE_URL : AI_BASE_URL;
+        const apiKey = provider === 'orca' ? ORCA_API_KEY : provider === 'cerebras' ? CEREBRAS_API_KEY : provider === 'zen' ? ZEN_API_KEY : provider === 'gemini' ? GEMINI_API_KEY : AI_API_KEY;
+        try {
+          if (i > 0) console.warn(`[ai] Retrying with fallback model=${candidate} (provider=${provider})`);
+          const result = await chatCompletionOnce(messages, {
+            temperature,
+            maxTokens,
+            model: candidate,
+            signal,
+            responseFormat,
+            reasoning,
+            baseUrl,
+            apiKey,
+          });
+          return { ...result, model: result.model || candidate };
+        } catch (err) {
+          if (err.message && err.message.includes('429')) {
+            console.warn(`[ai] Provider ${provider} rate limited; trying next fallback`);
+          }
+          // Some providers reject response_format outright — drop it and retry the same model once.
+          if (responseFormat && /response_format|unsupported|invalid.*format/i.test(String(err.message || ''))) {
+            console.warn('[ai] response_format rejected; retrying without it');
+            try {
+              const retry = await chatCompletionOnce(messages, {
+                temperature,
+                maxTokens,
+                model: candidate,
+                signal,
+                baseUrl,
+                apiKey,
+              });
+              return { ...retry, model: retry.model || candidate };
+            } catch (retryErr) {
+              lastError = retryErr;
+              if (i < candidates.length - 1 && isRetryableModelError(retryErr.message)) continue;
+              throw retryErr;
+            }
+          }
+          lastError = err;
+          const hasNext = i < candidates.length - 1;
+          if (!hasNext || !isRetryableModelError(err.message)) throw err;
+          console.warn(`[ai] Model ${candidate} failed: ${String(err.message || err).slice(0, 160)}`);
+        }
+      }
+      throw lastError || new Error('AI API request failed');
+    }
+
+    const first = await runChain(buildWireCandidates(thinkingRequested));
+    // Thinking-mode starvation: the `auto` router wrote its chain-of-thought
+    // into content and got truncated (finish_reason=length) before the final
+    // answer — replyHeuristic (laundered CoT) or empty (provider reasoning).
+    // Retry the chain ONCE with thinking=false so the Zen fast lane can
+    // produce a real answer; a heuristic reply is better than none, but an
+    // empty reply after the retry is a hard failure.
+    const starved = thinkingRequested && !isVision && first.finishReason === 'length' && (!first.reply || first.replyHeuristic);
+    if (starved) {
+      let retry = null;
+      try {
+        retry = await runChain(buildWireCandidates(false));
+      } catch (err) {
+        console.warn(`[ai] thinking-mode no-thinking retry failed: ${String(err.message || err).slice(0, 160)}`);
+      }
+      if (retry && retry.reply && !retry.replyHeuristic) return retry;
+      if (!first.reply) throw new Error('AI API returned empty response');
+      return first;
+    }
+    return first;
   }
 
   async function chatCompletionText(messages, options = {}) {

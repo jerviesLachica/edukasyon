@@ -58,18 +58,33 @@ class RemoteAiService @Inject constructor(
                 },
                 )
         )
-        val split = ReasoningContentSplitter.split(
-            raw = response.reply,
-            existingReasoning = response.reasoning?.trim()?.takeIf { it.isNotEmpty() },
-        )
-        val recovered = ReasoningContentSplitter.recoverEmptyReply(split)
-        if (recovered.reply.isEmpty() && recovered.reasoning.isNullOrBlank()) {
+        val reply: String
+        val reasoning: String?
+        if (response.reasoningUsedAsReply) {
+            // The backend flags that `reply` IS the model's deliberation,
+            // intentionally delivered as the visible answer — render it
+            // verbatim and skip the splitter, which would otherwise demote
+            // the whole text into reasoning and leave a blank reply.
+            reply = response.reply.trim()
+            reasoning = response.reasoning
+        } else {
+            val split = ReasoningContentSplitter.split(
+                raw = response.reply,
+                existingReasoning = response.reasoning?.trim()?.takeIf { it.isNotEmpty() },
+            )
+            val recovered = ReasoningContentSplitter.recoverEmptyReply(split)
+            // Safety net: a non-blank answer must never collapse to blank just
+            // because the splitter demoted everything into reasoning.
+            reply = recovered.reply.ifBlank { response.reply.trim() }
+            reasoning = recovered.reasoning
+        }
+        if (reply.isEmpty() && reasoning.isNullOrBlank()) {
             throw AiException("Jevi returned an empty reply.")
         }
         AiChatResponse(
-                    reply = recovered.reply,
+                    reply = reply,
                     conversationId = response.conversationId,
-                    reasoning = recovered.reasoning,
+                    reasoning = reasoning,
                     model = response.model,
                     citedChunkIds = response.citedChunkIds,
                     citedWebResults = response.citedWebResults.map {

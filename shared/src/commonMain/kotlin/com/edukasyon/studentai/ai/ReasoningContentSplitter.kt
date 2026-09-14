@@ -76,7 +76,14 @@ object ReasoningContentSplitter {
         val reasoning = reasoningParts.joinToString("\n\n").trim().takeIf { it.isNotEmpty() }
         reply = reply.trim()
 
-        return recoverEmptyReply(Result(reply = reply, reasoning = reasoning))
+        val result = recoverEmptyReply(Result(reply = reply, reasoning = reasoning))
+        if (result.reply.isBlank() && existingReasoning?.trim()?.takeIf { it.isNotEmpty() } == null) {
+            // A student is never left with a blank answer while there is no
+            // provider-side reasoning trace to show instead: put the original
+            // text back as the reply, even if it reads like chain-of-thought.
+            return Result(reply = raw.trim(), reasoning = null)
+        }
+        return result
     }
 
     fun recoverEmptyReply(split: Result): Result {

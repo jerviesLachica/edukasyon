@@ -382,9 +382,9 @@ describe('AiProvider OrcaRouter Integration', () => {
     it('vision without Gemini key keeps Orca-first behavior', async () => {
       const provider = createAiProvider({
         baseUrl: 'https://api.hcnsec.cn/v1',
-        apiKey: 'k-hcnsec',
+        apiKey: "k-hcnsec",
         orcaBaseUrl: 'https://api.orcarouter.ai/v1',
-        orcaApiKey: 'k-orca',
+        orcaApiKey: "k-orca",
       });
       assert.strictEqual(provider.hasGeminiKey, false);
       globalThis.fetch = async (url, opts) => {
@@ -394,5 +394,176 @@ describe('AiProvider OrcaRouter Integration', () => {
       await provider.chatCompletion(visionMsg, { isVision: true });
       assert.ok(String(calls[0].url).includes('orcarouter'), 'Orca still first without Gemini key');
     });
+  });
+});
+
+// Thinking-mode answer collapse: hcnsec `auto` writes chain-of-thought into
+// message.content and gets truncated by max_tokens before the final answer.
+// The heuristic splitter files the whole blob as reasoning with an empty
+// reply; the old code laundered it back into reply, and Android re-demoted it
+// — the student saw a thinking panel and NO answer. Fix: mark laundered
+// replies with replyHeuristic and retry the chain once with thinking=false.
+describe('AiProvider thinking-mode answer collapse', () => {
+  let realFetch;
+  let calls;
+
+  const truncationContent = [
+    "Okay, let's tackle this essay. I need to make sure the tone is appropriate for a student.",
+    'First, I should think about the structure — maybe an intro, three body paragraphs, and a conclusion...',
+    'Wait, the user is asking for an outline, not the full essay. I should adjust my approach.',
+    'Let me plan the main points. I\'ll start with the thesis, then supporting evidence...',
+  ].join('\n\n');
+
+  const completionResponse = (message, model, finishReason) => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ choices: [{ message, finish_reason: finishReason }], model }),
+  });
+
+  beforeEach(() => {
+    realFetch = globalThis.fetch;
+    calls = [];
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  function hcnsecOnly() {
+    return createAiProvider({
+      baseUrl: 'https://api.hcnsec.cn/v1',
+      apiKey: "test-hcn-1",
+    });
+  }
+
+  it('(a) truncated heuristic CoT in content: reply laundered, reasoning null, replyHeuristic true', async () => {
+    const provider = hcnsecOnly();
+    globalThis.fetch = async (url, opts) => {
+      calls.push({ url, body: JSON.parse(opts.body) });
+      return completionResponse({ content: truncationContent }, 'auto', 'length');
+    };
+    const result = await provider.chatCompletion(
+      [{ role: 'user', content: 'write an essay outline' }],
+      { model: 'auto', isVision: false },
+    );
+    assert.ok(result.reply.length > 0, 'reply should not be empty');
+    assert.ok(result.reply.includes("Okay, let's tackle"), 'laundered reply should carry the CoT text');
+    assert.strictEqual(result.reasoning, null, 'laundered reasoning must not stay in reasoning');
+    assert.strictEqual(result.replyHeuristic, true, 'laundered heuristic reply must be flagged');
+    assert.strictEqual(result.finishReason, 'length', 'finish_reason must be surfaced');
+  });
+
+  it('(b) provider reasoning_content is NEVER laundered into reply', async () => {
+    const provider = hcnsecOnly();
+    globalThis.fetch = async (url, opts) => {
+      calls.push({ url, body: JSON.parse(opts.body) });
+      return completionResponse(
+        { content: '', reasoning_content: 'The student wants help; I should be encouraging and concise...' },
+        'auto',
+        'stop',
+      );
+    };
+    const result = await provider.chatCompletion(
+      [{ role: 'user', content: 'hi' }],
+      { model: 'auto', isVision: false },
+    );
+    assert.ok(!result.reply, 'provider reasoning must never become the reply');
+    assert.ok(result.reasoning.includes('encouraging'), 'provider reasoning stays in the reasoning channel');
+    assert.ok(!result.replyHeuristic, 'no heuristic laundering happened');
+    assert.strictEqual(calls.length, 1);
+  });
+
+  it('(b3) truncated provider-only reasoning: retry runs, still no real answer -> empty response error', async () => {
+    const provider = createAiProvider({
+      baseUrl: 'https://api.hcnsec.cn/v1',
+      apiKey: 'mock-key-hcnsec',
+      zenBaseUrl: 'https://opencode.ai/zen/v1',
+      zenApiKey: 'mock-key-zen',
+    });
+    globalThis.fetch = async (url, opts) => {
+      calls.push({ url, body: JSON.parse(opts.body) });
+      return completionResponse(
+        { content: '', reasoning_content: 'The student wants help; I should be encouraging...' },
+        'auto',
+        'length',
+      );
+    };
+    await assert.rejects(
+      () =>
+        provider.chatCompletion(
+          [{ role: 'user', content: 'think hard' }],
+          { model: 'auto', isVision: false, thinking: true },
+        ),
+      /empty response/i,
+    );
+    assert.ok(calls.length >= 2, 'the no-thinking retry must have run before failing');
+  });
+
+  it('(b2) provider reasoning_content + empty content surfaces reasoning, replyHeuristic false', async () => {
+    const provider = hcnsecOnly();
+    globalThis.fetch = async (url, opts) => {
+      calls.push({ url, body: JSON.parse(opts.body) });
+      // content with real text so the call succeeds; provider reasoning must
+      // stay in reasoning and must NOT flip replyHeuristic.
+      return completionResponse(
+        {
+          content: 'Photosynthesis converts light energy into chemical energy inside chloroplasts.',
+          reasoning_content: 'The student wants a short explanation...',
+        },
+        'auto',
+        'stop',
+      );
+    };
+    const result = await provider.chatCompletion(
+      [{ role: 'user', content: 'explain photosynthesis' }],
+      { model: 'auto', isVision: false },
+    );
+    assert.ok(result.reply.includes('Photosynthesis converts light'), 'real content stays the reply');
+    assert.ok(result.reasoning.includes('short explanation'), 'provider reasoning kept separate');
+    assert.strictEqual(result.replyHeuristic, false, 'provider-side reasoning is never a heuristic reply');
+  });
+
+  it('(c) thinking-mode truncated CoT triggers ONE no-thinking retry whose content becomes the reply', async () => {
+    const provider = createAiProvider({
+      baseUrl: 'https://api.hcnsec.cn/v1',
+      apiKey: 'mock-key-hcnsec',
+      zenBaseUrl: 'https://opencode.ai/zen/v1',
+      zenApiKey: 'mock-key-zen',
+    });
+    let n = 0;
+    globalThis.fetch = async (url, opts) => {
+      calls.push({ url, body: JSON.parse(opts.body) });
+      n += 1;
+      if (n === 1) {
+        return completionResponse({ content: truncationContent }, 'auto', 'length');
+      }
+      return completionResponse({ content: 'THE REAL ANSWER' }, 'nemotron-3.5-lightning-free', 'stop');
+    };
+    const result = await provider.chatCompletion(
+      [{ role: 'user', content: 'write an essay outline' }],
+      { model: 'auto', isVision: false, thinking: true },
+    );
+    assert.strictEqual(result.reply, 'THE REAL ANSWER', 'retry answer replaces the laundered CoT');
+    assert.ok(!result.replyHeuristic, 'real retry answer is not heuristic');
+    const chatCalls = calls.filter((c) => String(c.url).includes('/chat/completions'));
+    assert.ok(chatCalls.length >= 2, `expected a second chat/completions fetch, got ${chatCalls.length}`);
+    assert.strictEqual(chatCalls[0].body.model, 'auto', 'thinking attempt leads with hcnsec auto');
+    assert.ok(String(chatCalls[1].url).includes('opencode.ai'), 'no-thinking retry takes the Zen fast lane');
+    assert.notStrictEqual(chatCalls[1].body.model, 'auto', 'retry must not stay on the thinking auto router');
+  });
+
+  it('(c2) retry that also fails returns the first result with replyHeuristic kept', async () => {
+    const provider = hcnsecOnly();
+    globalThis.fetch = async (url, opts) => {
+      calls.push({ url, body: JSON.parse(opts.body) });
+      return completionResponse({ content: truncationContent }, 'auto', 'length');
+    };
+    const result = await provider.chatCompletion(
+      [{ role: 'user', content: 'write an essay outline' }],
+      { model: 'auto', isVision: false, thinking: true },
+    );
+    assert.ok(result.reply.includes("Okay, let's tackle"), 'first laundered reply is kept');
+    assert.strictEqual(result.replyHeuristic, true, 'replyHeuristic kept when retry did not help');
+    assert.strictEqual(result.reasoning, null, 'laundered reasoning stays out of reasoning');
   });
 });

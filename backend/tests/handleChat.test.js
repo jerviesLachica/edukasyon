@@ -14,11 +14,16 @@ const WEB = {
   content: 'Photosynthesis converts light energy into chemical energy.',
 };
 
-function stubProvider(reply) {
+function stubProvider(reply, extra = {}) {
+  const calls = [];
   return {
+    __calls: calls,
     resolveChatModel: () => 'auto',
     requestHasVisionContent: () => false,
-    chatCompletion: async () => ({ reply, reasoning: null, model: 'auto' }),
+    chatCompletion: async (_messages, options) => {
+      calls.push(options);
+      return { reply, reasoning: null, model: 'auto', finishReason: 'stop', replyHeuristic: false, ...extra };
+    },
   };
 }
 
@@ -147,6 +152,95 @@ describe('handleChat citations', () => {
     });
     assert.deepEqual(result.citedChunkIds, ['local:s1']);
     assert.equal(result.citedWebResults.length, 0);
+  });
+});
+
+// Thinking-mode answer collapse: low/minimal effort runs thinking mode with
+// the base budget, so the model's CoT starves the final answer before
+// max_tokens cuts it off. Raise the budgets, and surface replyHeuristic to
+// clients as reasoningUsedAsReply so they render the reply verbatim.
+describe('handleChat thinking budgets', () => {
+  const baseSearch = {
+    isConfigured: false,
+    searchAuto: async () => [],
+    search: async () => [],
+  };
+
+  it("effort 'low' raises maxTokens 2048 -> 3072", async () => {
+    const provider = stubProvider('Answer.');
+    await handleChat({
+      body: baseBody({ effort: 'low' }),
+      provider,
+      webSearch: baseSearch,
+      maxTokens: 2048,
+    });
+    assert.equal(provider.__calls.length, 1);
+    assert.equal(provider.__calls[0].maxTokens, 3072, 'low effort must get a 1.5x capped budget');
+    assert.equal(provider.__calls[0].thinking, true);
+  });
+
+  it("effort 'minimal' raises maxTokens 2048 -> 2560", async () => {
+    const provider = stubProvider('Answer.');
+    await handleChat({
+      body: baseBody({ effort: 'minimal' }),
+      provider,
+      webSearch: baseSearch,
+      maxTokens: 2048,
+    });
+    assert.equal(provider.__calls[0].maxTokens, 2560, 'minimal effort must get a 1.25x capped budget');
+  });
+
+  it("effort 'none' keeps the base maxTokens", async () => {
+    const provider = stubProvider('Answer.');
+    await handleChat({
+      body: baseBody({ effort: 'none' }),
+      provider,
+      webSearch: baseSearch,
+      maxTokens: 2048,
+    });
+    assert.equal(provider.__calls[0].maxTokens, 2048, 'no thinking: no budget raise');
+    assert.equal(provider.__calls[0].thinking, false);
+  });
+
+  it("effort 'medium'/'high' budgets stay 3000/4096 caps", async () => {
+    for (const [effort, expected] of [['medium', 3000], ['high', 4096]]) {
+      const provider = stubProvider('Answer.');
+      await handleChat({
+        body: baseBody({ effort }),
+        provider,
+        webSearch: baseSearch,
+        maxTokens: 2048,
+      });
+      assert.equal(provider.__calls[0].maxTokens, expected, `${effort} budget unchanged`);
+    }
+  });
+
+  it('replyHeuristic from the provider surfaces as reasoningUsedAsReply', async () => {
+    const provider = stubProvider("Okay, let's tackle this...", {
+      reasoning: null,
+      replyHeuristic: true,
+      finishReason: 'length',
+    });
+    const result = await handleChat({
+      body: baseBody({ effort: 'low' }),
+      provider,
+      webSearch: baseSearch,
+      maxTokens: 2048,
+    });
+    assert.equal(result.reasoningUsedAsReply, true, 'client needs the flag to skip re-splitting');
+    assert.equal(result.reply, "Okay, let's tackle this...");
+    assert.equal(result.reasoning, undefined, 'laundered reasoning stays out of the response');
+  });
+
+  it('no reasoningUsedAsReply when provider returned a real answer', async () => {
+    const provider = stubProvider('A real answer.', { replyHeuristic: false });
+    const result = await handleChat({
+      body: baseBody({ effort: 'none' }),
+      provider,
+      webSearch: baseSearch,
+      maxTokens: 2048,
+    });
+    assert.equal('reasoningUsedAsReply' in result, false, 'flag is optional, only set when laundered');
   });
 });
 
