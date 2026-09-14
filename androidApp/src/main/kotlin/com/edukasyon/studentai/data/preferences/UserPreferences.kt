@@ -54,6 +54,7 @@ class UserPreferences @Inject constructor(
         val CLASS_REMINDERS = booleanPreferencesKey("class_reminders")
         val TASK_REMINDERS = booleanPreferencesKey("task_reminders")
         val EXAM_REMINDERS = booleanPreferencesKey("exam_reminders")
+        val REVIEW_REMINDERS_ENABLED = booleanPreferencesKey("review_reminders_enabled")
         val CLASS_REMINDER_AT_TIME = booleanPreferencesKey("class_reminder_at_time")
         val CLASS_REMINDER_15_MIN = booleanPreferencesKey("class_reminder_15_min")
         val NOTIFICATION_SOUND_ENABLED = booleanPreferencesKey("notification_sound_enabled")
@@ -92,6 +93,7 @@ class UserPreferences @Inject constructor(
     val classReminders: Flow<Boolean> = context.dataStore.data.map { it[Keys.CLASS_REMINDERS] ?: true }
     val taskReminders: Flow<Boolean> = context.dataStore.data.map { it[Keys.TASK_REMINDERS] ?: true }
     val examReminders: Flow<Boolean> = context.dataStore.data.map { it[Keys.EXAM_REMINDERS] ?: true }
+    val reviewReminderEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.REVIEW_REMINDERS_ENABLED] ?: false }
     val classReminderAtTime: Flow<Boolean> = context.dataStore.data.map { it[Keys.CLASS_REMINDER_AT_TIME] ?: true }
     val classReminder15MinBefore: Flow<Boolean> = context.dataStore.data.map { it[Keys.CLASS_REMINDER_15_MIN] ?: true }
     val notificationSoundEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.NOTIFICATION_SOUND_ENABLED] ?: true }
@@ -201,6 +203,10 @@ class UserPreferences @Inject constructor(
 
     suspend fun setExamReminders(enabled: Boolean) {
         context.dataStore.edit { it[Keys.EXAM_REMINDERS] = enabled }
+    }
+
+    suspend fun setReviewReminderEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.REVIEW_REMINDERS_ENABLED] = enabled }
     }
 
     suspend fun setClassReminderAtTime(enabled: Boolean) {

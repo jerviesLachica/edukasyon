@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.edukasyon.studentai.core.notifications.ReviewReminderCoordinator
+import com.edukasyon.studentai.core.notifications.ReviewReminderEntryPoint
 import com.edukasyon.studentai.ui.adaptive.AdaptiveWidth
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveWidth
 import com.edukasyon.studentai.ui.components.ModernCard
@@ -30,6 +32,8 @@ import com.edukasyon.studentai.ui.components.SettingsGroup
 import com.edukasyon.studentai.ui.components.SettingsRow
 import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import com.edukasyon.studentai.ui.viewmodel.NotificationSettingsViewModel
+import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -293,6 +297,31 @@ fun NotificationSettingsDetailScreen(
                             Switch(
                                 checked = state.examReminders,
                                 onCheckedChange = viewModel::setExamReminders
+                            )
+                        }
+                    )
+                    SettingsRow(
+                        title = "Study review reminders",
+                        subtitle = "Daily nudge when cards are due",
+                        trailing = {
+                            val appContext = LocalContext.current.applicationContext
+                            val reviewPreferences = remember {
+                                EntryPointAccessors
+                                    .fromApplication(appContext, ReviewReminderEntryPoint::class.java)
+                                    .userPreferences()
+                            }
+                            val reviewEnabled by reviewPreferences.reviewReminderEnabled
+                                .collectAsStateWithLifecycle(initialValue = false)
+                            val reviewScope = rememberCoroutineScope()
+                            Switch(
+                                checked = reviewEnabled,
+                                onCheckedChange = { enabled ->
+                                    reviewScope.launch {
+                                        reviewPreferences.setReviewReminderEnabled(enabled)
+                                        if (enabled) ReviewReminderCoordinator.sync(appContext)
+                                        else ReviewReminderCoordinator.cancel(appContext)
+                                    }
+                                }
                             )
                         }
                     )

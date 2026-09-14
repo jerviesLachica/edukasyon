@@ -820,6 +820,10 @@ data class AiUiState(
     // AI chain exposes partial responses; per-message reasoning renders on the
     // completed bubble via JeviReasoningSection).
     val streamingReasoning: String? = null,
+    // Pending tutor proposals from the latest reply; rendered as cards and only
+    // executed on explicit user acceptance (never auto-applied).
+    val studyProposals: List<com.edukasyon.studentai.core.ai.StudyBlockPayload> = emptyList(),
+    val followUps: List<String> = emptyList(),
     val loadingTool: AiTool? = null,
     val error: String? = null,
     val lastSummary: String? = null,
@@ -845,6 +849,7 @@ data class AiUiState(
     val selectedSourceIds: Set<String>? = null,
     val viewerChunks: List<RankedChunk> = emptyList(),
     val viewerIndex: Int = -1,
+    val viewerHighlight: String? = null,
     val stepQuotaRemaining: Int = StepModelQuotaTracker.LIMIT,
     val stepQuotaLabel: String = "${StepModelQuotaTracker.LIMIT}/${StepModelQuotaTracker.LIMIT} left",
     val stepQuotaExhausted: Boolean = false,
@@ -879,6 +884,7 @@ class AiViewModel @Inject constructor(
     private val addScheduleItem: AddScheduleItemUseCase,
     private val appContextBuilder: com.edukasyon.studentai.core.ai.AppContextBuilder,
     private val aiActionExecutor: com.edukasyon.studentai.core.ai.AiActionExecutor,
+    private val studyBlockApplier: com.edukasyon.studentai.core.ai.StudyBlockApplier,
     private val gizmoManager: com.edukasyon.studentai.core.gamification.GizmoGamificationManager,
     private val connectivity: com.edukasyon.studentai.core.network.ConnectivityMonitor,
     private val preferences: com.edukasyon.studentai.data.preferences.UserPreferences,
@@ -1029,7 +1035,13 @@ class AiViewModel @Inject constructor(
             val shown = chunks.ifEmpty {
                 listOf(RankedChunk(-1, cite.sourceId, cite.label, 0, cite.text, 1.0))
             }
-            _uiState.update { it.copy(viewerChunks = shown, viewerIndex = idx.coerceIn(shown.indices)) }
+            _uiState.update {
+                it.copy(
+                    viewerChunks = shown,
+                    viewerIndex = idx.coerceIn(shown.indices),
+                    viewerHighlight = cite.text.take(200),
+                )
+            }
         }
     }
 
@@ -1041,7 +1053,28 @@ class AiViewModel @Inject constructor(
     }
 
     fun closeViewer() {
-        _uiState.update { it.copy(viewerChunks = emptyList(), viewerIndex = -1) }
+        _uiState.update { it.copy(viewerChunks = emptyList(), viewerIndex = -1, viewerHighlight = null) }
+    }
+
+    /** Accepts the user-checked study blocks from the proposal card; creates tasks, reports outcome. */
+    fun acceptStudyBlocks(blocks: List<com.edukasyon.studentai.core.ai.StudyBlockPayload>) {
+        if (blocks.isEmpty()) return
+        viewModelScope.launch {
+            val result = runCatching { studyBlockApplier.apply(blocks) }
+            _uiState.update { s ->
+                s.copy(
+                    studyProposals = emptyList(),
+                    statusMessage = result.getOrNull()?.let { r ->
+                        val created = "Added ${r.createdCount} study block${if (r.createdCount == 1) "" else "s"} to your planner"
+                        if (r.failures.isEmpty()) created else "$created · ${r.failures.joinToString(" · ")}"
+                    } ?: "Could not add the study blocks",
+                )
+            }
+        }
+    }
+
+    fun dismissStudyProposals() {
+        _uiState.update { it.copy(studyProposals = emptyList()) }
     }
 
     private suspend fun resolveModelForSend(): AiModel {
@@ -1486,6 +1519,8 @@ class AiViewModel @Inject constructor(
                         isLoading = true,
                         loadingTool = AiTool.TUTOR,
                         streamingReasoning = null,
+                        studyProposals = emptyList(),
+                        followUps = emptyList(),
                         error = null,
                         messages = it.messages + userMessage,
                     )
@@ -1549,8 +1584,16 @@ class AiViewModel @Inject constructor(
                 }
                 safePersistBackendConversationId(localId, response.conversationId)
                 val parsed = com.edukasyon.studentai.core.ai.AiActionParser.parse(reply)
+                val proposals = parsed.actions.filter { it.type.lowercase() in com.edukasyon.studentai.core.ai.AiActionExecutor.PROPOSAL_TYPES }
+                val studyBlocks = proposals.filter { it.type.lowercase() == "propose_study_blocks" }
+                    .flatMap { it.blocks.orEmpty() }
+                val followUps = proposals.filter { it.type.lowercase() == "suggest_followups" }
+                    .flatMap { it.items.orEmpty() }
+                    .distinct()
+                    .take(3)
+                val directActions = parsed.actions.filterNot { it.type.lowercase() in com.edukasyon.studentai.core.ai.AiActionExecutor.PROPOSAL_TYPES }
                 val appliedActions = runCatching {
-                    if (parsed.actions.isNotEmpty()) aiActionExecutor.execute(parsed.actions) else emptyList()
+                    if (directActions.isNotEmpty()) aiActionExecutor.execute(directActions) else emptyList()
                 }.getOrElse { emptyList() }
                 val assistantTimestamp = System.currentTimeMillis()
                 val localCites = groundedSources
@@ -1627,6 +1670,8 @@ class AiViewModel @Inject constructor(
                             reasoning = reasoning,
                             citations = citedViews,
                         ),
+                        studyProposals = studyBlocks,
+                        followUps = followUps,
                         statusMessage = appliedActions.takeIf { it.isNotEmpty() }?.joinToString(" · "),
                     )
                 }

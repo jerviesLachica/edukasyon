@@ -159,6 +159,7 @@ class ReminderSyncService @Inject constructor(
         ReminderType.EXAM -> "exam_$id"
         ReminderType.FOCUS -> "focus_$id"
         ReminderType.SCHEDULE_SCAN -> "schedule_scan_$id"
+        ReminderType.REVIEW -> "review_$id"
     }
 
     private fun nextOccurrenceMillis(day: DayOfWeek, startTime: String): Long {

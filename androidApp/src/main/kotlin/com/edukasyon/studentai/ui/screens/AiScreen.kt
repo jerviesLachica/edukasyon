@@ -172,6 +172,8 @@ fun AiScreen(
                         viewModel.sendMessage(inputText, attachment = attachment, deckId = state.activeDeckId)
                         inputText = ""
                     },
+                    onAcceptStudyBlocks = viewModel::acceptStudyBlocks,
+                    onDismissStudyProposals = viewModel::dismissStudyProposals,
                     onQuickPrompt = { viewModel.sendQuickPrompt(it) },
                     onCopied = {
                         snackbarHostState.showSnackbar("Copied to clipboard")
@@ -233,6 +235,8 @@ private fun AiTutorTab(
     input: String,
     onInputChange: (String) -> Unit,
     onSend: (ChatAttachmentPayload?) -> Unit,
+    onAcceptStudyBlocks: (List<com.edukasyon.studentai.core.ai.StudyBlockPayload>) -> Unit = {},
+    onDismissStudyProposals: () -> Unit = {},
     onQuickPrompt: (String) -> Unit,
     onCopied: suspend () -> Unit,
     onChatInputActive: (Boolean) -> Unit = {},
@@ -384,6 +388,23 @@ private fun AiTutorTab(
                             )
                         }
                     }
+                    if (!state.isLoading && state.studyProposals.isNotEmpty()) {
+                        item {
+                            StudyBlockProposalCard(
+                                blocks = state.studyProposals,
+                                onAccept = onAcceptStudyBlocks,
+                                onDismiss = onDismissStudyProposals,
+                            )
+                        }
+                    }
+                    if (!state.isLoading && state.followUps.isNotEmpty()) {
+                        item {
+                            SuggestFollowupsRow(
+                                items = state.followUps,
+                                onPick = onInputChange,
+                            )
+                        }
+                    }
                 }
                 Column(
                     Modifier
@@ -447,6 +468,7 @@ private fun AiTutorTab(
         CitationPassageBottomSheet(
             chunks = state.viewerChunks,
             currentIndex = state.viewerIndex,
+            highlight = state.viewerHighlight,
             onStep = onViewerStep,
             onClose = onViewerClose,
         )

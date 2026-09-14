@@ -31,6 +31,18 @@ data class AiActionPayload(
     val examTime: String? = null,
     val location: String? = null,
     val content: String? = null,
+    val blocks: List<StudyBlockPayload>? = null,
+    val items: List<String>? = null,
+)
+
+/** Dated, one-off study block proposed by the tutor; accepted blocks become tasks. */
+@Serializable
+data class StudyBlockPayload(
+    val subject: String,
+    val date: String,          // ISO-8601 yyyy-MM-dd
+    val startTime: String,    // HH:mm
+    val endTime: String,      // HH:mm
+    val reason: String? = null,
 )
 
 @Serializable
@@ -94,11 +106,18 @@ class AiActionExecutor @Inject constructor(
     suspend fun execute(actions: List<AiActionPayload>): List<String> {
         val results = mutableListOf<String>()
         for (action in actions) {
+            // Proposal-type actions are rendered as cards and executed on user
+            // acceptance elsewhere; they are never auto-applied.
+            if (action.type.lowercase() in PROPOSAL_TYPES) continue
             runCatching { executeOne(action) }
                 .onSuccess { results += it }
                 .onFailure { results += "Could not ${action.type}: ${it.message ?: "unknown error"}" }
         }
         return results
+    }
+
+    companion object {
+        val PROPOSAL_TYPES = setOf("propose_study_blocks", "suggest_followups")
     }
 
     private suspend fun executeOne(action: AiActionPayload): String = when (action.type.lowercase()) {

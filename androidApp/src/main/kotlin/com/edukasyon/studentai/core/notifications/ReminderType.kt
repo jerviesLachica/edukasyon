@@ -7,4 +7,5 @@ enum class ReminderType(val channelId: String, val channelName: String) {
     EXAM("exam_reminders", "Exam Reminders"),
     FOCUS("focus_reminders", "Focus Timer"),
     SCHEDULE_SCAN("schedule_scan_reminders", "Schedule Scanner"),
+    REVIEW("review_reminders", "Study Reviews"),
 }

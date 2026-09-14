@@ -50,9 +50,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.edukasyon.studentai.domain.model.CitedSource
 import com.edukasyon.studentai.domain.model.RankedChunk
@@ -575,6 +579,7 @@ fun WebSearchTab(
 fun CitationPassageBottomSheet(
     chunks: List<RankedChunk>,
     currentIndex: Int,
+    highlight: String? = null,
     onStep: (dir: Int) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -628,7 +633,7 @@ fun CitationPassageBottomSheet(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 ) {
                     Text(
-                        text = currentChunk.text,
+                        text = highlightMatch(currentChunk.text, highlight),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(14.dp),
@@ -663,5 +668,21 @@ fun CitationPassageBottomSheet(
                 }
             }
         }
+    }
+}
+
+/** Bolds the first case-insensitive occurrence of [query] inside [text]. */
+private fun highlightMatch(text: String, query: String?): AnnotatedString {
+    if (query.isNullOrBlank()) return AnnotatedString(text)
+    val needle = query.trim()
+    val idx = text.indexOf(needle, ignoreCase = true)
+    if (idx < 0) return AnnotatedString(text)
+    val end = (idx + needle.length).coerceAtMost(text.length)
+    return buildAnnotatedString {
+        append(text.substring(0, idx))
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+            append(text.substring(idx, end))
+        }
+        append(text.substring(end))
     }
 }

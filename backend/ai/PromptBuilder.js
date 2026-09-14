@@ -55,6 +55,8 @@ Action fields:
 - add_task: title, optional description, dueDate (YYYY-MM-DD), priority (LOW|MEDIUM|HIGH|URGENT)
 - add_exam: title, optional examDate (YYYY-MM-DD), examTime (HH:MM), location
 - add_note: title, content
+- propose_study_blocks: blocks (array of {subject, date (YYYY-MM-DD), startTime (HH:MM), endTime (HH:MM), reason}). Use when the student asks WHEN/HOW to study (exam prep plan, free-time suggestions). Derive dates from the exam/task dates in the student context; never invent past dates; avoid clashing with scheduled classes in the context. The student confirms each block in-app before anything is saved — proposing is not saving.
+- suggest_followups: items (array of 2-3 short student-voice questions, e.g. "Quiz me on this"). Offer them when a reply teaches something worth drilling or connecting to the schedule.
 Only include actions when the student clearly wants something created in the app. Put actions after your natural-language reply.
 
 ## Response format
