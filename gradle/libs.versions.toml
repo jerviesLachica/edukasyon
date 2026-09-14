@@ -22,6 +22,8 @@ kotlinx-coroutines = "1.8.1"
 play-services-auth = "21.2.0"
 mlkit-text-recognition = "16.0.1"
 mlkit-document-scanner = "16.0.0"
+mlkit-barcode-scanning = "17.3.0"
+zxing-core = "3.5.3"
 android-compileSdk = "34"
 android-minSdk = "24"
 android-targetSdk = "34"
@@ -70,6 +72,8 @@ kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "ko
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "play-services-auth" }
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkit-text-recognition" }
 mlkit-document-scanner = { group = "com.google.android.gms", name = "play-services-mlkit-document-scanner", version.ref = "mlkit-document-scanner" }
+mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkit-barcode-scanning" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing-core" }
 androidx-test-junit = { group = "androidx.test.ext", name = "junit", version = "1.1.5" }
 androidx-test-espresso = { group = "androidx.test.espresso", name = "espresso-core", version = "3.5.1" }
 androidx-compose-ui-test = { group = "androidx.compose.ui", name = "ui-test-junit4" }

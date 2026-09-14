@@ -134,6 +134,8 @@ dependencies {
     implementation(libs.androidx.camera.view)
     implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.document.scanner)
+    implementation(libs.mlkit.barcode.scanning)
+    implementation(libs.zxing.core)
     implementation(libs.coil.compose)
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)

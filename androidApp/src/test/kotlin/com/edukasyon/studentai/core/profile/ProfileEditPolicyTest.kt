@@ -29,7 +29,8 @@ class ProfileEditPolicyTest {
     @Test
     fun daysUntilNextEdit_returnsOneWhenPartialDayRemains() {
         val lastEdit = 0L
-        val oneDayLater = 86_400_000L
-        assertTrue(ProfileEditPolicy.daysUntilNextEdit(oneDayLater, lastEdit) == 1)
+        // 1 hour after the edit, 23 hours (a partial day) of cooldown remain -> 1.
+        val oneHourLater = 3_600_000L
+        assertTrue(ProfileEditPolicy.daysUntilNextEdit(oneHourLater, lastEdit) == 1)
     }
 }

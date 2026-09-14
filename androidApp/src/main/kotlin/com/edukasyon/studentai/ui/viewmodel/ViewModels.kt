@@ -891,6 +891,7 @@ class AiViewModel @Inject constructor(
     private val aiConversationRepo: AiConversationRepository,
     private val reminderScheduler: ReminderScheduler,
     private val mlKitTextRecognizer: com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer,
+    private val scheduleRepository: ScheduleRepository,
     private val sourceRepository: com.edukasyon.studentai.domain.repository.SourceRepository,
     private val aiService: AiService,
     private val jeviRepository: com.edukasyon.studentai.domain.repository.JeviRepository,
@@ -2389,6 +2390,98 @@ class AiViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /**
+     * Import classes that arrived from a redeemed share code. Exact duplicates
+     * (same subject, day, start and end time already in the schedule) are
+     * dropped first; the remainder replays the same populate-animation path as
+     * a camera scan (CONFIRMING + classesBeingImported). Deliberately awards no
+     * XP — shared content is a copy, not fresh work.
+     * Returns false when everything was already present.
+     */
+    fun importSharedClasses(classes: List<com.edukasyon.studentai.core.ai.ExtractedClass>): Boolean {
+        if (classes.isEmpty()) return false
+        scheduleScanJob?.cancel()
+        scheduleScanJob = viewModelScope.launch {
+            val existingKeys: MutableSet<Triple<String, String, String>> = runCatching {
+                scheduleRepository.observeSchedule().first().mapTo(mutableSetOf()) { item ->
+                    Triple(
+                        item.subjectName.trim().lowercase(),
+                        item.dayOfWeek.name,
+                        normalizeShareTimePair(item.startTime, item.endTime),
+                    )
+                }
+            }.getOrElse { mutableSetOf() }
+            val newClasses = classes.filter { cls ->
+                val key = Triple(
+                    cls.subject.trim().lowercase(),
+                    com.edukasyon.studentai.domain.model.DayOfWeek.fromString(cls.day)?.name ?: cls.day,
+                    normalizeShareTimePair(cls.startTime, cls.endTime),
+                )
+                // Set.add returns true only for genuinely-new elements, so
+                // intra-batch duplicates are dropped too.
+                existingKeys.add(key)
+            }
+            if (newClasses.isEmpty()) {
+                _uiState.update {
+                    it.copy(statusMessage = "Already in your schedule")
+                }
+                return@launch
+            }
+            _uiState.update {
+                it.copy(
+                    scheduleScanStatus = ScheduleScanStatus.CONFIRMING,
+                    scannedClasses = newClasses,
+                    classesBeingImported = newClasses,
+                )
+            }
+            try {
+                newClasses.forEach { cls ->
+                    addScheduleItem.execute(
+                        ScheduleItem(
+                            id = java.util.UUID.randomUUID().toString(),
+                            subjectId = null,
+                            subjectName = cls.subject,
+                            teacher = cls.teacher,
+                            room = cls.room,
+                            building = null,
+                            dayOfWeek = DayOfWeek.fromString(cls.day) ?: DayOfWeek.MONDAY,
+                            startTime = cls.startTime,
+                            endTime = cls.endTime,
+                            colorHex = "#1A237E",
+                            notes = null,
+                            semester = "",
+                            schoolYear = "",
+                        )
+                    )
+                }
+                _uiState.update { it.copy(scannedClasses = emptyList()) }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        error = e.message ?: "Failed to import classes",
+                        scheduleScanStatus = ScheduleScanStatus.IDLE,
+                        classesBeingImported = emptyList(),
+                    )
+                }
+            }
+        }
+        return true
+    }
+
+    private fun normalizeShareTimePair(start: String, end: String): String {
+        fun norm(raw: String): String {
+            val parts = raw.trim().split(":")
+            val hour = parts.getOrNull(0)?.toIntOrNull()
+            val minute = parts.getOrNull(1)?.toIntOrNull()
+            return if (hour != null && minute != null) {
+                "%02d:%02d".format(hour, minute)
+            } else {
+                raw.trim()
+            }
+        }
+        return "${norm(start)}-${norm(end)}"
     }
 
     private companion object {

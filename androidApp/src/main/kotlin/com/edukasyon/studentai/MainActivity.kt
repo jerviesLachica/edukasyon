@@ -27,7 +27,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        pendingTabRoute = extractStartTab(intent)
+        // Remove the system's white contrast scrim under the transparent nav
+        // bar (API 29+); the app paints its own background behind the inset.
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            window.isNavigationBarContrastEnforced = false
+            window.isStatusBarContrastEnforced = false
+        }
+        pendingTabRoute = extractStartTab(intent) ?: extractShareRoute(intent)
         pendingTriggerUpdate = extractTriggerUpdate(intent)
         pendingTaskId = extractTaskId(intent)
         setContent {
@@ -47,7 +53,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        extractStartTab(intent)?.let { pendingTabRoute = it }
+        (extractStartTab(intent) ?: extractShareRoute(intent))?.let { pendingTabRoute = it }
         if (extractTriggerUpdate(intent)) pendingTriggerUpdate = true
         extractTaskId(intent)?.let { pendingTaskId = it }
     }
@@ -63,6 +69,21 @@ class MainActivity : ComponentActivity() {
 
     private fun extractTriggerUpdate(intent: Intent?): Boolean =
         intent?.getBooleanExtra(AppUpdateMessagingService.EXTRA_TRIGGER_UPDATE, false) == true
+
+    /**
+     * Share deep link (schedmate://share/<CODE>) → the redeem route with the
+     * code prefilled. Malformed or invalid codes are ignored so a bad link
+     * just opens the app normally.
+     */
+    private fun extractShareRoute(intent: Intent?): String? {
+        if (intent?.action != Intent.ACTION_VIEW) return null
+        val data = intent.data ?: return null
+        if (data.scheme != "schedmate" || data.host != "share") return null
+        val code = (data.path?.trim('/') ?: data.lastPathSegment ?: "")
+            .uppercase(java.util.Locale.US)
+        if (!com.edukasyon.studentai.core.share.ShareCode.isValid(code)) return null
+        return com.edukasyon.studentai.ui.navigation.Routes.redeemShare(code)
+    }
 
     private fun extractTaskId(intent: Intent?): String? {
         val extras = intent?.extras ?: return null

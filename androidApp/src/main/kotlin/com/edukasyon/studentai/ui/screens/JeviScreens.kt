@@ -34,6 +34,9 @@ import com.edukasyon.studentai.domain.model.JeviDeck
 import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.components.*
+import com.edukasyon.studentai.ui.share.ShareSheet
+import com.edukasyon.studentai.ui.share.ShareTarget
+import com.edukasyon.studentai.ui.share.ShareViewModel
 import com.edukasyon.studentai.domain.model.Quiz
 import com.edukasyon.studentai.domain.model.QuizQuestion
 import com.edukasyon.studentai.domain.model.QuestionType
@@ -405,6 +408,13 @@ fun JeviDeckDetailScreen(
     val deck = state.deck
     val horizontalPadding = rememberAdaptiveHorizontalPadding()
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showShareSheet by remember { mutableStateOf(false) }
+    val shareViewModel: ShareViewModel = hiltViewModel()
+    val shareState by shareViewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(showShareSheet) {
+        if (showShareSheet && deck != null) shareViewModel.publish(ShareTarget.Deck(deck.id))
+    }
 
     LaunchedEffect(deckDeleted) {
         if (deckDeleted) onBack()
@@ -421,6 +431,9 @@ fun JeviDeckDetailScreen(
                 },
                 actions = {
                     if (deck != null && deck.id != JeviConstants.DEFAULT_DECK_ID) {
+                        IconButton(onClick = { showShareSheet = true }) {
+                            Icon(Icons.Default.Share, contentDescription = "Share deck")
+                        }
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete deck")
                         }
@@ -541,6 +554,19 @@ fun JeviDeckDetailScreen(
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
             },
+        )
+    }
+
+    if (showShareSheet) {
+        ShareSheet(
+            onDismiss = { showShareSheet = false },
+            kindLabel = "deck",
+            code = shareState.code,
+            envelopeOrPayloadJson = shareState.envelopeJson.orEmpty(),
+            generating = shareState.generating,
+            error = shareState.error,
+            onRetry = shareViewModel::retry,
+            confirmationLine = deck?.let { "Your \"${it.title}\" deck (${it.cardCount} cards) will be shared." },
         )
     }
 }

@@ -384,6 +384,7 @@ fun SettingsScreen(
     onNavigateToFeaturesGuide: () -> Unit = {},
     onNavigateToNotificationSettings: () -> Unit = {},
     onNavigateChangelog: () -> Unit = {},
+    onNavigateRedeemShare: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -627,6 +628,20 @@ fun SettingsScreen(
                 WidgetSetupCard(
                     modifier = Modifier.padding(0.dp),
                     variant = WidgetSetupCardVariant.Profile,
+                )
+            }
+        }
+
+        item {
+            SettingsGroup(title = "Share") {
+                SettingsRow(
+                    title = "Import shared schedule or deck",
+                    subtitle = "Enter a 6-character code from a friend or scan their QR",
+                    trailing = {
+                        TextButton(onClick = onNavigateRedeemShare) {
+                            Text("Open")
+                        }
+                    }
                 )
             }
         }

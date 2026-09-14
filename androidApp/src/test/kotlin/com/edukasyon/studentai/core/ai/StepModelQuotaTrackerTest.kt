@@ -25,7 +25,7 @@ class StepModelQuotaTrackerTest {
         val timestamps = listOf(base)
         val status = StepModelQuotaTracker.status(timestamps, base + 60_000)
         val label = StepModelQuotaTracker.formatRemainingLabel(status)
-        assertTrue(label.contains("4/5 left"))
+        assertTrue(label.contains("${StepModelQuotaTracker.LIMIT - 1}/${StepModelQuotaTracker.LIMIT} left"))
         assertTrue(label.contains("resets in"))
     }
 }

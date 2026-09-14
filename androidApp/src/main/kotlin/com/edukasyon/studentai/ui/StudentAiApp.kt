@@ -26,6 +26,7 @@ import com.edukasyon.studentai.core.update.UpdateManager
 import com.edukasyon.studentai.core.update.UpdateResult
 import com.edukasyon.studentai.ui.components.UpdateDialog
 import com.edukasyon.studentai.ui.screens.*
+import com.edukasyon.studentai.ui.share.RedeemShareScreen
 import com.edukasyon.studentai.ui.theme.StudentAiTheme
 import com.edukasyon.studentai.ui.viewmodel.MainViewModel
 
@@ -221,7 +222,10 @@ fun MainNavigation(
                 )
             }
             mainTabComposable(MainTab.SCHEDULE) {
-                ScheduleScreen(onOpenScanner = { navController.navigate(Routes.SCHEDULE_SCANNER) })
+                ScheduleScreen(
+                    onOpenScanner = { navController.navigate(Routes.SCHEDULE_SCANNER) },
+                    onOpenRedeem = { navController.navigate(Routes.redeemShare()) },
+                )
             }
             mainTabComposable(MainTab.PLANNER) {
                 PlannerScreen(
@@ -256,6 +260,7 @@ fun MainNavigation(
                     onNavigateToFeaturesGuide = { navController.navigate(Routes.FEATURES_GUIDE) },
                     onNavigateToNotificationSettings = { navController.navigate(Routes.NOTIFICATION_SETTINGS) },
                     onNavigateChangelog = { navController.navigate(Routes.CHANGELOG) },
+                    onNavigateRedeemShare = { navController.navigate(Routes.redeemShare()) },
                 )
             }
             composable(Routes.NOTIFICATION_SETTINGS) {
@@ -407,6 +412,18 @@ fun MainNavigation(
                     onBack = { navController.popBackStack() },
                     onConversationSelected = { navController.popBackStack() },
                 )
+            }
+            composable(
+                route = Routes.REDEEM_SHARE,
+                arguments = listOf(
+                    navArgument("code") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) {
+                RedeemShareScreen(onBack = { navController.popBackStack() })
             }
         }
     }

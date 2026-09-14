@@ -80,6 +80,9 @@ object Routes {
     const val ASSIGNMENT_INTELLIGENCE = "assignment_intelligence"
     const val CHANGELOG = "changelog"
     const val AI_CONVERSATION_HISTORY = "ai_conversation_history/{filterScope}"
+    const val REDEEM_SHARE = "redeem_share?code={code}"
+    fun redeemShare(code: String? = null): String =
+        if (code != null) "redeem_share?code=$code" else "redeem_share"
     fun aiConversationHistory(filterScope: String) = "ai_conversation_history/$filterScope"
     fun noteDetail(id: String) = "note_detail/$id"
     fun noteEditor(noteId: String) = "note_editor/$noteId"
@@ -91,6 +94,7 @@ fun routeToSelectedTab(route: String?): MainTab? {
         route == Routes.NOTES || route.startsWith("note_editor/") -> MainTab.HOME
         route == Routes.GRADES || route == Routes.CALENDAR || route == Routes.FOCUS -> MainTab.PLANNER
         route == Routes.SCHEDULE_SCANNER -> MainTab.SCHEDULE
+        route == Routes.REDEEM_SHARE || route.startsWith("redeem_share?") -> MainTab.SCHEDULE
         route == Routes.FLASHCARD_STUDY || route == Routes.JEVI_REVIEW ||
             route.startsWith("jevi_review/") || route.startsWith("jevi_deck/") ||
             route == Routes.JEVI_DECKS ||

@@ -16,6 +16,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,6 +39,9 @@ import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
 import com.edukasyon.studentai.ui.adaptive.isMediumOrExpandedWidth
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.components.*
+import com.edukasyon.studentai.ui.share.ShareSheet
+import com.edukasyon.studentai.ui.share.ShareTarget
+import com.edukasyon.studentai.ui.share.ShareViewModel
 import com.edukasyon.studentai.ui.theme.parseHexColor
 import com.edukasyon.studentai.ui.viewmodel.ScheduleViewModel
 import java.text.SimpleDateFormat
@@ -49,6 +54,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ScheduleScreen(
     onOpenScanner: () -> Unit = {},
+    onOpenRedeem: () -> Unit = {},
     viewModel: ScheduleViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -59,9 +65,16 @@ fun ScheduleScreen(
     var showTemplateSheet by remember { mutableStateOf(false) }
     var createEventDateMillis by remember { mutableStateOf<Long?>(null) }
     var showQuickActions by remember { mutableStateOf(false) }
+    var showShareSheet by remember { mutableStateOf(false) }
+    val shareViewModel: ShareViewModel = hiltViewModel()
+    val shareState by shareViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val horizontalPadding = rememberAdaptiveHorizontalPadding()
     val twoPaneDaily = isMediumOrExpandedWidth()
+
+    LaunchedEffect(showShareSheet) {
+        if (showShareSheet) shareViewModel.publish(ShareTarget.Schedule)
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -84,6 +97,28 @@ fun ScheduleScreen(
                         else -> state.selectedDay.displayName
                     },
                     inlineSubtitle = true,
+                    trailing = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            IconButton(
+                                onClick = { showShareSheet = true },
+                            ) {
+                                Icon(
+                                    Icons.Default.Share,
+                                    contentDescription = "Share schedule",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                )
+                            }
+                            IconButton(
+                                onClick = onOpenRedeem,
+                            ) {
+                                Icon(
+                                    Icons.Default.UploadFile,
+                                    contentDescription = "Import shared schedule",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                )
+                            }
+                        }
+                    },
                 )
                 Row(
                     Modifier
@@ -211,6 +246,19 @@ fun ScheduleScreen(
                 addForDay = state.selectedDay
                 showAddDialog = true
             },
+        )
+    }
+
+    if (showShareSheet) {
+        ShareSheet(
+            onDismiss = { showShareSheet = false },
+            kindLabel = "schedule",
+            code = shareState.code,
+            envelopeOrPayloadJson = shareState.envelopeJson.orEmpty(),
+            generating = shareState.generating,
+            error = shareState.error,
+            onRetry = shareViewModel::retry,
+            confirmationLine = "Your whole timetable (${state.allItems.size} ${if (state.allItems.size == 1) "class" else "classes"}) will be shared.",
         )
     }
 }

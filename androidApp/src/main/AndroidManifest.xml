@@ -41,6 +41,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Private share deep links: schedmate://share/<CODE> opens the
+                 redeem screen (MainActivity validates the code before nav). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="schedmate" android:host="share" android:pathPrefix="/" />
+            </intent-filter>
         </activity>
 
         <activity
