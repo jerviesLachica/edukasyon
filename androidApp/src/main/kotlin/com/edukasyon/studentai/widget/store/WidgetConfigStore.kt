@@ -55,18 +55,22 @@ object WidgetConfigStore {
     private fun key(appWidgetId: Int) = "config_$appWidgetId"
 
     private fun encode(config: WidgetConfig): String = buildString {
+        // v2 format: size|type|accent|preset|c1|c2|c3|bgPath (8 fields)
         append(config.widgetSize.name).append('|')
         append(config.displayType.name).append('|')
         append(config.accentHex ?: "").append('|')
         append(config.designPreset.name).append('|')
         append(config.designColor1 ?: "").append('|')
         append(config.designColor2 ?: "").append('|')
-        append(config.designColor3 ?: "")
+        append(config.designColor3 ?: "").append('|')
+        append(config.backgroundImagePath ?: "")
     }
 
     private fun decode(appWidgetId: Int, raw: String): WidgetConfig? {
         return try {
             val parts = raw.split('|')
+            // v1: 7 fields (size|type|accent|preset|c1|c2|c3)
+            // v2: 8 fields (size|type|accent|preset|c1|c2|c3|bgPath)
             if (parts.size < 7) return null
             WidgetConfig(
                 appWidgetId = appWidgetId,
@@ -76,7 +80,8 @@ object WidgetConfigStore {
                 designPreset = WidgetDesignPreset.valueOf(parts[3]),
                 designColor1 = parts[4].ifBlank { null },
                 designColor2 = parts[5].ifBlank { null },
-                designColor3 = parts[6].ifBlank { null }
+                designColor3 = parts[6].ifBlank { null },
+                backgroundImagePath = parts.getOrNull(7)?.ifBlank { null }
             )
         } catch (e: Exception) {
             null

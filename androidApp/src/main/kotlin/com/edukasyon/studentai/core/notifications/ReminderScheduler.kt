@@ -22,16 +22,20 @@ class ReminderScheduler @Inject constructor(
         message: String,
         triggerAtMillis: Long,
         referenceId: String? = null,
-        notificationId: Int = uniqueWorkName.hashCode()
+        notificationId: Int = uniqueWorkName.hashCode(),
+        alarmSoundUri: String? = null,
+        alarmSoundName: String? = null
     ) {
         val delay = (triggerAtMillis - System.currentTimeMillis()).coerceAtLeast(0)
-        val data: Data = workDataOf(
-            ReminderWorkerKeys.TYPE to type.name,
-            ReminderWorkerKeys.TITLE to title,
-            ReminderWorkerKeys.MESSAGE to message,
-            ReminderWorkerKeys.REFERENCE_ID to referenceId,
-            ReminderWorkerKeys.NOTIFICATION_ID to notificationId
-        )
+        val dataBuilder = Data.Builder()
+            .putString(ReminderWorkerKeys.TYPE, type.name)
+            .putString(ReminderWorkerKeys.TITLE, title)
+            .putString(ReminderWorkerKeys.MESSAGE, message)
+            .putString(ReminderWorkerKeys.REFERENCE_ID, referenceId)
+            .putInt(ReminderWorkerKeys.NOTIFICATION_ID, notificationId)
+        alarmSoundUri?.let { dataBuilder.putString(ReminderWorkerKeys.ALARM_SOUND_URI, it) }
+        alarmSoundName?.let { dataBuilder.putString(ReminderWorkerKeys.ALARM_SOUND_NAME, it) }
+        val data: Data = dataBuilder.build()
         val request = OneTimeWorkRequestBuilder<ReminderWorker>()
             .setInitialDelay(delay, TimeUnit.MILLISECONDS)
             .setInputData(data)

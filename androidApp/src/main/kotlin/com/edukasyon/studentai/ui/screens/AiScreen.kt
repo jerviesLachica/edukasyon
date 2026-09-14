@@ -379,7 +379,9 @@ private fun AiTutorTab(
                     }
                     if (state.isLoading && state.loadingTool == AiTool.TUTOR) {
                         item {
-                            JeviThinkingIndicator()
+                            JeviThinkingIndicator(
+                                reasoning = state.streamingReasoning,
+                            )
                         }
                     }
                 }

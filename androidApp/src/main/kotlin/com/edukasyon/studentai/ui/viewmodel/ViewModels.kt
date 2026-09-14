@@ -816,6 +816,10 @@ data class AiUiState(
     val gizmo: GizmoCompanionState = GizmoCompanionState(),
     val isOnline: Boolean = true,
     val isLoading: Boolean = false,
+    // Live-streamed reasoning text for the in-flight tutor reply (null until the
+    // AI chain exposes partial responses; per-message reasoning renders on the
+    // completed bubble via JeviReasoningSection).
+    val streamingReasoning: String? = null,
     val loadingTool: AiTool? = null,
     val error: String? = null,
     val lastSummary: String? = null,
@@ -1481,6 +1485,7 @@ class AiViewModel @Inject constructor(
                     it.copy(
                         isLoading = true,
                         loadingTool = AiTool.TUTOR,
+                        streamingReasoning = null,
                         error = null,
                         messages = it.messages + userMessage,
                     )
@@ -1613,6 +1618,7 @@ class AiViewModel @Inject constructor(
                     s.copy(
                         isLoading = false,
                         loadingTool = null,
+                        streamingReasoning = null,
                         messages = s.messages + GizmoChatMessage(
                             sender = "Jevi",
                             content = parsed.displayText,
@@ -2823,6 +2829,7 @@ data class NotificationSettingsUiState(
     val classReminderAtTime: Boolean = true,
     val classReminder15MinBefore: Boolean = true,
     val notificationSoundEnabled: Boolean = true,
+    val alarmSoundName: String = "System Default",
     val notificationPermissionGranted: Boolean = true,
     val dndAccessGranted: Boolean = false,
     val batteryOptimizationDisabled: Boolean = false
@@ -2842,22 +2849,28 @@ class NotificationSettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             combine(
-                preferences.notificationsEnabled,
-                preferences.classReminders,
-                preferences.taskReminders,
-                preferences.examReminders,
-                preferences.classReminderAtTime,
-                preferences.classReminder15MinBefore,
-                preferences.notificationSoundEnabled
-            ) { values ->
+                combine(
+                    preferences.notificationsEnabled,
+                    preferences.classReminders,
+                    preferences.taskReminders,
+                    preferences.examReminders,
+                    preferences.classReminderAtTime,
+                ) { a, b, c, d, e -> listOf(a, b, c, d, e) },
+                combine(
+                    preferences.classReminder15MinBefore,
+                    preferences.notificationSoundEnabled,
+                ) { a, b -> listOf(a, b) },
+                preferences.alarmSoundName,
+            ) { flags, extra, soundName ->
                 NotificationSettingsUiState(
-                    notificationsEnabled = values[0],
-                    classReminders = values[1],
-                    taskReminders = values[2],
-                    examReminders = values[3],
-                    classReminderAtTime = values[4],
-                    classReminder15MinBefore = values[5],
-                    notificationSoundEnabled = values[6],
+                    notificationsEnabled = flags[0],
+                    classReminders = flags[1],
+                    taskReminders = flags[2],
+                    examReminders = flags[3],
+                    classReminderAtTime = flags[4],
+                    classReminder15MinBefore = extra[0],
+                    notificationSoundEnabled = extra[1],
+                    alarmSoundName = soundName,
                     notificationPermissionGranted = _uiState.value.notificationPermissionGranted,
                     dndAccessGranted = _uiState.value.dndAccessGranted,
                     batteryOptimizationDisabled = _uiState.value.batteryOptimizationDisabled
@@ -2899,6 +2912,8 @@ class NotificationSettingsViewModel @Inject constructor(
     fun setClassReminderAtTime(enabled: Boolean) { viewModelScope.launch { preferences.setClassReminderAtTime(enabled) } }
     fun setClassReminder15MinBefore(enabled: Boolean) { viewModelScope.launch { preferences.setClassReminder15MinBefore(enabled) } }
     fun setNotificationSoundEnabled(enabled: Boolean) { viewModelScope.launch { preferences.setNotificationSoundEnabled(enabled) } }
+    fun setAlarmSoundName(name: String) { viewModelScope.launch { preferences.setAlarmSoundName(name) } }
+    fun setAlarmSoundUri(uri: String?) { viewModelScope.launch { preferences.setAlarmSoundUri(uri) } }
 }
 
 data class LectureFilesUiState(

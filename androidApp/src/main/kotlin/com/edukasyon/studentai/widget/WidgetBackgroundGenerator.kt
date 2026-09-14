@@ -57,7 +57,7 @@ object WidgetBackgroundGenerator {
     ): Bitmap {
         if (preset == WidgetDesignPreset.MINIMAL) {
             val color = parseAndroidColor(colors.color1, Color.parseColor("#F3F4F6"))
-            val key = "minimal|$color|${widthDp}x${heightDp}|${context.resources.displayMetrics.density}"
+            val key = "minimal|$color|${widthDp}x${heightDp}|${context.resources.displayMetrics.density}|rounded"
             memoryCache.get(key)?.let { return it }
             val bitmap = solidBitmap(context, color, widthDp, heightDp)
             memoryCache.put(key, bitmap)
@@ -65,7 +65,13 @@ object WidgetBackgroundGenerator {
         }
 
         val density = context.resources.displayMetrics.density
-        val key = "${preset.name}|${colors.cacheKey()}|${widthDp}x${heightDp}|${density}"
+        val maxPx = 160
+        val widthPx = (widthDp * density).toInt().coerceAtMost(maxPx).coerceAtLeast(1)
+        val heightPx = (heightDp * density).toInt().coerceAtMost(maxPx).coerceAtLeast(1)
+        // Radius in BITMAP px: 20dp of widget width, scaled to the capped bitmap.
+        // (Using device px here overshoots ~2x because the bitmap is downscaled.)
+        val cornerPx = 20f * widthPx / widthDp.toFloat()
+        val key = "${preset.name}|${colors.cacheKey()}|${widthDp}x${heightDp}|${density}|r${cornerPx.toInt()}"
         memoryCache.get(key)?.let { return it }
 
         // 1. Try disk cache.
@@ -83,9 +89,6 @@ object WidgetBackgroundGenerator {
         // 160px cap keeps even the largest widget (160x240dp @ 3x density = 480x720px
         // uncapped) well under 1 MB ARGB_8888 (160x240 = 154KB). This eliminates
         // silent paint drops on high-DPI devices (Huawei 480dpi).
-        val maxPx = 160
-        val widthPx = (widthDp * density).toInt().coerceAtMost(maxPx).coerceAtLeast(1)
-        val heightPx = (heightDp * density).toInt().coerceAtMost(maxPx).coerceAtLeast(1)
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.TRANSPARENT)
@@ -99,11 +102,12 @@ object WidgetBackgroundGenerator {
             WidgetDesignPreset.MINIMAL -> Unit // handled above
         }
 
-        // 3. Persist to disk.
-        persistBitmap(file, bitmap)
+        // 3. Round corners (20dp to match widget_v2_shell_bg) + persist to disk.
+        val rounded = roundedCorners(bitmap, cornerPx)
+        persistBitmap(file, rounded)
 
-        memoryCache.put(key, bitmap)
-        return bitmap
+        memoryCache.put(key, rounded)
+        return rounded
     }
 
     fun invalidateCache() {
@@ -112,6 +116,20 @@ object WidgetBackgroundGenerator {
 
     // ── Bitmap helpers ─────────────────────────────────────────────
 
+    /** Clips the bitmap to a rounded rect (transparent corners). */
+    private fun roundedCorners(src: android.graphics.Bitmap, radiusPx: Float): android.graphics.Bitmap {
+        val out = android.graphics.Bitmap.createBitmap(src.width, src.height, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(out)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        canvas.drawRoundRect(
+            0f, 0f, src.width.toFloat(), src.height.toFloat(),
+            radiusPx, radiusPx, paint,
+        )
+        paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+        canvas.drawBitmap(src, 0f, 0f, paint)
+        return out
+    }
+
     private fun solidBitmap(context: Context, color: Int, widthDp: Int, heightDp: Int): Bitmap {
         val density = context.resources.displayMetrics.density
         // Same 160px cap as pattern bitmaps — a minimal solid at full density
@@ -119,9 +137,10 @@ object WidgetBackgroundGenerator {
         val maxPx = 160
         val widthPx = (widthDp * density).toInt().coerceAtMost(maxPx).coerceAtLeast(1)
         val heightPx = (heightDp * density).toInt().coerceAtMost(maxPx).coerceAtLeast(1)
-        return Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888).apply {
+        val solid = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888).apply {
             Canvas(this).drawColor(color)
         }
+        return roundedCorners(solid, 20f * widthPx / widthDp.toFloat())
     }
 
     // ── Reusable paint set ─────────────────────────────────────────

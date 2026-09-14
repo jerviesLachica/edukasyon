@@ -27,6 +27,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edukasyon.studentai.R
 import com.edukasyon.studentai.ui.components.BouncyButton
 import com.edukasyon.studentai.ui.components.BouncyOutlinedButton
+import com.edukasyon.studentai.ui.components.StudentAiLoader
+import com.edukasyon.studentai.ui.components.StudentAiLoaderStyle
 import com.edukasyon.studentai.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 
@@ -164,10 +166,10 @@ fun AuthGateScreen(
                     enabled = !isLoading,
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp,
+                        StudentAiLoader(
+                            label = null,
+                            style = StudentAiLoaderStyle.Compact,
+                            modifier = Modifier.size(40.dp),
                         )
                         Spacer(Modifier.width(12.dp))
                     }

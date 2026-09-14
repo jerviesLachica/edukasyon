@@ -38,9 +38,9 @@ fun LoadingScreen(
                 modifier = Modifier.size(120.dp),
             )
             Spacer(Modifier.height(24.dp))
-            GeneratingLoader(
+            StudentAiLoader(
                 label = message ?: "Loading",
-                style = GeneratingLoaderStyle.Full,
+                style = StudentAiLoaderStyle.Full,
             )
             if (title != null) {
                 Spacer(Modifier.height(24.dp))

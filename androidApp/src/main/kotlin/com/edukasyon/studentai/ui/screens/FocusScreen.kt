@@ -1,5 +1,6 @@
 package com.edukasyon.studentai.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -283,10 +284,10 @@ private fun FocusSetupContent(
                     shape = RoundedCornerShape(16.dp),
                 ) {
                     if (state.isGeneratingPlan) {
-                        CircularProgressIndicator(
+                        StudentAiLoader(
+                            label = null,
+                            style = StudentAiLoaderStyle.Compact,
                             modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
                         )
                         Spacer(Modifier.width(8.dp))
                         Text("Generating…")
@@ -298,9 +299,9 @@ private fun FocusSetupContent(
                 }
 
                 if (state.isGeneratingPlan) {
-                    GeneratingLoader(
+                    StudentAiLoader(
                         label = "Planning",
-                        style = GeneratingLoaderStyle.Compact,
+                        style = StudentAiLoaderStyle.Compact,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }

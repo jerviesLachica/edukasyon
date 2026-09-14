@@ -345,31 +345,40 @@ fun GizmoAvatar(
 @Composable
 fun JeviThinkingIndicator(
     modifier: Modifier = Modifier,
+    reasoning: String? = null,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Start,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(24.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-            contentAlignment = Alignment.Center,
+    if (!reasoning.isNullOrBlank()) {
+        JeviReasoningSection(
+            reasoning = reasoning,
+            modifier = modifier,
+            initiallyExpanded = false,
+        )
+    } else {
+        Row(
+            modifier = modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            androidx.compose.foundation.Image(
-                painter = painterResource(R.drawable.wala),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit,
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(R.drawable.wala),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            StudentAiLoader(
+                label = "Thinking",
+                style = StudentAiLoaderStyle.Compact,
             )
         }
-        Spacer(Modifier.width(8.dp))
-        GeneratingLoader(
-            label = "Thinking",
-            style = GeneratingLoaderStyle.Compact,
-        )
     }
 }
 

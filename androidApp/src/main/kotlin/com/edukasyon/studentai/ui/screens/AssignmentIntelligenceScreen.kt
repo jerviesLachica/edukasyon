@@ -96,8 +96,9 @@ fun AssignmentIntelligenceScreen(
             ) {
                 when {
                     state.isAnalyzing -> {
-                        GeneratingLoader(
+                        StudentAiLoader(
                             label = "Analyzing assignment…",
+                            style = StudentAiLoaderStyle.Full,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
@@ -495,7 +496,11 @@ private fun BreakdownReviewContent(
                     shape = com.edukasyon.studentai.ui.theme.StudentAiShapes.button,
                 ) {
                     if (isSaving) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        StudentAiLoader(
+                            label = null,
+                            style = StudentAiLoaderStyle.Compact,
+                            modifier = Modifier.size(18.dp),
+                        )
                     } else {
                         Text("Add to Planner")
                     }

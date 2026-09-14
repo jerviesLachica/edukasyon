@@ -11,10 +11,12 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.media.AudioAttributes
+import android.net.Uri
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import kotlin.math.abs
 import com.edukasyon.studentai.MainActivity
 import com.edukasyon.studentai.R
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -34,14 +36,27 @@ class NotificationHelper @Inject constructor(
         createChannels()
     }
 
-    fun createChannels() {
+    fun createChannels(soundUri: String? = null, soundName: String? = null) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
+        
+        // Resolve the sound URI with fallback to system default
+        val baseUri = soundUri?.takeIf { it.isNotBlank() }?.let {
+            try { Uri.parse(it) } catch (_: Exception) { Settings.System.DEFAULT_ALARM_ALERT_URI }
+        } ?: Settings.System.DEFAULT_ALARM_ALERT_URI
+
         ReminderType.entries.forEach { type ->
-            val channel = NotificationChannel(type.channelId, type.channelName, NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "SchedMate "
+            // Create versioned channel ID based on sound URI hash
+            val versionSuffix = soundUri?.hashCode()?.let { hash ->
+                if (hash != 0) "_v${abs(hash)}" else ""
+            } ?: ""
+            val channelId = "${type.channelId}${versionSuffix}"
+            val displayName = if (soundName != null) "${type.channelName} - $soundName" else type.channelName
+            
+            val channel = NotificationChannel(channelId, displayName, NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "SchedMate"
                 setSound(
-                    Settings.System.DEFAULT_ALARM_ALERT_URI,
+                    baseUri,
                     AudioAttributes.Builder()
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .setUsage(AudioAttributes.USAGE_ALARM)
@@ -51,6 +66,11 @@ class NotificationHelper @Inject constructor(
                 setBypassDnd(true)
             }
             manager.createNotificationChannel(channel)
+            
+            // Clean up old unversioned channel if using versioned
+            if (versionSuffix.isNotEmpty()) {
+                try { manager.deleteNotificationChannel(type.channelId) } catch (_: Exception) {}
+            }
         }
     }
 
@@ -60,7 +80,8 @@ class NotificationHelper @Inject constructor(
         type: ReminderType,
         title: String,
         message: String,
-        referenceId: String? = null
+        referenceId: String? = null,
+        soundUri: String? = null
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -68,6 +89,13 @@ class NotificationHelper @Inject constructor(
                 return
             }
         }
+        
+        // Compute the versioned channel ID matching createChannels()
+        val versionSuffix = soundUri?.hashCode()?.let { hash ->
+            if (hash != 0) "_v${abs(hash)}" else ""
+        } ?: ""
+        val effectiveChannelId = "${type.channelId}${versionSuffix}"
+        
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             referenceId?.let { putExtra(REFERENCE_ID_EXTRA, it) }
@@ -79,7 +107,7 @@ class NotificationHelper @Inject constructor(
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notification = NotificationCompat.Builder(context, type.channelId)
+        val notification = NotificationCompat.Builder(context, effectiveChannelId)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(message)

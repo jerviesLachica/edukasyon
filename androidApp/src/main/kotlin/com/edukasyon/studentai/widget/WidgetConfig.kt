@@ -13,7 +13,8 @@ data class WidgetConfig(
     val designPreset: WidgetDesignPreset,
     val designColor1: String?,
     val designColor2: String?,
-    val designColor3: String?
+    val designColor3: String?,
+    val backgroundImagePath: String? = null
 ) {
     val designColors: WidgetDesignColors
         get() = designPreset.defaultColors().resolved(designColor1, designColor2, designColor3)

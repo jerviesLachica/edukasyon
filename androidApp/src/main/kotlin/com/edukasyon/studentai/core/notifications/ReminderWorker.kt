@@ -15,6 +15,8 @@ object ReminderWorkerKeys {
     const val MESSAGE = "message"
     const val REFERENCE_ID = "reference_id"
     const val NOTIFICATION_ID = "notification_id"
+    const val ALARM_SOUND_URI = "alarm_sound_uri"
+    const val ALARM_SOUND_NAME = "alarm_sound_name"
 }
 
 @HiltWorker
@@ -44,7 +46,13 @@ class ReminderWorker @AssistedInject constructor(
         val referenceId = inputData.getString(ReminderWorkerKeys.REFERENCE_ID)
         val notificationId = inputData.getInt(ReminderWorkerKeys.NOTIFICATION_ID, title.hashCode())
 
-        notificationHelper.showReminder(notificationId, type, title, message, referenceId)
+        // Honor user's sound selection: fall back to preference-stored URI if not in work data
+        val alarmSoundUri = inputData.getString(ReminderWorkerKeys.ALARM_SOUND_URI)
+            ?: preferences.alarmSoundUri.first()
+        val alarmSoundName = inputData.getString(ReminderWorkerKeys.ALARM_SOUND_NAME)
+            ?: preferences.alarmSoundName.first()
+
+        notificationHelper.showReminder(notificationId, type, title, message, referenceId, alarmSoundUri)
         return Result.success()
     }
 }

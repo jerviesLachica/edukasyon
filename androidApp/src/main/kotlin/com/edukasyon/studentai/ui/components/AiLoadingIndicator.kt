@@ -15,13 +15,9 @@ fun AiLoadingIndicator(
         modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center,
     ) {
-        if (message != null) {
-            GeneratingLoader(
-                label = message,
-                style = GeneratingLoaderStyle.Full,
-            )
-        } else {
-            GeneratingLoader(style = GeneratingLoaderStyle.Full)
-        }
+        StudentAiLoader(
+            label = message,
+            style = StudentAiLoaderStyle.Full,
+        )
     }
 }

@@ -3,6 +3,8 @@ package com.edukasyon.studentai.widget.render
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.view.View
 import android.widget.RemoteViews
@@ -117,6 +119,31 @@ object WidgetRenderer {
             com.edukasyon.studentai.widget.WidgetSize.SMALL_2X2 -> 160 to 160
             com.edukasyon.studentai.widget.WidgetSize.TALL_2X3 -> 160 to 240
         }
+        // 1. Custom photo background (if configured and readable).
+        val photoPath = config.backgroundImagePath
+        if (!photoPath.isNullOrBlank()) {
+            val decoded = decodeCappedBitmap(photoPath, w, h)
+            if (decoded != null) {
+                runCatching {
+                    views.setImageViewBitmap(R.id.v2_bg, decoded)
+                }.onFailure {
+                    // Binder-too-large or RemoteViews rejection: fall through to preset.
+                    fallbackBackground(context, views, config, w, h)
+                }
+                return
+            }
+        }
+        // 2. Preset design bitmap (with its own internal fallback).
+        fallbackBackground(context, views, config, w, h)
+    }
+
+    private fun fallbackBackground(
+        context: Context,
+        views: RemoteViews,
+        config: WidgetConfig,
+        w: Int,
+        h: Int
+    ) {
         runCatching {
             val bitmap = WidgetBackgroundGenerator.getBitmap(
                 context, config.designPreset, config.designColors, w, h
@@ -129,6 +156,46 @@ object WidgetRenderer {
                 ColorInts.parse(config.designColors.color1, 0xFF1F2A44.toInt())
             )
         }
+    }
+
+    /**
+     * Decodes a photo file to a Bitmap capped to the same pixel budget as
+     * generated backgrounds. Oversized images crash RemoteViews (Binder
+     * transaction limit ~1 MB); this bounds memory and falls back to null
+     * (preset) on any failure — never throws.
+     */
+    private fun decodeCappedBitmap(path: String, widthDp: Int, heightDp: Int): android.graphics.Bitmap? {
+        return try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(path, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+            // Cap at 160px on the long edge, matching WidgetBackgroundGenerator.
+            val maxPx = 160
+            val sample = computeSampleSize(bounds.outWidth, bounds.outHeight, maxPx)
+            val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+            val decoded = BitmapFactory.decodeFile(path, opts) ?: return null
+            // Scale to exact target (centerCrop-like via exact fit).
+            val density = 1f // already in px budget, not device dp
+            val targetW = (widthDp * density).toInt().coerceAtMost(maxPx).coerceAtLeast(1)
+            val targetH = (heightDp * density).toInt().coerceAtMost(maxPx).coerceAtLeast(1)
+            if (decoded.width != targetW || decoded.height != targetH) {
+                val scaled = android.graphics.Bitmap.createScaledBitmap(decoded, targetW, targetH, true)
+                if (scaled != decoded) decoded.recycle()
+                return scaled
+            }
+            decoded
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun computeSampleSize(srcW: Int, srcH: Int, maxPx: Int): Int {
+        var sample = 1
+        val longest = maxOf(srcW, srcH)
+        while (longest / (sample * 2) > maxPx) {
+            sample *= 2
+        }
+        return sample.coerceAtLeast(1)
     }
 
     private fun paintHeader(views: RemoteViews, snapshot: WidgetSnapshot, theme: ThemeInts) {

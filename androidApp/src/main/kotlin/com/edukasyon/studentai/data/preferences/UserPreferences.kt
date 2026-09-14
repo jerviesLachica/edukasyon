@@ -57,6 +57,9 @@ class UserPreferences @Inject constructor(
         val CLASS_REMINDER_AT_TIME = booleanPreferencesKey("class_reminder_at_time")
         val CLASS_REMINDER_15_MIN = booleanPreferencesKey("class_reminder_15_min")
         val NOTIFICATION_SOUND_ENABLED = booleanPreferencesKey("notification_sound_enabled")
+        val ALARM_SOUND_URI = stringPreferencesKey("alarm_sound_uri")
+        val ALARM_SOUND_NAME = stringPreferencesKey("alarm_sound_name")
+        val CHANNEL_VERSION = longPreferencesKey("channel_version")
         val ONBOARDING_WIDGETS_EXPLORED = booleanPreferencesKey("onboarding_widgets_explored")
         val WIFI_ONLY_SYNC = booleanPreferencesKey("wifi_only_sync")
         val LAST_SYNCED_AT = longPreferencesKey("last_synced_at")
@@ -92,6 +95,12 @@ class UserPreferences @Inject constructor(
     val classReminderAtTime: Flow<Boolean> = context.dataStore.data.map { it[Keys.CLASS_REMINDER_AT_TIME] ?: true }
     val classReminder15MinBefore: Flow<Boolean> = context.dataStore.data.map { it[Keys.CLASS_REMINDER_15_MIN] ?: true }
     val notificationSoundEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.NOTIFICATION_SOUND_ENABLED] ?: true }
+    val alarmSoundUri: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[Keys.ALARM_SOUND_URI]?.takeIf { it.isNotBlank() }
+    }
+    val alarmSoundName: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[Keys.ALARM_SOUND_NAME] ?: "System Default"
+    }
     val onboardingWidgetsExplored: Flow<Boolean> = context.dataStore.data.map { it[Keys.ONBOARDING_WIDGETS_EXPLORED] ?: false }
     val lastSyncedAt: Flow<Long?> = context.dataStore.data.map { it[Keys.LAST_SYNCED_AT] }
     val firebaseAuthEmail: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -204,6 +213,20 @@ class UserPreferences @Inject constructor(
 
     suspend fun setNotificationSoundEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.NOTIFICATION_SOUND_ENABLED] = enabled }
+    }
+
+    suspend fun setAlarmSoundUri(uri: String?) {
+        context.dataStore.edit { prefs ->
+            if (uri.isNullOrBlank()) {
+                prefs.remove(Keys.ALARM_SOUND_URI)
+            } else {
+                prefs[Keys.ALARM_SOUND_URI] = uri
+            }
+        }
+    }
+
+    suspend fun setAlarmSoundName(name: String) {
+        context.dataStore.edit { it[Keys.ALARM_SOUND_NAME] = name }
     }
 
     suspend fun setOnboardingWidgetsExplored(explored: Boolean) {

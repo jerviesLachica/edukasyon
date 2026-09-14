@@ -4,6 +4,10 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.provider.OpenableColumns
+import androidx.activity.result.launch
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -200,6 +204,7 @@ fun NotificationSettingsDetailScreen(
     viewModel: NotificationSettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -306,6 +311,64 @@ fun NotificationSettingsDetailScreen(
                             )
                         }
                     )
+                    val soundPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.GetContent()
+                    ) { uri: Uri? ->
+                        uri?.let {
+                            context.contentResolver.takePersistableUriPermission(
+                                uri,
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            )
+                            val name = runCatching {
+                                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                                    if (cursor.moveToFirst()) {
+                                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                                        if (nameIndex >= 0) cursor.getString(nameIndex) else "Custom"
+                                    } else "Custom"
+                                }
+                            }.getOrNull() ?: "Custom"
+                            viewModel.setAlarmSoundUri(uri.toString())
+                            viewModel.setAlarmSoundName(name)
+                        }
+                    }
+
+                    val presetSounds = listOf(
+                        "System Default" to null,
+                        "Tone 1" to "android.resource://${LocalContext.current.packageName}/raw/tone_1",
+                        "Tone 2" to "android.resource://${LocalContext.current.packageName}/raw/tone_2",
+                        "Tone 3" to "android.resource://${LocalContext.current.packageName}/raw/tone_3"
+                    )
+                    presetSounds.forEach { (name, uri) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.setAlarmSoundName(name)
+                                    viewModel.setAlarmSoundUri(uri)
+                                },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.padding(vertical = 12.dp)
+                            )
+                        }
+                    }
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { soundPickerLauncher.launch("audio/*") },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Pick MP3",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        )
+                    }
                 }
             }
         }

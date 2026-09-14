@@ -167,7 +167,7 @@ private fun HorizontalPillTabBar(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.background,
+        color = Color.Transparent,
         tonalElevation = 0.dp,
     ) {
         Box(
