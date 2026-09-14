@@ -1,6 +1,34 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Shared schedules/decks addressed by an unguessable 6-char code, 30-day expiry.
+    // createdAt/expiresAt are epoch-millisecond integers; compared via toMillis().
+    match /shares/{code} {
+      // Anyone who knows the code may read it until it expires.
+      allow read: if resource.data.expiresAt > request.time.toMillis();
+
+      // Writers must be signed in and post a well-formed, unexpired, zero-view document.
+      allow create: if request.auth != null
+        && code.size() == 6
+        && request.resource.data.kind in ['schedule', 'deck']
+        && request.resource.data.payloadJson is string
+        && request.resource.data.payloadJson.size() <= 200000
+        && request.resource.data.createdAt is int
+        && request.resource.data.createdAt <= request.time.toMillis()
+        && request.resource.data.expiresAt is int
+        && request.resource.data.expiresAt > request.time.toMillis()
+        && request.resource.data.expiresAt <= request.time.toMillis() + 2592000000
+        && request.resource.data.views == 0;
+
+      // First redemption only: views 0 -> 1, no other field may change. Best-effort counter.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])
+        && resource.data.views == 0
+        && request.resource.data.views == 1
+        && resource.data.expiresAt > request.time.toMillis();
+
+      allow delete: if false;
+    }
+
     // Users can only read/write their own data
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
