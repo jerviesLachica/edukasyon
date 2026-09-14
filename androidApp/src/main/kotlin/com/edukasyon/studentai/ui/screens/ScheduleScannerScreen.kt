@@ -43,6 +43,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
+import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.components.EmptyState
 import com.edukasyon.studentai.ui.components.ErrorBanner
 import com.edukasyon.studentai.ui.components.ScanningOverlay
@@ -73,6 +75,7 @@ fun ScheduleScannerScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val horizontalPadding = rememberAdaptiveHorizontalPadding()
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -257,208 +260,210 @@ fun ScheduleScannerScreen(
             )
         },
     ) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            if (!hasCameraPermission) {
-                EmptyState(
-                    title = if (showPermissionRationale) "Camera access needed" else "Camera permission required",
-                    message = if (showPermissionRationale) {
-                        "Camera access is required to scan your class schedule. Tap below to grant permission."
-                    } else {
-                        "Allow camera access to scan your class schedule, or pick a photo from Gallery after granting access."
-                    },
-                    actionLabel = "Grant Permission",
-                    onAction = { permissionLauncher.launch(Manifest.permission.CAMERA) },
-                )
-            } else {
-                if (showCamera) {
-                    Box(
-                        Modifier.weight(1f).fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        // Hide live camera preview while scanning so it doesn't show
-                        // underneath the overlay / captured image.
-                        if (!isScanning) {
-                            AndroidView(
-                                factory = { ctx ->
-                                    PreviewView(ctx).apply {
-                                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                                        scaleType = PreviewView.ScaleType.FILL_CENTER
-                                    }.also { previewViewRef = it }
-                                },
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                        if (isScanning) {
-                            ScanningOverlay(
-                                imageBytes = pendingScanImageBytes,
-                                extractedText = state.scheduleScanExtractedText,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                        if (showScanFailure) {
-                            ScheduleScanFailureOverlay(
-                                imageBytes = pendingScanImageBytes,
-                                status = state.scheduleScanStatus,
-                                retryAfterMillis = state.scheduleScanRetryAfterMillis,
-                                onRetry = { viewModel.retryScheduleScan() },
-                                onDismiss = {
-                                    pendingScanImageBytes = null
-                                    viewModel.dismissScheduleScanFailure()
-                                },
-                                onEnterManually = {
-                                    pendingScanImageBytes = null
-                                    viewModel.dismissScheduleScanFailure()
-                                    onBack()
-                                },
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                        when {
-                            isCameraInitializing && !scanBlocked && cameraBindFailed == null -> CircularProgressIndicator()
-                            cameraBindFailed != null -> {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                                    modifier = Modifier.padding(24.dp),
-                                ) {
-                                    Text(
-                                        text = cameraBindFailed!!,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    OutlinedButton(onClick = { bindRetryCount++ }) {
-                                        Text("Retry Camera")
+        AdaptiveContentContainer(Modifier.padding(padding)) { contentModifier ->
+            Column(
+                contentModifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (!hasCameraPermission) {
+                    EmptyState(
+                        title = if (showPermissionRationale) "Camera access needed" else "Camera permission required",
+                        message = if (showPermissionRationale) {
+                            "Camera access is required to scan your class schedule. Tap below to grant permission."
+                        } else {
+                            "Allow camera access to scan your class schedule, or pick a photo from Gallery after granting access."
+                        },
+                        actionLabel = "Grant Permission",
+                        onAction = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+                    )
+                } else {
+                    if (showCamera) {
+                        Box(
+                            Modifier.weight(1f).fillMaxWidth(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            // Hide live camera preview while scanning so it doesn't show
+                            // underneath the overlay / captured image.
+                            if (!isScanning) {
+                                AndroidView(
+                                    factory = { ctx ->
+                                        PreviewView(ctx).apply {
+                                            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                                            scaleType = PreviewView.ScaleType.FILL_CENTER
+                                        }.also { previewViewRef = it }
+                                    },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                            if (isScanning) {
+                                ScanningOverlay(
+                                    imageBytes = pendingScanImageBytes,
+                                    extractedText = state.scheduleScanExtractedText,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                            if (showScanFailure) {
+                                ScheduleScanFailureOverlay(
+                                    imageBytes = pendingScanImageBytes,
+                                    status = state.scheduleScanStatus,
+                                    retryAfterMillis = state.scheduleScanRetryAfterMillis,
+                                    onRetry = { viewModel.retryScheduleScan() },
+                                    onDismiss = {
+                                        pendingScanImageBytes = null
+                                        viewModel.dismissScheduleScanFailure()
+                                    },
+                                    onEnterManually = {
+                                        pendingScanImageBytes = null
+                                        viewModel.dismissScheduleScanFailure()
+                                        onBack()
+                                    },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                            when {
+                                isCameraInitializing && !scanBlocked && cameraBindFailed == null -> CircularProgressIndicator()
+                                cameraBindFailed != null -> {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                                        modifier = Modifier.padding(24.dp),
+                                    ) {
+                                        Text(
+                                            text = cameraBindFailed!!,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        OutlinedButton(onClick = { bindRetryCount++ }) {
+                                            Text("Retry Camera")
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
-                cameraBindFailed?.let {
-                    ErrorBanner(
-                        message = it,
-                        title = "Camera unavailable",
-                        onDismiss = { cameraBindFailed = null },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
-                captureError?.let {
-                    ErrorBanner(
-                        message = it,
-                        title = "Capture failed",
-                        onDismiss = { captureError = null },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
-                state.error?.let {
-                    ErrorBanner(
-                        message = it,
-                        title = "Analysis failed",
-                        onDismiss = { viewModel.clearError() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
-                if (showCamera) {
-                    Column(
-                        Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            OutlinedButton(
-                                onClick = { galleryLauncher.launch("image/*") },
-                                enabled = !scanBlocked,
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Icon(Icons.Default.PhotoLibrary, null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Gallery")
-                            }
-                            OutlinedButton(
-                                onClick = launchDocumentScan,
-                                enabled = !scanBlocked,
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Icon(Icons.Default.DocumentScanner, null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Doc scan")
-                            }
-                        }
-                        Button(
-                            onClick = { captureAndAnalyze() },
-                            enabled = !scanBlocked && cameraReady,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(Icons.Default.CameraAlt, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(if (isScanning) "Scanning…" else "Capture & Analyze")
-                        }
+                    cameraBindFailed?.let {
+                        ErrorBanner(
+                            message = it,
+                            title = "Camera unavailable",
+                            onDismiss = { cameraBindFailed = null },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
                     }
-                    TextButton(
-                        onClick = onBack,
-                        modifier = Modifier.padding(bottom = 12.dp),
-                    ) {
-                        Text("Cancel")
+                    captureError?.let {
+                        ErrorBanner(
+                            message = it,
+                            title = "Capture failed",
+                            onDismiss = { captureError = null },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
                     }
-                }
-            }
-
-            if (state.scannedClasses.isNotEmpty()) {
-                Text(
-                    "Review extracted classes",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-                LazyColumn(
-                    Modifier.weight(1f).padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(state.scannedClasses) { cls ->
-                        StudentAiCard {
-                            Text(cls.subject, style = MaterialTheme.typography.titleSmall)
-                            Text("${cls.day} ${cls.startTime}-${cls.endTime}")
-                            cls.teacher?.let { Text("Teacher: $it") }
-                            cls.room?.let { Text("Room: $it") }
-                        }
+                    state.error?.let {
+                        ErrorBanner(
+                            message = it,
+                            title = "Analysis failed",
+                            onDismiss = { viewModel.clearError() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
                     }
-                    item {
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    if (showCamera) {
+                        Column(
+                            Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            OutlinedButton(
-                                onClick = {
-                                    pendingScanImageBytes = null
-                                    viewModel.clearScannedClasses()
-                                    bindRetryCount++
-                                },
-                                modifier = Modifier.weight(1f),
-                                enabled = !isConfirming,
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                Text("Rescan")
+                                OutlinedButton(
+                                    onClick = { galleryLauncher.launch("image/*") },
+                                    enabled = !scanBlocked,
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Icon(Icons.Default.PhotoLibrary, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Gallery")
+                                }
+                                OutlinedButton(
+                                    onClick = launchDocumentScan,
+                                    enabled = !scanBlocked,
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Icon(Icons.Default.DocumentScanner, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Doc scan")
+                                }
                             }
                             Button(
-                                onClick = {
-                                    viewModel.confirmScannedClasses()
-                                    // onBack() is deferred until the populate animation
-                                    // completes (handled by showPopulateAnimation / onComplete)
-                                },
-                                modifier = Modifier.weight(1f),
-                                enabled = !isConfirming,
+                                onClick = { captureAndAnalyze() },
+                                enabled = !scanBlocked && cameraReady,
+                                modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Icon(Icons.Default.Check, null)
+                                Icon(Icons.Default.CameraAlt, null)
                                 Spacer(Modifier.width(8.dp))
-                                Text(if (isConfirming) "Adding…" else "Import")
+                                Text(if (isScanning) "Scanning…" else "Capture & Analyze")
+                            }
+                        }
+                        TextButton(
+                            onClick = onBack,
+                            modifier = Modifier.padding(bottom = 12.dp),
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+
+                if (state.scannedClasses.isNotEmpty()) {
+                    Text(
+                        "Review extracted classes",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                    LazyColumn(
+                        Modifier.weight(1f).padding(horizontal = horizontalPadding),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(state.scannedClasses) { cls ->
+                            StudentAiCard {
+                                Text(cls.subject, style = MaterialTheme.typography.titleSmall)
+                                Text("${cls.day} ${cls.startTime}-${cls.endTime}")
+                                cls.teacher?.let { Text("Teacher: $it") }
+                                cls.room?.let { Text("Room: $it") }
+                            }
+                        }
+                        item {
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        pendingScanImageBytes = null
+                                        viewModel.clearScannedClasses()
+                                        bindRetryCount++
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !isConfirming,
+                                ) {
+                                    Text("Rescan")
+                                }
+                                Button(
+                                    onClick = {
+                                        viewModel.confirmScannedClasses()
+                                        // onBack() is deferred until the populate animation
+                                        // completes (handled by showPopulateAnimation / onComplete)
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !isConfirming,
+                                ) {
+                                    Icon(Icons.Default.Check, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(if (isConfirming) "Adding…" else "Import")
+                                }
                             }
                         }
                     }

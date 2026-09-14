@@ -1,6 +1,7 @@
 package com.edukasyon.studentai.widget.render
 
 import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -115,26 +116,53 @@ object WidgetRenderer {
     // ===== Pieces =====
 
     private fun paintBackground(context: Context, views: RemoteViews, config: WidgetConfig) {
-        val (w, h) = when (config.widgetSize) {
-            com.edukasyon.studentai.widget.WidgetSize.SMALL_2X2 -> 160 to 160
-            com.edukasyon.studentai.widget.WidgetSize.TALL_2X3 -> 160 to 240
-        }
+        val (w, h) = widgetSizeDp(context, config)
+        // Pixel cap: long edge in dp scaled to device density, bounded by
+        // the 384px Binder-safe hard ceiling (never larger — ~1 MB limit).
+        val capPx = (maxOf(w, h) * context.resources.displayMetrics.density)
+            .toInt().coerceAtMost(384).coerceAtLeast(120)
         // 1. Custom photo background (if configured and readable).
         val photoPath = config.backgroundImagePath
         if (!photoPath.isNullOrBlank()) {
-            val decoded = decodeCappedBitmap(photoPath, w, h)
+            val decoded = decodeCappedBitmap(photoPath, w, h, capPx)
             if (decoded != null) {
                 runCatching {
                     views.setImageViewBitmap(R.id.v2_bg, decoded)
                 }.onFailure {
                     // Binder-too-large or RemoteViews rejection: fall through to preset.
-                    fallbackBackground(context, views, config, w, h)
+                    fallbackBackground(context, views, config, w, h, capPx)
                 }
                 return
             }
         }
         // 2. Preset design bitmap (with its own internal fallback).
-        fallbackBackground(context, views, config, w, h)
+        fallbackBackground(context, views, config, w, h, capPx)
+    }
+
+    /**
+     * Real widget size in dp from AppWidgetManager options (max of min/max
+     * bounds — the closer cell estimate), clamped to a sane 80..300dp range.
+     * Falls back to the legacy per-size constants when options are missing
+     * or zero (fresh placement, some launchers) — never throws.
+     */
+    private fun widgetSizeDp(context: Context, config: WidgetConfig): Pair<Int, Int> {
+        val fallback = when (config.widgetSize) {
+            com.edukasyon.studentai.widget.WidgetSize.SMALL_2X2 -> 160 to 160
+            com.edukasyon.studentai.widget.WidgetSize.TALL_2X3 -> 160 to 240
+        }
+        return runCatching {
+            val options = AppWidgetManager.getInstance(context)
+                .getAppWidgetOptions(config.appWidgetId)
+            val w = maxOf(
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0),
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 0)
+            ).takeIf { it > 0 }?.coerceIn(80, 300)
+            val h = maxOf(
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0),
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
+            ).takeIf { it > 0 }?.coerceIn(80, 300)
+            if (w == null || h == null) fallback else w to h
+        }.getOrDefault(fallback)
     }
 
     private fun fallbackBackground(
@@ -142,11 +170,12 @@ object WidgetRenderer {
         views: RemoteViews,
         config: WidgetConfig,
         w: Int,
-        h: Int
+        h: Int,
+        capPx: Int
     ) {
         runCatching {
             val bitmap = WidgetBackgroundGenerator.getBitmap(
-                context, config.designPreset, config.designColors, w, h
+                context, config.designPreset, config.designColors, w, h, capPx
             )
             views.setImageViewBitmap(R.id.v2_bg, bitmap)
         }.onFailure {
@@ -164,13 +193,18 @@ object WidgetRenderer {
      * transaction limit ~1 MB); this bounds memory and falls back to null
      * (preset) on any failure — never throws.
      */
-    private fun decodeCappedBitmap(path: String, widthDp: Int, heightDp: Int): android.graphics.Bitmap? {
+    private fun decodeCappedBitmap(
+        path: String,
+        widthDp: Int,
+        heightDp: Int,
+        maxPx: Int,
+    ): android.graphics.Bitmap? {
         return try {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(path, bounds)
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-            // Cap at 160px on the long edge, matching WidgetBackgroundGenerator.
-            val maxPx = 160
+            // Cap the long edge to the caller-provided pixel budget (384px hard
+            // ceiling — Binder transaction limit), never larger.
             val sample = computeSampleSize(bounds.outWidth, bounds.outHeight, maxPx)
             val opts = BitmapFactory.Options().apply { inSampleSize = sample }
             val decoded = BitmapFactory.decodeFile(path, opts) ?: return null

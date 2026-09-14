@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edukasyon.studentai.domain.model.AiConversation
+import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
+import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.components.EmptyState
 import com.edukasyon.studentai.ui.components.StudentAiCard
 import com.edukasyon.studentai.ui.viewmodel.AiConversationHistoryViewModel
@@ -37,6 +39,7 @@ fun AiConversationHistoryScreen(
     val deckTitles by historyViewModel.deckTitles.collectAsStateWithLifecycle()
     val dateFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()) }
     var deckFilter by remember { mutableStateOf<String?>(null) }
+    val horizontalPadding = rememberAdaptiveHorizontalPadding()
 
     LaunchedEffect(filterScope) {
         historyViewModel.setFilter(filterScope)
@@ -75,54 +78,56 @@ fun AiConversationHistoryScreen(
                 modifier = Modifier.padding(padding),
             )
         } else {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding),
-            ) {
-                if (filterScope == "tutor" && (deckIdsInList.isNotEmpty() || deckFilter != null)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        FilterChip(
-                            selected = deckFilter == null,
-                            onClick = {
-                                deckFilter = null
-                                historyViewModel.setDeckFilter(null)
-                            },
-                            label = { Text("All") },
-                        )
-                        deckIdsInList.forEach { deckId ->
+            AdaptiveContentContainer(Modifier.padding(padding)) { contentModifier ->
+                Column(
+                    modifier = contentModifier.fillMaxSize(),
+                ) {
+                    if (filterScope == "tutor" && (deckIdsInList.isNotEmpty() || deckFilter != null)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
                             FilterChip(
-                                selected = deckFilter == deckId,
+                                selected = deckFilter == null,
                                 onClick = {
-                                    deckFilter = deckId
-                                    historyViewModel.setDeckFilter(deckId)
+                                    deckFilter = null
+                                    historyViewModel.setDeckFilter(null)
                                 },
-                                label = { Text(deckTitles[deckId] ?: "Deck") },
+                                label = { Text("All") },
+                            )
+                            deckIdsInList.forEach { deckId ->
+                                FilterChip(
+                                    selected = deckFilter == deckId,
+                                    onClick = {
+                                        deckFilter = deckId
+                                        historyViewModel.setDeckFilter(deckId)
+                                    },
+                                    label = { Text(deckTitles[deckId] ?: "Deck") },
+                                )
+                            }
+                        }
+                    }
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().weight(1f),
+                        contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        items(conversations, key = { it.id }) { conversation ->
+                            AiConversationHistoryItem(
+                                conversation = conversation,
+                                dateFormat = dateFormat,
+                                deckTitle = conversation.deckId?.let { deckTitles[it] },
+                                onClick = {
+                                    aiViewModel.loadConversation(conversation.id)
+                                    onConversationSelected()
+                                },
                             )
                         }
                     }
                 }
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().weight(1f),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(conversations, key = { it.id }) { conversation ->
-                    AiConversationHistoryItem(
-                        conversation = conversation,
-                        dateFormat = dateFormat,
-                        deckTitle = conversation.deckId?.let { deckTitles[it] },
-                        onClick = {
-                            aiViewModel.loadConversation(conversation.id)
-                            onConversationSelected()
-                        },
-                    )
-                }
-            }
             }
         }
     }

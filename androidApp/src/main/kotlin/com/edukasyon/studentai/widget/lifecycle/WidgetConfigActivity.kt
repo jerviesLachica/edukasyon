@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -24,6 +25,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -38,7 +42,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -49,6 +56,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.edukasyon.studentai.domain.model.ThemeMode
 import com.edukasyon.studentai.ui.theme.StudentAiTheme
 import com.edukasyon.studentai.ui.theme.parseHexColor
+import com.edukasyon.studentai.widget.WidgetBackgroundGenerator
 import com.edukasyon.studentai.widget.WidgetConfig
 import com.edukasyon.studentai.widget.WidgetDesignPreset
 import com.edukasyon.studentai.widget.WidgetDisplayType
@@ -264,6 +272,7 @@ private fun WidgetPreviewCard(
     designPreset: WidgetDesignPreset,
     photoPath: String?
 ) {
+    val context = LocalContext.current
     val colors = designPreset.defaultColors()
     val isLight = designPreset == WidgetDesignPreset.MINIMAL
     val onSurface = if (isLight) 0xFF1A1A1A else 0xFFF5F5F5
@@ -271,16 +280,34 @@ private fun WidgetPreviewCard(
     val bgColor = parseHexColor(colors.color1)
         ?: Color(0xFF1F2A44)
 
+    // Same generated background the real 2x2 widget renders, capped square.
+    val backgroundBitmap = remember(designPreset, colors, context) {
+        WidgetBackgroundGenerator.getBitmap(context, designPreset, colors)
+    }
+
     Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(180.dp)
+            .wrapContentWidth(Alignment.CenterHorizontally)
+            .widthIn(max = 320.dp)
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(20.dp))
             .background(bgColor)
     ) {
-        // Photo layer.
+        // Design background layer — the same generated bitmap the real
+        // widget renders (no asImagePainter: it doesn't exist in Compose
+        // 1.7.0; android.graphics.Bitmap goes through asImageBitmap).
+        Image(
+            painter = BitmapPainter(backgroundBitmap.asImageBitmap()),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+
+        // Photo layer. Coil 2.7 cannot decode a schemeless Uri, so feed the
+        // painter a File directly — photoPath is an absolute file path.
         if (!photoPath.isNullOrBlank()) {
             val painter = rememberAsyncImagePainter(
-                model = Uri.parse(photoPath),
+                model = File(photoPath),
                 error = null
             )
             Image(
@@ -359,10 +386,9 @@ private fun previewItems(displayType: WidgetDisplayType): List<String> {
  */
 private fun Context.copyAndScalePhoto(uri: Uri, maxPx: Int = 512): String? {
     return try {
-        contentResolver.takePersistableUriPermission(
-            uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION
-        )
+        // No persistable-permission call here: the picker used GetContent(),
+        // whose transient grant rejects persistence claims. We copy the bytes
+        // immediately under that transient grant instead.
         val dir = File(filesDir, "widget-bg").apply { mkdirs() }
         val outFile = File(dir, "widget_bg_${System.currentTimeMillis()}.png")
         val bitmap = decodeCappedPhoto(uri, maxPx) ?: return null
@@ -370,6 +396,11 @@ private fun Context.copyAndScalePhoto(uri: Uri, maxPx: Int = 512): String? {
             bitmap.compress(Bitmap.CompressFormat.PNG, 95, out)
         }
         if (bitmap.isRecycled.not()) bitmap.recycle()
+        // Orphan cleanup: the previous copies are superseded by outFile, so
+        // drop older widget_bg_*.png before handing the new path back.
+        dir.listFiles { f ->
+            f.isFile && f.name.startsWith("widget_bg_") && f.name != outFile.name
+        }?.forEach { it.delete() }
         outFile.absolutePath
     } catch (_: Exception) {
         null
