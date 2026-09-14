@@ -847,13 +847,23 @@ private fun parseScheduleColor(colorHex: String): Color =
     runCatching { Color(android.graphics.Color.parseColor(colorHex)) }
         .getOrDefault(MaterialTheme.colorScheme.primary)
 
+// Fixed pastel pair (mirrors homePastelOrange): deriving these from
+// primaryContainer/onPrimaryContainer made the Classes tile a translucent
+// clone of the accent color, so both home stat cards rendered in the same
+// peach/cream family under the orange theme.
 @Composable
-private fun homePastelBlue(isDark: Boolean): Color =
-    MaterialTheme.colorScheme.primaryContainer
+private fun homePastelBlue(isDark: Boolean): Color = if (isDark) {
+    Color(0xFF1A2940)
+} else {
+    Color(0xFFE3F2FD)
+}
 
 @Composable
-private fun homePastelBlueContent(isDark: Boolean): Color =
-    MaterialTheme.colorScheme.onPrimaryContainer
+private fun homePastelBlueContent(isDark: Boolean): Color = if (isDark) {
+    Color(0xFF90CAF9)
+} else {
+    Color(0xFF1565C0)
+}
 
 @Composable
 private fun homePastelOrange(isDark: Boolean): Color = if (isDark) {
