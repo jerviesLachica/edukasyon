@@ -35,7 +35,7 @@ import com.edukasyon.studentai.data.local.entity.*
         SourceEntity::class,
         SourceChunkEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class StudentAiDatabase : RoomDatabase() {

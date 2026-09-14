@@ -26,6 +26,7 @@ data class AiConversation(
     val backendConversationId: String?,
     val createdAt: Long,
     val updatedAt: Long,
+    val deckId: String? = null,
 )
 
 data class AiConversationMessage(

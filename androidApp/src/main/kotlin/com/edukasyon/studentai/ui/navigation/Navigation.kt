@@ -57,6 +57,8 @@ object Routes {
     const val JEVI_DECKS = "jevi_decks"
     const val JEVI_CREATE = "jevi_create"
     const val JEVI_TUTOR = "jevi_tutor"
+    const val JEVI_TUTOR_DECK = "jevi_tutor/{deckId}"
+    fun jeviTutorDeck(deckId: String) = "jevi_tutor/$deckId"
     const val JEVI_REVIEW = "jevi_review"
     const val JEVI_QUIZ = "jevi_quiz"
     const val JEVI_DECK_DETAIL = "jevi_deck/{deckId}"
@@ -93,6 +95,7 @@ fun routeToSelectedTab(route: String?): MainTab? {
             route.startsWith("jevi_review/") || route.startsWith("jevi_deck/") ||
             route == Routes.JEVI_DECKS ||
             route == Routes.JEVI_CREATE || route == Routes.JEVI_TUTOR ||
+            route.startsWith("jevi_tutor/") ||
             route == Routes.JEVI_QUIZ -> MainTab.JEVI
         route.startsWith("ai_conversation_history/") -> MainTab.JEVI
         route == Routes.FEATURES_GUIDE -> MainTab.PROFILE

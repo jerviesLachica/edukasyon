@@ -831,6 +831,8 @@ data class AiUiState(
     val xpEarnedThisSession: Int = 0,
     val activeLocalConversationId: String? = null,
     val activeConversationType: AiConversationType? = null,
+    val activeDeckId: String? = null,
+    val activeDeckTitle: String? = null,
     val restoredToolInput: String? = null,
     val toolsPdf: ToolsPdfState? = null,
     val selectedChatModel: AiModel = AiModel.AUTO,
@@ -881,6 +883,7 @@ class AiViewModel @Inject constructor(
     private val mlKitTextRecognizer: com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer,
     private val sourceRepository: com.edukasyon.studentai.domain.repository.SourceRepository,
     private val aiService: AiService,
+    private val jeviRepository: com.edukasyon.studentai.domain.repository.JeviRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AiUiState())
     val uiState: StateFlow<AiUiState> = _uiState.asStateFlow()
@@ -1112,8 +1115,11 @@ class AiViewModel @Inject constructor(
     }
 
     fun loadConversation(conversationId: String) {
-        viewModelScope.launch {
-            val conversation = aiConversationRepo.getConversation(conversationId) ?: return@launch
+        viewModelScope.launch { loadConversationNow(conversationId) }
+    }
+
+    private suspend fun loadConversationNow(conversationId: String) {
+            val conversation = aiConversationRepo.getConversation(conversationId) ?: return
             val storedMessages = aiConversationRepo.getMessages(conversationId)
             backendConversationId = conversation.backendConversationId
 
@@ -1151,6 +1157,12 @@ class AiViewModel @Inject constructor(
                             messages = messages,
                             activeLocalConversationId = conversation.id,
                             activeConversationType = conversation.type,
+                            activeDeckId = conversation.deckId,
+                            activeDeckTitle = conversation.deckId?.let { deckId ->
+                                runCatching {
+                                    jeviRepository.observeDeck(deckId).first()?.title
+                                }.getOrNull()
+                            },
                             error = null,
                             lastSummary = null,
                             generatedFlashcards = emptyList(),
@@ -1158,6 +1170,9 @@ class AiViewModel @Inject constructor(
                             quizSession = null,
                             restoredToolInput = null,
                         )
+                    }
+                    if (conversation.deckId == null) {
+                        lastGeneralTutorId = conversation.id
                     }
                 }
                 AiConversationType.SUMMARIZE -> {
@@ -1231,8 +1246,9 @@ class AiViewModel @Inject constructor(
                     }
                 }
             }
-        }
     }
+
+    private var lastGeneralTutorId: String? = null
 
     private suspend fun ensureTutorConversation(title: String): String {
         val existing = _uiState.value.activeLocalConversationId
@@ -1250,6 +1266,61 @@ class AiViewModel @Inject constructor(
             )
         }
         return conversation.id
+    }
+
+    /** Deck-local tutor: resume this deck's latest thread (or start one), deck-grounded. */
+    fun openDeckTutor(deckId: String) {
+        viewModelScope.launch {
+            val deckTitle = runCatching {
+                jeviRepository.observeDeck(deckId).first()?.title
+            }.getOrNull()
+            val existing = runCatching {
+                aiConversationRepo.observeConversations(listOf(AiConversationType.TUTOR)).first()
+                    .filter { it.deckId == deckId }.maxByOrNull { it.updatedAt }?.id
+            }.getOrNull()
+            if (existing != null) {
+                loadConversation(existing)
+                return@launch
+            }
+            val created = aiConversationRepo.createConversation(
+                type = AiConversationType.TUTOR,
+                title = deckTitle ?: "Deck tutor",
+                deckId = deckId,
+            )
+            backendConversationId = null
+            _uiState.update {
+                it.copy(
+                    messages = emptyList(),
+                    activeLocalConversationId = created.id,
+                    activeConversationType = AiConversationType.TUTOR,
+                    activeDeckId = deckId,
+                    activeDeckTitle = deckTitle,
+                    error = null,
+                )
+            }
+        }
+    }
+
+    /** Leave deck mode; the shared general tutor takes over unchanged. */
+    fun closeDeckTutor() {
+        _uiState.update { it.copy(activeDeckId = null, activeDeckTitle = null) }
+    }
+
+    /** Deck cards as grounding pseudo-chunks (negative ids never collide with Room rows). */
+    private suspend fun deckGroundingChunks(deckId: String, deckTitle: String?): List<RankedChunk> {
+        val cards = jeviRepository.observeDeckFlashcards(deckId).first()
+            .take(30)
+        return cards.mapIndexed { index, card ->
+            val qa = "Q: ${card.question}\nA: ${card.answer}".take(400)
+            RankedChunk(
+                chunkId = -(index + 1).toLong(),
+                sourceId = "deck:$deckId",
+                sourceName = deckTitle ?: "Deck",
+                ordinal = index,
+                text = qa,
+                score = 1.0,
+            )
+        }
     }
 
     private suspend fun createToolConversation(type: AiConversationType, title: String): String {
@@ -1295,7 +1366,7 @@ class AiViewModel @Inject constructor(
             AiTool.SUMMARIZE -> summarize(action.text)
             AiTool.FLASHCARDS -> generateFlashcards(action.text)
             AiTool.QUIZ -> generateQuiz(action.text)
-            AiTool.TUTOR -> lastChatMessage?.let { sendMessage(it) }
+            AiTool.TUTOR -> lastChatMessage?.let { sendMessage(it, deckId = _uiState.value.activeDeckId) }
             AiTool.SCANNER -> lastScannedImageBytes?.let {
                 analyzeScheduleImage(it, extractedText = lastScannedExtractedText, isRetry = true)
             }
@@ -1303,7 +1374,61 @@ class AiViewModel @Inject constructor(
         }
     }
 
-    fun sendMessage(message: String, subject: String? = null, attachment: ChatAttachmentPayload? = null) {
+    /** General tutor surface entry: never continue a deck-bound thread here. */
+    fun enterGeneralTutor() {
+        val state = _uiState.value
+        if (state.activeConversationType == AiConversationType.TUTOR && state.activeDeckId != null) {
+            val generalId = lastGeneralTutorId
+            if (generalId != null) {
+                loadConversation(generalId)
+            } else {
+                startNewConversation(AiConversationType.TUTOR)
+            }
+        }
+    }
+
+    private suspend fun ensureDeckConversation(deckId: String, deckTitle: String?): String {
+        val state = _uiState.value
+        if (
+            state.activeConversationType == AiConversationType.TUTOR &&
+            state.activeDeckId == deckId &&
+            state.activeLocalConversationId != null
+        ) {
+            return state.activeLocalConversationId
+        }
+        val existing = runCatching {
+            aiConversationRepo.observeConversations(listOf(AiConversationType.TUTOR)).first()
+                .filter { it.deckId == deckId }.maxByOrNull { it.updatedAt }?.id
+        }.getOrNull()
+        if (existing != null) {
+            loadConversationNow(existing)
+            return existing
+        }
+        val created = aiConversationRepo.createConversation(
+            type = AiConversationType.TUTOR,
+            title = deckTitle ?: "Deck tutor",
+            deckId = deckId,
+        )
+        backendConversationId = null
+        _uiState.update {
+            it.copy(
+                messages = emptyList(),
+                activeLocalConversationId = created.id,
+                activeConversationType = AiConversationType.TUTOR,
+                activeDeckId = deckId,
+                activeDeckTitle = deckTitle,
+                error = null,
+            )
+        }
+        return created.id
+    }
+
+    fun sendMessage(
+        message: String,
+        subject: String? = null,
+        attachment: ChatAttachmentPayload? = null,
+        deckId: String? = null,
+    ) {
         if (message.isBlank() && attachment == null) return
         val displayMessage = message.ifBlank { "Please help me with this attachment." }
         lastChatMessage = displayMessage
@@ -1311,7 +1436,37 @@ class AiViewModel @Inject constructor(
         val userTimestamp = System.currentTimeMillis()
         viewModelScope.launch {
             try {
-                val localId = ensureTutorConversation(displayMessage)
+                // Deck-local tutor: stay on this deck's thread, ground on deck
+                // cards only (no library sources, no web). General chat keeps
+                // the shared thread + library grounding unchanged.
+                val localId: String
+                val groundedSources: List<com.edukasyon.studentai.domain.model.RankedChunk>
+                val deckMode: Boolean
+                if (deckId != null) {
+                    val deckTitle = _uiState.value.activeDeckTitle
+                        ?: runCatching {
+                            jeviRepository.observeDeck(deckId).first()?.title
+                        }.getOrNull()
+                    localId = ensureDeckConversation(deckId, deckTitle)
+                    groundedSources = try {
+                        deckGroundingChunks(deckId, deckTitle)
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                    deckMode = true
+                } else {
+                    if (_uiState.value.activeDeckId != null) {
+                        // General surface must never continue a deck thread.
+                        startNewConversation(AiConversationType.TUTOR)
+                    }
+                    localId = ensureTutorConversation(displayMessage)
+                    groundedSources = try {
+                        sourceRepository.retrieve(displayMessage, _uiState.value.selectedSourceIds, 5)
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                    deckMode = false
+                }
                 val historyMessages = com.edukasyon.studentai.core.ai.ChatHistoryBuilder
                     .fromConversationMessages(aiConversationRepo.getMessages(localId))
                 val userMessage = GizmoChatMessage(
@@ -1360,11 +1515,6 @@ class AiViewModel @Inject constructor(
                 val selectedModel = resolveModelForSend()
                 val modelOverride = AiModelRouter.chatModelOverride(selectedModel)
                 val effort = AiModelRouter.effortParam(preferences.thinkingLevel.first())
-                val groundedSources: List<com.edukasyon.studentai.domain.model.RankedChunk> = try {
-                    sourceRepository.retrieve(displayMessage, _uiState.value.selectedSourceIds, 5)
-                } catch (_: Exception) {
-                    emptyList()
-                }
                 if (selectedModel.isStepModel) {
                     recordStepModelUseIfNeeded(selectedModel)
                 }
@@ -1382,6 +1532,7 @@ class AiViewModel @Inject constructor(
                         model = modelOverride,
                         effort = effort,
                         sources = groundedSources,
+                        deckMode = deckMode,
                     )
                 )
                 val reply = response.reply.trim()
@@ -1414,6 +1565,33 @@ class AiViewModel @Inject constructor(
                     )
                 }
                 val citedViews = localCites + webCites
+                // Auto-add cited web pages to Sources so they persist in the sheet
+                // (dedupe by URL/title against already-saved sources).
+                val knownNames = _uiState.value.sources.map { it.name }.toSet()
+                val freshWeb = webCites
+                    .filter { it.url.isNotBlank() }
+                    .distinctBy { it.url }
+                    .filter { w -> knownNames.none { it == w.label } }
+                if (freshWeb.isNotEmpty()) {
+                    viewModelScope.launch {
+                        val addedIds = freshWeb.mapNotNull { w ->
+                            runCatching {
+                                sourceRepository.ingestSource(
+                                    w.label.ifBlank { w.url },
+                                    "text/plain",
+                                    "${w.url}\n\n${w.text}",
+                                )
+                            }.getOrNull()
+                        }
+                        if (addedIds.isNotEmpty()) {
+                            _uiState.update { st ->
+                                val base = st.selectedSourceIds
+                                    ?: st.sources.map { s -> s.id }.toSet()
+                                st.copy(selectedSourceIds = base + addedIds)
+                            }
+                        }
+                    }
+                }
                 safePersistMessage(
                     AiConversationMessage(
                         id = aiMessageId(),
@@ -1472,7 +1650,7 @@ class AiViewModel @Inject constructor(
         }
     }
 
-    fun sendQuickPrompt(prompt: String) = sendMessage(prompt)
+    fun sendQuickPrompt(prompt: String) = sendMessage(prompt, deckId = _uiState.value.activeDeckId)
 
     fun attachToolsPdf(uri: android.net.Uri) {
         viewModelScope.launch {
@@ -1520,7 +1698,7 @@ class AiViewModel @Inject constructor(
                     it.copy(
                         toolsPdf = ToolsPdfState(
                             fileName = name,
-                            extractedText = extracted.take(12_000),
+                            extractedText = extracted.take(110_000),
                         ),
                         isLoading = false,
                         loadingTool = null,
@@ -1561,7 +1739,7 @@ class AiViewModel @Inject constructor(
         val pages = com.edukasyon.studentai.core.util.ChatAttachmentUtils.renderPdfPagesAsJpeg(
             appContext,
             uri,
-            com.edukasyon.studentai.core.util.MAX_PDF_VISION_PAGES,
+            com.edukasyon.studentai.core.util.MAX_PDF_OCR_PAGES,
         )
         if (pages.isEmpty()) {
             throw IllegalStateException("Could not render PDF pages for text extraction.")
@@ -3220,19 +3398,37 @@ class MainViewModel @Inject constructor(
 @HiltViewModel
 class AiConversationHistoryViewModel @Inject constructor(
     private val aiConversationRepo: AiConversationRepository,
+    private val jeviRepository: com.edukasyon.studentai.domain.repository.JeviRepository,
 ) : ViewModel() {
     private val filterTypes = MutableStateFlow<List<AiConversationType>>(AiConversationType.entries)
+    private val deckFilter = MutableStateFlow<String?>(null)
 
-    val conversations: StateFlow<List<AiConversation>> = filterTypes
-        .flatMapLatest { types -> aiConversationRepo.observeConversations(types) }
+    val conversations: StateFlow<List<AiConversation>> = combine(
+        filterTypes,
+        deckFilter,
+    ) { types, deckId ->
+        aiConversationRepo.observeConversations(types).map { list ->
+            if (deckId == null) list else list.filter { it.deckId == deckId }
+        }
+    }.flatMapLatest { it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val deckTitles: StateFlow<Map<String, String>> =
+        jeviRepository.observeDecks()
+            .map { decks -> decks.associate { it.id to it.title } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     fun setFilter(scope: String) {
+        deckFilter.value = null
         filterTypes.value = when (scope) {
             "tutor" -> listOf(AiConversationType.TUTOR)
             "tools" -> AiConversationType.TOOL_TYPES
             else -> AiConversationType.entries
         }
+    }
+
+    fun setDeckFilter(deckId: String?) {
+        deckFilter.value = deckId
     }
 }
 

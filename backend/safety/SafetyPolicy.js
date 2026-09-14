@@ -26,6 +26,7 @@ const ENDPOINT_DEFAULTS = {
     dailyQuota: 50,
     hourlyQuota: 20,
     maxOutputTokens: 1024,
+    maxInputChars: 120_000,
   },
   flashcards: {
     rateLimitPerMin: 3,
@@ -33,6 +34,8 @@ const ENDPOINT_DEFAULTS = {
     dailyQuota: 30,
     hourlyQuota: 15,
     maxOutputTokens: 2048,
+    maxInputChars: 120_000,
+    requestTimeoutMs: 300_000,
   },
   quiz: {
     rateLimitPerMin: 3,
@@ -40,6 +43,7 @@ const ENDPOINT_DEFAULTS = {
     dailyQuota: 30,
     hourlyQuota: 15,
     maxOutputTokens: 2048,
+    maxInputChars: 120_000,
   },
   'study-plan': {
     rateLimitPerMin: 3,
@@ -100,11 +104,13 @@ function envBool(name, fallback) {
 function loadSafetyPolicy() {
   const globalDaily = envInt('SAFETY_DAILY_QUOTA', 200);
   const globalHourly = envInt('SAFETY_HOURLY_QUOTA', 60);
+  const globalMaxInput = envInt('SAFETY_MAX_INPUT_CHARS', 32_000);
 
   const endpoints = {};
   for (const [name, defaults] of Object.entries(ENDPOINT_DEFAULTS)) {
     const prefix = `SAFETY_${name.toUpperCase().replace(/-/g, '_')}`;
     endpoints[name] = {
+      maxInputChars: envInt(`${prefix}_MAX_INPUT_CHARS`, defaults.maxInputChars ?? globalMaxInput),
       rateLimitPerMin: defaults.rateLimitPerMin == null
         ? null
         : envInt(`${prefix}_RATE_PER_MIN`, defaults.rateLimitPerMin),
@@ -125,7 +131,7 @@ function loadSafetyPolicy() {
   }
 
   return {
-    maxInputChars: envInt('SAFETY_MAX_INPUT_CHARS', 32_000),
+    maxInputChars: globalMaxInput,
     maxOutputTokens: envInt('SAFETY_MAX_OUTPUT_TOKENS', 4096),
     maxImageBytes: envInt('SAFETY_MAX_IMAGE_BYTES', 6_000_000),
     maxDocumentChars: envInt('SAFETY_MAX_DOCUMENT_CHARS', 8_000),

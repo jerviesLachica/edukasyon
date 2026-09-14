@@ -27,6 +27,7 @@ data class AiChatRequest(
     val model: String? = null,
     val effort: String? = null,
     val sources: List<com.edukasyon.studentai.domain.model.RankedChunk> = emptyList(),
+    val deckMode: Boolean = false,
 )
 
 data class AiChatResponse(

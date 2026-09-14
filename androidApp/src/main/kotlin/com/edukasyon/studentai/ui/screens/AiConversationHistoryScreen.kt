@@ -1,9 +1,11 @@
 package com.edukasyon.studentai.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -32,10 +34,17 @@ fun AiConversationHistoryScreen(
     aiViewModel: AiViewModel = sharedAiViewModel(),
 ) {
     val conversations by historyViewModel.conversations.collectAsStateWithLifecycle()
+    val deckTitles by historyViewModel.deckTitles.collectAsStateWithLifecycle()
     val dateFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()) }
+    var deckFilter by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(filterScope) {
         historyViewModel.setFilter(filterScope)
+        deckFilter = null
+    }
+
+    val deckIdsInList = remember(conversations) {
+        conversations.mapNotNull { it.deckId }.distinct()
     }
 
     val title = when (filterScope) {
@@ -66,8 +75,39 @@ fun AiConversationHistoryScreen(
                 modifier = Modifier.padding(padding),
             )
         } else {
-            LazyColumn(
+            Column(
                 modifier = Modifier.fillMaxSize().padding(padding),
+            ) {
+                if (filterScope == "tutor" && (deckIdsInList.isNotEmpty() || deckFilter != null)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        FilterChip(
+                            selected = deckFilter == null,
+                            onClick = {
+                                deckFilter = null
+                                historyViewModel.setDeckFilter(null)
+                            },
+                            label = { Text("All") },
+                        )
+                        deckIdsInList.forEach { deckId ->
+                            FilterChip(
+                                selected = deckFilter == deckId,
+                                onClick = {
+                                    deckFilter = deckId
+                                    historyViewModel.setDeckFilter(deckId)
+                                },
+                                label = { Text(deckTitles[deckId] ?: "Deck") },
+                            )
+                        }
+                    }
+                }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().weight(1f),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -75,12 +115,14 @@ fun AiConversationHistoryScreen(
                     AiConversationHistoryItem(
                         conversation = conversation,
                         dateFormat = dateFormat,
+                        deckTitle = conversation.deckId?.let { deckTitles[it] },
                         onClick = {
                             aiViewModel.loadConversation(conversation.id)
                             onConversationSelected()
                         },
                     )
                 }
+            }
             }
         }
     }
@@ -90,12 +132,21 @@ fun AiConversationHistoryScreen(
 private fun AiConversationHistoryItem(
     conversation: AiConversation,
     dateFormat: SimpleDateFormat,
+    deckTitle: String?,
     onClick: () -> Unit,
 ) {
     StudentAiCard(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
     ) {
         Text(conversation.title, style = MaterialTheme.typography.titleSmall)
+        if (deckTitle != null) {
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Deck · $deckTitle",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+        }
         Spacer(Modifier.height(4.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),

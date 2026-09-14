@@ -378,6 +378,7 @@ data class ConversationEntity(
     val syncState: String,
     val conversationType: String? = null,
     val backendConversationId: String? = null,
+    val deckId: String? = null,
 )
 
 @Entity(

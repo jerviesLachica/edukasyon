@@ -82,7 +82,10 @@ fun JeviHubScreen(
         AdaptiveContentContainer(Modifier.padding(padding)) { contentModifier ->
             if (state.isLoading && dashboard == null) {
                 Box(contentModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    StudentAiLoader(
+                        label = "Loading",
+                        style = StudentAiLoaderStyle.Full,
+                    )
                 }
             } else {
                 LazyColumn(
@@ -394,6 +397,7 @@ fun JeviDeckDetailScreen(
     onBack: () -> Unit,
     onReviewDue: (String) -> Unit,
     onStudyAll: (String) -> Unit,
+    onOpenDeckTutor: (String) -> Unit = {},
     viewModel: JeviDeckDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -428,7 +432,10 @@ fun JeviDeckDetailScreen(
         AdaptiveContentContainer(Modifier.padding(padding)) { contentModifier ->
             if (state.isLoading && deck == null) {
                 Box(contentModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    StudentAiLoader(
+                        label = "Loading",
+                        style = StudentAiLoaderStyle.Full,
+                    )
                 }
             } else if (deck == null) {
                 Box(contentModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -471,6 +478,13 @@ fun JeviDeckDetailScreen(
                                     ) {
                                         Text("Study all")
                                     }
+                                }
+                                BouncyOutlinedButton(
+                                    onClick = { onOpenDeckTutor(deck.id) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = deck.cardCount > 0,
+                                ) {
+                                    Text("Ask tutor about this deck")
                                 }
                             }
                         }
@@ -661,12 +675,20 @@ fun JeviCreateScreen(
                     ) {
                         when {
                             state.isGenerating -> {
-                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                StudentAiLoader(
+                                    label = null,
+                                    style = StudentAiLoaderStyle.Compact,
+                                    modifier = Modifier.size(18.dp),
+                                )
                                 Spacer(Modifier.width(8.dp))
                                 Text("Generating…")
                             }
                             state.isExtracting -> {
-                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                StudentAiLoader(
+                                    label = null,
+                                    style = StudentAiLoaderStyle.Compact,
+                                    modifier = Modifier.size(18.dp),
+                                )
                                 Spacer(Modifier.width(8.dp))
                                 Text("Reading document…")
                             }

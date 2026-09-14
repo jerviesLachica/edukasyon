@@ -337,6 +337,9 @@ fun MainNavigation(
                         onStudyAll = { id ->
                             navController.navigate(Routes.jeviReviewDeck(id, studyAll = true))
                         },
+                        onOpenDeckTutor = { id ->
+                            navController.navigate(Routes.jeviTutorDeck(id))
+                        },
                     )
                 }
             }
@@ -348,6 +351,22 @@ fun MainNavigation(
             }
             composable(Routes.JEVI_TUTOR) {
                 AiScreen(
+                    onOpenHistory = { filter ->
+                        navController.navigate(Routes.aiConversationHistory(filter))
+                    },
+                    onChatInputActive = { active -> forceHideBottomBar = active },
+                )
+            }
+            composable(
+                route = Routes.JEVI_TUTOR_DECK,
+                arguments = listOf(
+                    navArgument("deckId") { type = NavType.StringType },
+                ),
+            ) { entry ->
+                val deckId = entry.arguments?.getString("deckId")
+                AiScreen(
+                    deckId = deckId,
+                    onCloseDeck = { navController.popBackStack() },
                     onOpenHistory = { filter ->
                         navController.navigate(Routes.aiConversationHistory(filter))
                     },

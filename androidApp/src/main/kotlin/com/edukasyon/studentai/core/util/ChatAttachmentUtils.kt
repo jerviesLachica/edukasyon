@@ -23,6 +23,9 @@ const val MAX_TOOLS_PDF_BYTES = 8 * 1024 * 1024
 /** Max PDF pages sent to vision models for OCR-style extraction. */
 const val MAX_PDF_VISION_PAGES = 5
 
+/** Max PDF pages for on-device ML Kit OCR (free, so a whole deck is fine). */
+const val MAX_PDF_OCR_PAGES = 40
+
 /** Target max payload after JPEG compression (~3 MB base64 stays under typical API limits). */
 private const val TARGET_IMAGE_BYTES = 900_000
 private const val JPEG_QUALITY_START = 85

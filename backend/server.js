@@ -323,7 +323,12 @@ async function handleChat({ body, provider: ai, webSearch: searchService, maxTok
     system: clientSystemAlias,
     historyMessages,
     messages: clientMessagesAlias,
+    deckMode: clientDeckMode,
   } = body;
+  // Deck-local tutor: answers come from deck cards only — never trigger
+  // automatic web research and never pad citations with web results.
+  // (An explicit /search command still works: deliberate per-message opt-in.)
+  const deckMode = clientDeckMode === true;
 
   const webSearchRequest = parseWebSearchCommand(message);
   if (webSearchRequest.requested && !searchService.isConfigured) {
@@ -381,7 +386,7 @@ ${numbered}`;
   // or force-citations. Explicit /search commands always search regardless.
   let webResults = [];
   const topic = isLearningTopic(message);
-  const shouldAutoSearch = searchService.isConfigured && !webSearchRequest.requested && topic;
+  const shouldAutoSearch = searchService.isConfigured && !webSearchRequest.requested && topic && !deckMode;
   if (shouldAutoSearch) {
     const autoResults = await searchService.searchAuto(message, signal);
     if (autoResults.length) {
@@ -430,7 +435,7 @@ ${numbered}`;
   // results first, then unused local sources, until 5 total. Non-topic
   // messages (greetings, short chatter) keep only what the model cited.
   const citedNumbers = [...citedFromReply];
-  if (topic && citedNumbers.length < 5) {
+  if (topic && !deckMode && citedNumbers.length < 5) {
     const used = new Set(citedNumbers.map(Number));
     const total = sources.length + webResults.length;
     for (let n = sources.length + 1; n <= total && citedNumbers.length < 5; n++) {
@@ -650,23 +655,67 @@ async function handleSummarize({ body, provider: ai, maxTokens, signal }) {
   return { result };
 }
 
+const FLASHCARDS_CHUNK_CHARS = 10_000;
+const FLASHCARDS_MAX_CARDS = 60;
+const FLASHCARDS_CONCURRENCY = 3;
+
+/** Split long material on paragraph boundaries so every section gets cards. */
+function splitFlashcardsChunks(text) {
+  if (text.length <= FLASHCARDS_CHUNK_CHARS) return [text];
+  const paras = text.split(/\n\s*\n/);
+  const chunks = [];
+  let current = '';
+  for (const para of paras) {
+    if ((current.length + para.length + 2) <= FLASHCARDS_CHUNK_CHARS || !current) {
+      current = current ? `${current}\n\n${para}` : para;
+    } else {
+      chunks.push(current);
+      current = para;
+    }
+  }
+  if (current) chunks.push(current);
+  // A single giant paragraph (e.g. slide text run-on): hard-split it.
+  const hardSplit = [];
+  for (const chunk of chunks) {
+    if (chunk.length <= FLASHCARDS_CHUNK_CHARS) {
+      hardSplit.push(chunk);
+    } else {
+      for (let i = 0; i < chunk.length; i += FLASHCARDS_CHUNK_CHARS) {
+        hardSplit.push(chunk.slice(i, i + FLASHCARDS_CHUNK_CHARS));
+      }
+    }
+  }
+  return hardSplit;
+}
+
 async function handleFlashcards({ body, provider: ai, maxTokens, signal }) {
   const text = body.text || '';
   const model = ai.resolveTextModel(body.model);
-  const content = await ai.chatCompletionText(
-    [
-      { role: 'system', content: 'Generate study flashcards from notes. Respond with JSON only.' },
-      {
-        role: 'user',
-        content: `Create 5-8 flashcards from this material. JSON shape:
+  const chunks = splitFlashcardsChunks(text);
+  const runChunk = async (section, index) => {
+    const partLabel = chunks.length > 1 ? ` (Part ${index + 1} of ${chunks.length})` : '';
+    const content = await ai.chatCompletionText(
+      [
+        { role: 'system', content: 'Generate study flashcards from notes. Respond with JSON only.' },
+        {
+          role: 'user',
+          content: `Create 6-8 flashcards from this material${partLabel} \u2014 cover only what is in THIS section. JSON shape:
 {"cards":[{"question":"...","answer":"...","topic":"optional topic"}]}
-Notes:\n${wrapUntrustedDocument(text)}`,
-      },
-    ],
-    { temperature: 0.5, maxTokens, model, signal }
-  );
-  const parsed = ai.extractJson(content);
-  return { cards: parsed.cards || [] };
+Notes:\n${wrapUntrustedDocument(section)}`,
+        },
+      ],
+      { temperature: 0.5, maxTokens, model, signal }
+    );
+    const parsed = ai.extractJson(content);
+    return Array.isArray(parsed.cards) ? parsed.cards : [];
+  };
+  const allCards = [];
+  for (let i = 0; i < chunks.length; i += FLASHCARDS_CONCURRENCY) {
+    const batch = chunks.slice(i, i + FLASHCARDS_CONCURRENCY);
+    const results = await Promise.all(batch.map((section, offset) => runChunk(section, i + offset)));
+    for (const cards of results) allCards.push(...cards);
+  }
+  return { cards: allCards.slice(0, FLASHCARDS_MAX_CARDS) };
 }
 
 async function handleQuiz({ body, provider: ai, maxTokens, signal }) {

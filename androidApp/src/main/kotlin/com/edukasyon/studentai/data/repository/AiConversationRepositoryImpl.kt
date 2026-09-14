@@ -30,7 +30,7 @@ class AiConversationRepositoryImpl @Inject constructor(
     override suspend fun getMessages(conversationId: String): List<AiConversationMessage> =
         conversationDao.getMessages(conversationId).map { it.toDomain() }
 
-    override suspend fun createConversation(type: AiConversationType, title: String): AiConversation {
+    override suspend fun createConversation(type: AiConversationType, title: String, deckId: String?): AiConversation {
         val now = System.currentTimeMillis()
         val id = UUID.randomUUID().toString()
         val entity = ConversationEntity(
@@ -42,6 +42,7 @@ class AiConversationRepositoryImpl @Inject constructor(
             syncState = SyncState.LOCAL_ONLY.name,
             conversationType = type.name,
             backendConversationId = null,
+            deckId = deckId,
         )
         conversationDao.insert(entity)
         return entity.toDomain()
@@ -84,6 +85,7 @@ class AiConversationRepositoryImpl @Inject constructor(
         backendConversationId = backendConversationId,
         createdAt = createdAt,
         updatedAt = updatedAt,
+        deckId = deckId,
     )
 
     private fun MessageEntity.toDomain(): AiConversationMessage = AiConversationMessage(

@@ -133,6 +133,21 @@ describe('handleChat citations', () => {
     assert.deepEqual(result.citedChunkIds.slice(1), ['local:s1', 'local:s2', 'local:s3']);
     assert.equal(result.citedWebResults.length, 1);
   });
+
+  it('deckMode skips auto-search and web padding (deck cards only)', async () => {
+    const result = await handleChat({
+      body: baseBody({ deckMode: true }),
+      provider: stubProvider('Only the chapter matters [1].'),
+      webSearch: {
+        isConfigured: true,
+        searchAuto: async () => { throw new Error('must not auto-search in deckMode'); },
+        search: async () => { throw new Error('must not explicit-search here'); },
+      },
+      maxTokens: 512,
+    });
+    assert.deepEqual(result.citedChunkIds, ['local:s1']);
+    assert.equal(result.citedWebResults.length, 0);
+  });
 });
 
 describe('isLearningTopic', () => {

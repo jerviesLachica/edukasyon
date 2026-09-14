@@ -218,11 +218,13 @@ class AiSafetyGateway {
     }
 
     const text = config.extractInputText(body);
-    if (text.length > this.policy.maxInputChars) {
+    const inputLimit = this.policy.endpoints[config.endpoint]?.maxInputChars
+      ?? this.policy.maxInputChars;
+    if (text.length > inputLimit) {
       return {
         ok: false,
         code: 'INPUT_TOO_LONG',
-        message: `Input exceeds maximum length of ${this.policy.maxInputChars} characters.`,
+        message: `Input exceeds maximum length of ${inputLimit} characters.`,
       };
     }
 

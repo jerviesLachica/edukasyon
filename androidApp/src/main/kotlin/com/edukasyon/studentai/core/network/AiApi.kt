@@ -77,6 +77,7 @@ interface AiApiService {
     val model: String? = null,
     val effort: String? = null,
     val sources: List<CitedChunkDto> = emptyList(),
+    val deckMode: Boolean = false,
 )
 @Serializable data class ChatResponseDto(
     val reply: String,

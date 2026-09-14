@@ -47,10 +47,17 @@ fun AiScreen(
     onOpenHistory: (filterScope: String) -> Unit = {},
     onChatInputActive: (Boolean) -> Unit = {},
     viewModel: AiViewModel = sharedAiViewModel(),
+    deckId: String? = null,
+    onCloseDeck: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var inputText by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(deckId) {
+        if (deckId != null) viewModel.openDeckTutor(deckId)
+        else viewModel.enterGeneralTutor()
+    }
 
     LaunchedEffect(state.statusMessage) {
         state.statusMessage?.let { message ->
@@ -115,12 +122,54 @@ fun AiScreen(
                     thinkingLevel = state.thinkingLevel,
                     onThinkingLevelSelected = { viewModel.setThinkingLevel(it) },
                 )
+                if (state.activeDeckId != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        AssistChip(
+                            onClick = {},
+                            label = { Text("Deck: ${state.activeDeckTitle ?: "Deck"}") },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Filled.School,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = {
+                                        viewModel.closeDeckTutor()
+                                        onCloseDeck()
+                                    },
+                                    modifier = Modifier.size(20.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = "Leave deck chat",
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                }
+                            },
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        Text(
+                            "Answers from deck cards only",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 AiTutorTab(
                     state = state,
                     input = inputText,
                     onInputChange = { inputText = it },
                     onSend = { attachment ->
-                        viewModel.sendMessage(inputText, attachment = attachment)
+                        viewModel.sendMessage(inputText, attachment = attachment, deckId = state.activeDeckId)
                         inputText = ""
                     },
                     onQuickPrompt = { viewModel.sendQuickPrompt(it) },

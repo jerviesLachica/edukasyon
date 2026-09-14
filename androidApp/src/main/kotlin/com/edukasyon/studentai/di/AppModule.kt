@@ -18,6 +18,7 @@ import com.edukasyon.studentai.data.local.MIGRATION_7_8
 import com.edukasyon.studentai.data.local.MIGRATION_8_9
 import com.edukasyon.studentai.data.local.MIGRATION_9_10
 import com.edukasyon.studentai.data.local.MIGRATION_10_11
+import com.edukasyon.studentai.data.local.MIGRATION_11_12
 import com.edukasyon.studentai.data.repository.AiConversationRepositoryImpl
 import com.edukasyon.studentai.data.repository.AssignmentRepositoryImpl
 import com.edukasyon.studentai.data.repository.CalendarRepositoryImpl
@@ -83,6 +84,7 @@ object DatabaseModule {
                 MIGRATION_8_9,
                 MIGRATION_9_10,
                 MIGRATION_10_11,
+                MIGRATION_11_12,
             )
         if (BuildConfig.DEBUG) {
             // Recover from schema validation failures during development without manual app-data clears.
