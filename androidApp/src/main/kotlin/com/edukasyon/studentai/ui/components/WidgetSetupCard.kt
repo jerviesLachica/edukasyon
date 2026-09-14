@@ -180,15 +180,6 @@ fun WidgetSetupCard(
             ) {
                 Text(stringResource(R.string.widget_customize_button))
             }
-            TextButton(
-                onClick = { showDiagnostics = true },
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            ) {
-                Text("Diagnose widgets")
-            }
-            if (showDiagnostics) {
-                WidgetDiagnosticsDialog(onDismiss = { showDiagnostics = false })
-            }
             Text(
                 text = stringResource(R.string.widget_manual_hint_short),
                 style = MaterialTheme.typography.labelSmall,
