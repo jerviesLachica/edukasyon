@@ -80,4 +80,5 @@ interface AiService {
     suspend fun generateStudyPlan(context: StudyPlanContext): StudyPlan
     suspend fun analyzeAssignment(input: AssignmentAnalysisInput): AssignmentBreakdown
     suspend fun generateFocusPlan(context: FocusPlanContext): FocusPlan
+    suspend fun searchSources(query: String): List<com.edukasyon.studentai.domain.model.WebSearchResult>
 }

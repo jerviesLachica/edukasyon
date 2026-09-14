@@ -9,6 +9,7 @@ import com.edukasyon.studentai.core.util.DateUtils
 import com.edukasyon.studentai.core.util.GradeCalculator
 import com.edukasyon.studentai.core.util.SubjectPickerMerger
 import com.edukasyon.studentai.core.ai.AiModelRouter
+import com.edukasyon.studentai.core.ai.AiService
 import com.edukasyon.studentai.core.ai.StepModelQuotaTracker
 import com.edukasyon.studentai.core.mlkit.ScheduleParser
 import com.edukasyon.studentai.domain.model.*
@@ -879,6 +880,7 @@ class AiViewModel @Inject constructor(
     private val reminderScheduler: ReminderScheduler,
     private val mlKitTextRecognizer: com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer,
     private val sourceRepository: com.edukasyon.studentai.domain.repository.SourceRepository,
+    private val aiService: AiService,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AiUiState())
     val uiState: StateFlow<AiUiState> = _uiState.asStateFlow()
@@ -993,6 +995,14 @@ class AiViewModel @Inject constructor(
         }
     }
 
+    suspend fun searchWebSources(query: String): List<WebSearchResult> =
+        aiService.searchSources(query)
+
+    fun addWebSource(result: WebSearchResult) {
+        val name = result.title.ifBlank { result.url }
+        addSource(name, "${result.url}\n\n${result.content}")
+    }
+
     fun openCitation(cite: CitedChunkView) {
         viewModelScope.launch {
             // Web citations: open in browser
@@ -1004,7 +1014,7 @@ class AiViewModel @Inject constructor(
                 }
                 return@launch
             }
-            
+
             // Local citations: show passage viewer
             val chunks = runCatching { sourceRepository.chunksForSource(cite.sourceId) }
                 .getOrDefault(emptyList())

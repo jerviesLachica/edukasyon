@@ -15,3 +15,9 @@ data class RankedChunk(
     val text: String,
     val score: Double
 )
+
+data class WebSearchResult(
+    val title: String,
+    val url: String,
+    val content: String,
+)

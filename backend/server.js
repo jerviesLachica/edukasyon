@@ -923,6 +923,24 @@ ${contextLines}`,
   };
 }
 
+async function handleSearchSources({ body, webSearch: searchService, maxTokens, signal }) {
+  const query = String(body.query || '').trim();
+  if (!query) {
+    throw new Error('WEB_SEARCH_QUERY_REQUIRED');
+  }
+  if (!searchService.isConfigured) {
+    return { results: [] };
+  }
+  const results = await searchService.search(query, signal);
+  return {
+    results: results.map(r => ({
+      title: r.title || 'Untitled',
+      url: r.url || '',
+      content: r.content || '',
+    })),
+  };
+}
+
 // ── Routes (all via AiSafetyGateway) ────────────────────────────────────────
 
 app.post('/api/ai/chat', (req, res) =>
@@ -937,6 +955,21 @@ app.post('/api/ai/chat', (req, res) =>
     },
     handler: handleChat,
     validateOutput: (result) => chatValidator.validateChatResult(result),
+  })
+);
+
+app.post('/api/ai/search-sources', (req, res) =>
+  gateway.handle(req, res, {
+    endpoint: 'search-sources',
+    extractInputText: (body) => String(body.query || ''),
+    validate: (body) => {
+      if (!body.query || !String(body.query).trim()) {
+        return { ok: false, code: 'MISSING_QUERY', message: 'query is required.' };
+      }
+      return { ok: true };
+    },
+    handler: handleSearchSources,
+    validateOutput: (result) => ({ valid: true, data: result }),
   })
 );
 

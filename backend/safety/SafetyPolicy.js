@@ -63,12 +63,20 @@ const ENDPOINT_DEFAULTS = {
     maxOutputTokens: 2048,
   },
   embed: {
-    rateLimitPerMin: 10,
-    burstPerMin: 15,
-    dailyQuota: 200,
-    hourlyQuota: 50,
-  },
-};
+      rateLimitPerMin: 10,
+      burstPerMin: 15,
+      dailyQuota: 200,
+      hourlyQuota: 50,
+    },
+    'search-sources': {
+      rateLimitPerMin: 5,
+      burstPerMin: 8,
+      dailyQuota: 40,
+      hourlyQuota: 15,
+      maxOutputTokens: 4096,
+      requestTimeoutMs: 90_000,
+    },
+  };
 
 /** Premium reasoning/vision model chat quota (when client sends model=nemotron-3.5-lightning-free; legacy step-3.7-flash/agnes also counted). */
 const STEP_MODEL_CHAT_DEFAULTS = {

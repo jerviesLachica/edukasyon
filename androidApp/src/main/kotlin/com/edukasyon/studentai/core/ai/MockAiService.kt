@@ -280,4 +280,8 @@ class MockAiService @Inject constructor() : AiService {
             breakMinutesBetween = breakGap,
         )
     }
+
+    override suspend fun searchSources(query: String): List<WebSearchResult> {
+        return emptyList()
+    }
 }

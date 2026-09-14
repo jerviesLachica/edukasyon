@@ -44,8 +44,11 @@ interface AiApiService {
     suspend fun analyzeAssignment(@Body request: AssignmentBreakdownRequest): AssignmentBreakdownResponseDto
 
     @POST("api/ai/focus-plan")
-    suspend fun generateFocusPlan(@Body request: FocusPlanRequest): FocusPlanResponseDto
-}
+        suspend fun generateFocusPlan(@Body request: FocusPlanRequest): FocusPlanResponseDto
+
+        @POST("api/ai/search-sources")
+        suspend fun searchSources(@Body request: SearchSourcesRequest): SearchSourcesResponseDto
+    }
 
 @Serializable data class HealthResponseDto(
     val status: String,
@@ -274,9 +277,21 @@ object AiJsonParser {
     }
 
     fun parseQuiz(raw: String): QuizResponseDto? = try {
-        val cleaned = stripMarkdownFences(raw)
-        json.decodeFromString<QuizResponseDto>(cleaned)
-    } catch (_: Exception) {
-        null
+            val cleaned = stripMarkdownFences(raw)
+            json.decodeFromString<QuizResponseDto>(cleaned)
+        } catch (_: Exception) {
+            null
+        }
     }
-}
+
+    @Serializable data class SearchSourcesRequest(
+        val query: String,
+    )
+    @Serializable data class SearchSourcesResponseDto(
+        val results: List<SearchSourceResultDto> = emptyList(),
+    )
+    @Serializable data class SearchSourceResultDto(
+        val title: String = "",
+        val url: String = "",
+        val content: String = "",
+    )

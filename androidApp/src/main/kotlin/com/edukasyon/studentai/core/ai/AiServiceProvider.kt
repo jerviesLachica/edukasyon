@@ -54,4 +54,5 @@ class AiServiceProvider @Inject constructor(
     override suspend fun generateStudyPlan(context: StudyPlanContext) = execute { it.generateStudyPlan(context) }
     override suspend fun analyzeAssignment(input: AssignmentAnalysisInput) = execute { it.analyzeAssignment(input) }
     override suspend fun generateFocusPlan(context: FocusPlanContext) = execute { it.generateFocusPlan(context) }
+    override suspend fun searchSources(query: String) = execute { it.searchSources(query) }
 }

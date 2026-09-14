@@ -9,6 +9,7 @@ import com.edukasyon.studentai.domain.model.FocusPlan
 import com.edukasyon.studentai.domain.model.FocusPlanContext
 import com.edukasyon.studentai.domain.model.Quiz
 import com.edukasyon.studentai.domain.model.StudyPlan
+import com.edukasyon.studentai.domain.model.WebSearchResult
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -281,6 +282,18 @@ class RemoteAiService @Inject constructor(
                 )
             ).toDomain()
         }
+
+    override suspend fun searchSources(query: String): List<WebSearchResult> = apiCall {
+        api.searchSources(
+            com.edukasyon.studentai.core.network.SearchSourcesRequest(query = query),
+        ).results.map {
+            WebSearchResult(
+                title = it.title,
+                url = it.url,
+                content = it.content,
+            )
+        }
+    }
 
     private suspend fun <T> apiCall(block: suspend () -> T): T {
         return try {

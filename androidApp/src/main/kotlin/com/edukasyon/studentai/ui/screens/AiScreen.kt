@@ -151,6 +151,8 @@ fun AiScreen(
             onAddSource = { name, text -> viewModel.addSource(name, text) },
             onDeleteSource = { viewModel.deleteSource(it) },
             onDismiss = { showSourcesSheet = false },
+            onWebSearch = { q -> viewModel.searchWebSources(q) },
+            onPickWebResult = { viewModel.addWebSource(it) },
         )
     }
 }

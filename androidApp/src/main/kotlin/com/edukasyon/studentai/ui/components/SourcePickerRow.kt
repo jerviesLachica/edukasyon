@@ -14,7 +14,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.outlined.LibraryBooks
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Checkbox
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -23,8 +26,10 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -33,6 +38,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -40,13 +47,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.edukasyon.studentai.domain.model.CitedSource
 import com.edukasyon.studentai.domain.model.RankedChunk
+import com.edukasyon.studentai.domain.model.WebSearchResult
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -198,8 +210,11 @@ fun SourcesBottomSheet(
     onAddSource: (String, String) -> Unit,
     onDeleteSource: (String) -> Unit,
     onDismiss: () -> Unit,
+    onWebSearch: suspend (String) -> List<WebSearchResult> = { emptyList() },
+    onPickWebResult: (WebSearchResult) -> Unit = {},
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(0) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -243,6 +258,22 @@ fun SourcesBottomSheet(
 
                 Spacer(Modifier.height(12.dp))
 
+                TabRow(selectedTabIndex = selectedTab) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("Saved (${sources.size})") },
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("Search the web") },
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                if (selectedTab == 0) {
                 // Action buttons row: Add Source & Select All
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -359,6 +390,12 @@ fun SourcesBottomSheet(
                         }
                     }
                 }
+                } else {
+                    WebSearchTab(
+                        onWebSearch = onWebSearch,
+                        onPick = onPickWebResult,
+                    )
+                }
             }
         }
     }
@@ -371,6 +408,167 @@ fun SourcesBottomSheet(
                 onAddSource(name, text)
             },
         )
+    }
+}
+
+@Composable
+fun WebSearchTab(
+    onWebSearch: suspend (String) -> List<WebSearchResult>,
+    onPick: (WebSearchResult) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var query by remember { mutableStateOf("") }
+    var searching by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var searched by remember { mutableStateOf(false) }
+    var results by remember { mutableStateOf<List<WebSearchResult>>(emptyList()) }
+    val scope = rememberCoroutineScope()
+
+    fun runSearch() {
+        val q = query.trim()
+        if (q.isEmpty() || searching) return
+        searching = true
+        error = null
+        scope.launch {
+            try {
+                results = onWebSearch(q)
+                searched = true
+            } catch (e: Exception) {
+                error = e.message ?: "Search failed. Check your connection and try again."
+            } finally {
+                searching = false
+            }
+        }
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = { Text("Search the web (e.g. photosynthesis steps)") },
+            singleLine = true,
+            trailingIcon = {
+                IconButton(onClick = { runSearch() }, enabled = query.isNotBlank() && !searching) {
+                    Icon(Icons.Default.Search, contentDescription = "Search the web")
+                }
+            },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { runSearch() }),
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !searching,
+        )
+        Text(
+            "Pick a result (+) to save it as a source Jevi will cite.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        when {
+            searching -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+            error != null -> {
+                Text(
+                    error ?: "Search failed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            !searched -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Outlined.Public,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Type a topic and hit search.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            results.isEmpty() -> {
+                Text(
+                    "No results. Try different keywords.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    items(results, key = { it.url }) { result ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = result.title.ifBlank { result.url },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = result.url,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    if (result.content.isNotBlank()) {
+                                        Text(
+                                            text = result.content,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                                IconButton(onClick = { onPick(result) }) {
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = "Add as source",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
