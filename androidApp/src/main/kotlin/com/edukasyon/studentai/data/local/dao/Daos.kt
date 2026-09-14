@@ -84,6 +84,23 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE deletedAt IS NULL AND status != 'COMPLETED' AND status != 'ARCHIVED' ORDER BY dueDate ASC LIMIT :limit")
     suspend fun getUpcoming(limit: Int): List<TaskEntity>
 
+    /**
+     * Tasks the user just checked off (V2 widget). Merged into the snapshot
+     * (marked completed) so the tap shows a checked state; without this the
+     * completed task would vanish from getUpcoming instantly.
+     */
+    @Query("SELECT * FROM tasks WHERE deletedAt IS NULL AND status = 'COMPLETED' AND completedAt >= :since ORDER BY completedAt DESC LIMIT :limit")
+    suspend fun getRecentlyCompleted(since: Long, limit: Int): List<TaskEntity>
+
+    @Query("SELECT * FROM tasks WHERE id IN (:ids) AND deletedAt IS NULL")
+    suspend fun getByIds(ids: List<String>): List<TaskEntity>
+
+    @Query("UPDATE tasks SET completedAt = :now WHERE deletedAt IS NULL AND completedAt IS NOT NULL AND completedAt > :now")
+    suspend fun clampFutureCompletedAt(now: Long): Int
+
+    @Query("UPDATE tasks SET updatedAt = :now WHERE deletedAt IS NULL AND updatedAt > :now")
+    suspend fun clampFutureUpdatedAt(now: Long): Int
+
     @Query("SELECT * FROM tasks WHERE deletedAt IS NULL AND status != 'COMPLETED' AND status != 'ARCHIVED' AND dueDate >= :from AND dueDate <= :to")
     suspend fun getDueInRange(from: Long, to: Long): List<TaskEntity>
 

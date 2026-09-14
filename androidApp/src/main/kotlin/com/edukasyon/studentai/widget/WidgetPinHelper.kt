@@ -31,23 +31,15 @@ object WidgetPinHelper {
 
     fun openCustomize(context: Context) {
         val manager = AppWidgetManager.getInstance(context)
-        val ids2x2 = manager.getAppWidgetIds(
-            ComponentName(context, StudentAiWidget2x2Receiver::class.java)
-        )
-        val ids2x3 = manager.getAppWidgetIds(
-            ComponentName(context, StudentAiWidget2x3Receiver::class.java)
+        val ids = manager.getAppWidgetIds(
+            ComponentName(context, com.edukasyon.studentai.widget.lifecycle.ScheduleWidgetProvider::class.java)
         )
 
         when {
-            ids2x2.isNotEmpty() -> launchConfigure(
+            ids.isNotEmpty() -> launchConfigure(
                 context,
-                WidgetConfigureActivity2x2::class.java,
-                ids2x2.first()
-            )
-            ids2x3.isNotEmpty() -> launchConfigure(
-                context,
-                WidgetConfigureActivity2x3::class.java,
-                ids2x3.first()
+                com.edukasyon.studentai.widget.lifecycle.WidgetConfigActivity::class.java,
+                ids.first()
             )
             else -> when (requestPinWidget(context, WidgetSize.SMALL_2X2)) {
                 WidgetPinResult.PIN_DIALOG_REQUESTED -> Unit
@@ -82,10 +74,7 @@ object WidgetPinHelper {
     }
 
     private fun componentNameFor(context: Context, size: WidgetSize): ComponentName =
-        when (size) {
-            WidgetSize.SMALL_2X2 -> ComponentName(context, StudentAiWidget2x2Receiver::class.java)
-            WidgetSize.TALL_2X3 -> ComponentName(context, StudentAiWidget2x3Receiver::class.java)
-        }
+        ComponentName(context, com.edukasyon.studentai.widget.lifecycle.ScheduleWidgetProvider::class.java)
 
     fun showManualInstructionsToast(context: Context) {
         Toast.makeText(
