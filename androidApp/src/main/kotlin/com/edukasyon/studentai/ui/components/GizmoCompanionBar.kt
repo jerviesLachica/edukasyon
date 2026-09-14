@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -451,6 +452,7 @@ fun GizmoChatBubble(
     attachmentIsImage: Boolean = false,
     reasoning: String? = null,
     onCopy: (() -> Unit)? = null,
+    onSpeak: (() -> Unit)? = null,
     citations: List<com.edukasyon.studentai.domain.model.CitedChunkView> = emptyList(),
     onCitationClick: ((com.edukasyon.studentai.domain.model.CitedChunkView) -> Unit)? = null,
 ) {
@@ -572,21 +574,36 @@ fun GizmoChatBubble(
                                 }
                             }
                         }
-                        if (!isUser && onCopy != null && message.isNotBlank()) {
+                        if (!isUser && (onCopy != null || onSpeak != null) && message.isNotBlank()) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                                 horizontalArrangement = Arrangement.End,
                             ) {
-                                IconButton(
-                                    onClick = onCopy,
-                                    modifier = Modifier.size(28.dp),
-                                ) {
-                                    Icon(
-                                        Icons.Outlined.ContentCopy,
-                                        contentDescription = "Copy response",
-                                        modifier = Modifier.size(14.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
-                                    )
+                                if (onSpeak != null) {
+                                    IconButton(
+                                        onClick = onSpeak,
+                                        modifier = Modifier.size(28.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.VolumeUp,
+                                            contentDescription = "Read aloud",
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                                        )
+                                    }
+                                }
+                                if (onCopy != null) {
+                                    IconButton(
+                                        onClick = onCopy,
+                                        modifier = Modifier.size(28.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.ContentCopy,
+                                            contentDescription = "Copy response",
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                                        )
+                                    }
                                 }
                             }
                         }

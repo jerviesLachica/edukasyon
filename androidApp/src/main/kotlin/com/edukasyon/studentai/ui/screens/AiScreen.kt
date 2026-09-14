@@ -53,6 +53,11 @@ fun AiScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var inputText by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
+    val ttsController = remember { com.edukasyon.studentai.core.util.TtsSpeakController() }
+    val ttsContext = LocalContext.current
+    val ttsReady by ttsController.ready.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { ttsController.init(ttsContext) }
+    DisposableEffect(Unit) { onDispose { ttsController.shutdown() } }
 
     LaunchedEffect(deckId) {
         if (deckId != null) viewModel.openDeckTutor(deckId)
@@ -174,6 +179,8 @@ fun AiScreen(
                     },
                     onAcceptStudyBlocks = viewModel::acceptStudyBlocks,
                     onDismissStudyProposals = viewModel::dismissStudyProposals,
+                    onSpeakMessage = { text -> ttsController.speak(text) },
+                    ttsReady = ttsReady,
                     onQuickPrompt = { viewModel.sendQuickPrompt(it) },
                     onCopied = {
                         snackbarHostState.showSnackbar("Copied to clipboard")
@@ -237,6 +244,8 @@ private fun AiTutorTab(
     onSend: (ChatAttachmentPayload?) -> Unit,
     onAcceptStudyBlocks: (List<com.edukasyon.studentai.core.ai.StudyBlockPayload>) -> Unit = {},
     onDismissStudyProposals: () -> Unit = {},
+    onSpeakMessage: (String) -> Unit = {},
+    ttsReady: Boolean = false,
     onQuickPrompt: (String) -> Unit,
     onCopied: suspend () -> Unit,
     onChatInputActive: (Boolean) -> Unit = {},
@@ -376,6 +385,11 @@ private fun AiTutorTab(
                                     clipboard.setText(AnnotatedString(msg.content))
                                     scope.launch { onCopied() }
                                 }
+                            } else {
+                                null
+                            },
+                            onSpeak = if (!msg.isUser && ttsReady) {
+                                { onSpeakMessage(msg.content) }
                             } else {
                                 null
                             },

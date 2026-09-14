@@ -345,9 +345,14 @@ async function handleChat({ body, provider: ai, webSearch: searchService, maxTok
   // medium: step-by-step reasoning with more tokens; high: maximum reasoning.
   const effort = ['none', 'minimal', 'low', 'medium', 'high'].includes(requestedEffort) ? requestedEffort : 'low';
   const thinking = effort !== 'none';
+  // Thinking-mode models spend tokens on chain-of-thought before the answer;
+  // low/minimal kept the base budget and starved the final answer (truncated
+  // CoT, no reply). Raise every thinking tier above the base budget.
   const chatMaxTokens = 
     effort === 'high' ? Math.min(maxTokens * 2, 4096) :
     effort === 'medium' ? Math.min(maxTokens * 1.5, 3000) :
+    effort === 'low' ? Math.min(Math.round(maxTokens * 1.5), 3072) :
+    effort === 'minimal' ? Math.min(Math.round(maxTokens * 1.25), 2560) :
     maxTokens;
 
   const systemContent = buildJarvisSystemMessage({
@@ -419,7 +424,7 @@ ${numbered}`;
     { role: 'user', content: userContent },
   ];
 
-  const { reply, reasoning, model: usedModel } = await ai.chatCompletion(messages, {
+  const { reply, reasoning, replyHeuristic, model: usedModel } = await ai.chatCompletion(messages, {
     model,
     isVision: hasVisionAttachment,
     thinking,
@@ -469,6 +474,10 @@ ${numbered}`;
   return {
     reply,
     ...(reasoning ? { reasoning } : {}),
+    // The reply text is the model's laundered deliberation (heuristic split of
+    // truncated thinking content). Clients render it verbatim and skip
+    // re-splitting it into a thinking panel — otherwise the answer collapses.
+    ...(replyHeuristic ? { reasoningUsedAsReply: true } : {}),
     conversationId: conversationId || crypto.randomUUID(),
     model: usedModel || model,
     effort,
@@ -1183,6 +1192,40 @@ app.post('/api/ai/focus-plan', (req, res) =>
     validateOutput: (result) => focusPlanValidator.validate(result),
   })
 );
+
+// JEVI Audio Overview TTS — returns binary MP3. Standalone route because the
+// response is audio/mpeg, not JSON; reuses the gateway auth + error format.
+const ttsService = require('./ai/TtsService');
+app.post('/api/ai/tts', async (req, res) => {
+  const authResult = await gateway.auth.authenticate(req);
+  if (!authResult.ok) {
+    return gateway.sendError(res, authResult.status, authResult.code, authResult.message);
+  }
+
+  const { text, voice } = req.body || {};
+  if (!text || !String(text).trim()) {
+    return gateway.sendError(res, 400, 'MISSING_TEXT', 'text is required.');
+  }
+  if (String(text).length > ttsService.MAX_CHARS) {
+    return gateway.sendError(res, 400, 'TEXT_TOO_LONG', `text must be ${ttsService.MAX_CHARS} characters or fewer.`);
+  }
+  if (voice && !ttsService.VOICES[voice]) {
+    return gateway.sendError(res, 400, 'INVALID_VOICE', 'voice must be "female" or "male".');
+  }
+
+  try {
+    const mp3 = await ttsService.withTimeout(
+      ttsService.synthesize(String(text), voice || 'female'),
+      ttsService.SYNTHESIS_TIMEOUT_MS
+    );
+    res.set('Content-Type', 'audio/mpeg');
+    res.set('Cache-Control', 'no-store');
+    return res.send(mp3);
+  } catch (err) {
+    console.error('[tts]', err.message || err);
+    return gateway.sendError(res, 502, 'TTS_UNAVAILABLE', 'Audio synthesis is temporarily unavailable.');
+  }
+});
 
 // Internal: announce a new app version to ALL users via FCM topic broadcast.
 // Guarded by the x-admin-key header (must match ADMIN_API_KEY env var).

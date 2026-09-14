@@ -9,8 +9,16 @@
     "test": "node --test tests/**/*.test.js"
   },
   "dependencies": {
+    "@andresaya/edge-tts": "^1.8.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "firebase-admin": "^12.7.0"
-  }
+  },
+  "directories": {
+    "test": "tests"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
 }

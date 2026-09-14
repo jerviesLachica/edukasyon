@@ -490,6 +490,17 @@ fun JeviDeckDetailScreen(
                         }
                     }
 
+                    if (deck.cardCount > 0) {
+                        item {
+                            DeckAudioOverviewSection(
+                                audioState = state.audioState,
+                                onGenerate = viewModel::generateAudioOverview,
+                                onPlayPause = viewModel::playOrPauseAudio,
+                                onSeek = viewModel::seekAudio,
+                            )
+                        }
+                    }
+
                     if (state.cards.isEmpty()) {
                         item {
                             EmptyState(
@@ -1491,6 +1502,92 @@ private fun JeviSavedQuizCard(quiz: Quiz, onClick: () -> Unit) {
                 )
             }
             Icon(Icons.Default.PlayArrow, contentDescription = "Start quiz")
+        }
+    }
+}
+
+@Composable
+private fun DeckAudioOverviewSection(
+    audioState: com.edukasyon.studentai.ui.viewmodel.DeckAudioState,
+    onGenerate: () -> Unit,
+    onPlayPause: () -> Unit,
+    onSeek: (Float) -> Unit,
+) {
+    StudentAiCard {
+        Column(
+            Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.GraphicEq,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Audio Overview",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.weight(1f))
+            }
+            when (audioState) {
+                is com.edukasyon.studentai.ui.viewmodel.DeckAudioState.Idle -> {
+                    Text(
+                        "Turn this deck into a listen-anywhere revision clip.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    BouncyButton(onClick = onGenerate, modifier = Modifier.fillMaxWidth()) {
+                        Text("Generate overview")
+                    }
+                }
+                is com.edukasyon.studentai.ui.viewmodel.DeckAudioState.Generating -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        StudentAiLoader(style = StudentAiLoaderStyle.Compact, label = null, modifier = Modifier.size(28.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "Writing and voicing the script…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                is com.edukasyon.studentai.ui.viewmodel.DeckAudioState.Failed -> {
+                    Text(
+                        audioState.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    BouncyOutlinedButton(onClick = onGenerate, modifier = Modifier.fillMaxWidth()) {
+                        Text("Try again")
+                    }
+                }
+                is com.edukasyon.studentai.ui.viewmodel.DeckAudioState.Ready -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onPlayPause) {
+                            Icon(
+                                if (audioState.playable) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (audioState.playable) "Pause" else "Play",
+                            )
+                        }
+                        val progress = if (audioState.durationMs > 0)
+                            audioState.positionMs.toFloat() / audioState.durationMs else 0f
+                        Slider(
+                            value = progress,
+                            onValueChange = onSeek,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "${audioState.positionMs / 60000}:${"%02d".format(audioState.positionMs / 1000 % 60)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
     }
 }

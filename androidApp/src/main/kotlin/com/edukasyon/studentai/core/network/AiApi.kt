@@ -8,6 +8,7 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Streaming
 
 interface AiApiService {
     @GET("health")
@@ -48,7 +49,13 @@ interface AiApiService {
 
         @POST("api/ai/search-sources")
         suspend fun searchSources(@Body request: SearchSourcesRequest): SearchSourcesResponseDto
+
+        @Streaming
+        @POST("api/ai/tts")
+        suspend fun synthesizeSpeech(@Body request: TtsRequest): okhttp3.ResponseBody
     }
+
+@Serializable data class TtsRequest(val text: String, val voice: String = "female")
 
 @Serializable data class HealthResponseDto(
     val status: String,
@@ -87,6 +94,10 @@ interface AiApiService {
     val citedChunkIds: List<String> = emptyList(),
     // NEW: web results cited in the response (URL, title, snippet)
     val citedWebResults: List<CitedWebResultDto> = emptyList(),
+    // When true, `reply` IS the model's deliberation text, intentionally
+    // delivered as the visible answer (reasoning null) — clients must render
+    // it verbatim instead of re-running the reasoning splitter on it.
+    val reasoningUsedAsReply: Boolean = false,
 )
 @Serializable data class CitedWebResultDto(
     val url: String,

@@ -110,7 +110,15 @@ data class JeviDeckDetailUiState(
     val deck: JeviDeck? = null,
     val cards: List<Flashcard> = emptyList(),
     val isLoading: Boolean = true,
+    val audioState: DeckAudioState = DeckAudioState.Idle,
 )
+
+sealed interface DeckAudioState {
+    data object Idle : DeckAudioState
+    data object Generating : DeckAudioState
+    data class Ready(val playable: Boolean, val positionMs: Int = 0, val durationMs: Int = 0) : DeckAudioState
+    data class Failed(val message: String) : DeckAudioState
+}
 
 @HiltViewModel
 class JeviDeckDetailViewModel @Inject constructor(
@@ -118,6 +126,7 @@ class JeviDeckDetailViewModel @Inject constructor(
     private val getDeck: GetJeviDeckUseCase,
     private val getDeckFlashcards: GetDeckFlashcardsUseCase,
     private val deleteDeck: DeleteJeviDeckUseCase,
+    private val audioOverviewManager: com.edukasyon.studentai.core.audio.AudioOverviewManager,
 ) : ViewModel() {
     private val deckId: String = savedStateHandle.get<String>("deckId")
         ?: JeviConstants.DEFAULT_DECK_ID
@@ -127,6 +136,9 @@ class JeviDeckDetailViewModel @Inject constructor(
 
     private val _deckDeleted = MutableStateFlow(false)
     val deckDeleted: StateFlow<Boolean> = _deckDeleted.asStateFlow()
+
+    private var player: android.media.MediaPlayer? = null
+    private var progressTicker: kotlinx.coroutines.Job? = null
 
     init {
         viewModelScope.launch {
@@ -151,6 +163,88 @@ class JeviDeckDetailViewModel @Inject constructor(
             deleteDeck(deckId)
             _deckDeleted.value = true
         }
+    }
+
+    /** Generates (or reuses cached) Audio Overview script + MP3 for the current deck. */
+    fun generateAudioOverview() {
+        val deck = _uiState.value.deck ?: return
+        val cards = _uiState.value.cards
+        if (cards.isEmpty() || _uiState.value.audioState is DeckAudioState.Generating) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(audioState = DeckAudioState.Generating) }
+            when (val result = audioOverviewManager.overviewFor(deck, cards)) {
+                is com.edukasyon.studentai.core.audio.AudioOverviewManager.Result.Ready ->
+                    _uiState.update { it.copy(audioState = DeckAudioState.Ready(playable = false)) }
+                is com.edukasyon.studentai.core.audio.AudioOverviewManager.Result.Failed ->
+                    _uiState.update { it.copy(audioState = DeckAudioState.Failed(result.message)) }
+            }
+        }
+    }
+
+    fun playOrPauseAudio() {
+        val deck = _uiState.value.deck ?: return
+        val file = audioOverviewManager.cachedFile(deck, _uiState.value.cards) ?: return
+        val current = player
+        val state = _uiState.value.audioState
+        if (current != null && state is DeckAudioState.Ready && state.playable) {
+            current.pause()
+            _uiState.update { it.copy(audioState = state.copy(playable = false)) }
+            return
+        }
+        if (current != null && current.isPlaying) return
+        runCatching {
+            val mp = current ?: android.media.MediaPlayer().apply {
+                setDataSource(file.absolutePath)
+                prepare()
+                setOnCompletionListener {
+                    _uiState.update { s ->
+                        (s.audioState as? DeckAudioState.Ready)?.let { s.copy(audioState = it.copy(playable = false, positionMs = 0)) } ?: s
+                    }
+                }
+            }
+            mp.seekTo((_uiState.value.audioState as? DeckAudioState.Ready)?.positionMs ?: 0)
+            mp.start()
+            player = mp
+            _uiState.update { s ->
+                val ready = (s.audioState as? DeckAudioState.Ready)
+                    ?.copy(playable = true, durationMs = mp.duration)
+                    ?: DeckAudioState.Ready(playable = true, durationMs = mp.duration)
+                s.copy(audioState = ready)
+            }
+            startProgressTicker()
+        }.onFailure { err ->
+            _uiState.update { it.copy(audioState = DeckAudioState.Failed("Could not play the audio: ${err.message}")) }
+        }
+    }
+
+    fun seekAudio(fraction: Float) {
+        val mp = player ?: return
+        runCatching {
+            mp.seekTo((mp.duration * fraction.coerceIn(0f, 1f)).toInt())
+            _uiState.update { s ->
+                (s.audioState as? DeckAudioState.Ready)?.let { s.copy(audioState = it.copy(positionMs = mp.currentPosition)) } ?: s
+            }
+        }
+    }
+
+    private fun startProgressTicker() {
+        progressTicker?.cancel()
+        progressTicker = viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(500)
+                val mp = player ?: break
+                val pos = runCatching { mp.currentPosition }.getOrNull() ?: break
+                _uiState.update { s ->
+                    (s.audioState as? DeckAudioState.Ready)?.let { s.copy(audioState = it.copy(positionMs = pos)) } ?: s
+                }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        progressTicker?.cancel()
+        runCatching { player?.release() }
+        player = null
     }
 }
 
