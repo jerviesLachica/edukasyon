@@ -1202,20 +1202,14 @@ app.post('/api/ai/tts', async (req, res) => {
     return gateway.sendError(res, authResult.status, authResult.code, authResult.message);
   }
 
-  const { text, voice } = req.body || {};
-  if (!text || !String(text).trim()) {
-    return gateway.sendError(res, 400, 'MISSING_TEXT', 'text is required.');
-  }
-  if (String(text).length > ttsService.MAX_CHARS) {
-    return gateway.sendError(res, 400, 'TEXT_TOO_LONG', `text must be ${ttsService.MAX_CHARS} characters or fewer.`);
-  }
-  if (voice && !ttsService.VOICES[voice]) {
-    return gateway.sendError(res, 400, 'INVALID_VOICE', 'voice must be "female" or "male".');
+  const validation = ttsService.validateTtsRequest(req.body);
+  if (!validation.ok) {
+    return gateway.sendError(res, 400, validation.code, validation.message);
   }
 
   try {
     const mp3 = await ttsService.withTimeout(
-      ttsService.synthesize(String(text), voice || 'female'),
+      ttsService.synthesize(validation.text, validation.voice.id, validation.prosody),
       ttsService.SYNTHESIS_TIMEOUT_MS
     );
     res.set('Content-Type', 'audio/mpeg');
@@ -1225,6 +1219,17 @@ app.post('/api/ai/tts', async (req, res) => {
     console.error('[tts]', err.message || err);
     return gateway.sendError(res, 502, 'TTS_UNAVAILABLE', 'Audio synthesis is temporarily unavailable.');
   }
+});
+
+// Voice catalog for the podcast dialogue pickers (Android mirrors these ids).
+// Auth-gated like the POST route; aliases (female/male) are hidden — clients
+// use the real names there.
+app.get('/api/ai/tts/voices', async (req, res) => {
+  const authResult = await gateway.auth.authenticate(req);
+  if (!authResult.ok) {
+    return gateway.sendError(res, authResult.status, authResult.code, authResult.message);
+  }
+  return res.json({ voices: ttsService.publicVoices() });
 });
 
 // Internal: announce a new app version to ALL users via FCM topic broadcast.

@@ -55,7 +55,7 @@ interface AiApiService {
         suspend fun synthesizeSpeech(@Body request: TtsRequest): okhttp3.ResponseBody
     }
 
-@Serializable data class TtsRequest(val text: String, val voice: String = "female")
+@Serializable data class TtsRequest(val text: String, val voice: String = "female", val rate: String? = null, val pitch: String? = null)
 
 @Serializable data class HealthResponseDto(
     val status: String,

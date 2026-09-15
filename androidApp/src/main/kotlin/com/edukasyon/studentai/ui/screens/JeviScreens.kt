@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
+import com.edukasyon.studentai.core.audio.PodcastThemes
+import com.edukasyon.studentai.core.audio.TtsVoices
 import com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer
 import com.edukasyon.studentai.core.mlkit.PdfOcrHelper
 import com.edukasyon.studentai.domain.model.Flashcard
@@ -420,7 +422,22 @@ fun JeviDeckDetailScreen(
         if (deckDeleted) onBack()
     }
 
+    // Podcast snackbar (partial coverage warning, export result) + SAF "Save as…".
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(state.audioMessage) {
+        state.audioMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearAudioMessage()
+        }
+    }
+    val saveEpisodeLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        result.data?.data?.let { uri -> viewModel.exportEpisodeToUri(uri) }
+    }
+
     Scaffold(
+        snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(deck?.title ?: "Deck") },
@@ -507,9 +524,17 @@ fun JeviDeckDetailScreen(
                         item {
                             DeckAudioOverviewSection(
                                 audioState = state.audioState,
+                                themeId = state.podcastThemeId,
+                                voiceAOverride = state.voiceAOverride,
+                                voiceBOverride = state.voiceBOverride,
+                                onSelectTheme = viewModel::selectPodcastTheme,
+                                onSelectVoiceA = viewModel::setPodcastVoiceA,
+                                onSelectVoiceB = viewModel::setPodcastVoiceB,
                                 onGenerate = viewModel::generateAudioOverview,
                                 onPlayPause = viewModel::playOrPauseAudio,
                                 onSeek = viewModel::seekAudio,
+                                onSaveToDownloads = viewModel::saveEpisodeToDownloads,
+                                onSaveAs = { saveEpisodeLauncher.launch(viewModel.episodeExportIntent()) },
                             )
                         }
                     }
@@ -1532,13 +1557,24 @@ private fun JeviSavedQuizCard(quiz: Quiz, onClick: () -> Unit) {
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun DeckAudioOverviewSection(
     audioState: com.edukasyon.studentai.ui.viewmodel.DeckAudioState,
+    themeId: String?,
+    voiceAOverride: String?,
+    voiceBOverride: String?,
+    onSelectTheme: (String) -> Unit,
+    onSelectVoiceA: (String?) -> Unit,
+    onSelectVoiceB: (String?) -> Unit,
     onGenerate: () -> Unit,
     onPlayPause: () -> Unit,
     onSeek: (Float) -> Unit,
+    onSaveToDownloads: () -> Unit,
+    onSaveAs: () -> Unit,
 ) {
+    val theme = PodcastThemes.byId(themeId)
+    val generating = audioState is com.edukasyon.studentai.ui.viewmodel.DeckAudioState.Generating
     StudentAiCard {
         Column(
             Modifier.padding(16.dp),
@@ -1552,21 +1588,59 @@ private fun DeckAudioOverviewSection(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Audio Overview",
+                    "Podcast Overview",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(Modifier.weight(1f))
             }
+            // Theme chips: each carries its own embedded script prompt + default voices.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                PodcastThemes.default.forEach { t ->
+                    FilterChip(
+                        selected = t.id == theme.id,
+                        onClick = { if (!generating) onSelectTheme(t.id) },
+                        enabled = !generating,
+                        label = { Text("${t.emoji} ${t.title}") },
+                    )
+                }
+            }
+            Text(
+                theme.blurb,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // A/B voice pickers; selection overrides the theme defaults per deck+theme.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PodcastVoicePickerDropdown(
+                    label = "Host voice",
+                    selectedId = voiceAOverride ?: theme.voiceA,
+                    defaultId = theme.voiceA,
+                    enabled = !generating,
+                    onSelect = onSelectVoiceA,
+                    modifier = Modifier.weight(1f),
+                )
+                PodcastVoicePickerDropdown(
+                    label = "Co-host voice",
+                    selectedId = voiceBOverride ?: theme.voiceB,
+                    defaultId = theme.voiceB,
+                    enabled = !generating,
+                    onSelect = onSelectVoiceB,
+                    modifier = Modifier.weight(1f),
+                )
+            }
             when (audioState) {
                 is com.edukasyon.studentai.ui.viewmodel.DeckAudioState.Idle -> {
                     Text(
-                        "Turn this deck into a listen-anywhere revision clip.",
+                        "Turn this deck into a two-voice podcast episode that covers every card.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     BouncyButton(onClick = onGenerate, modifier = Modifier.fillMaxWidth()) {
-                        Text("Generate overview")
+                        Text("Generate episode")
                     }
                 }
                 is com.edukasyon.studentai.ui.viewmodel.DeckAudioState.Generating -> {
@@ -1574,7 +1648,7 @@ private fun DeckAudioOverviewSection(
                         StudentAiLoader(style = StudentAiLoaderStyle.Compact, label = null, modifier = Modifier.size(28.dp))
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            "Writing and voicing the script…",
+                            audioState.progressNote ?: "Writing and voicing the script…",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -1612,7 +1686,63 @@ private fun DeckAudioOverviewSection(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    // Downloadable: keep the episode in Downloads or save it anywhere.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BouncyOutlinedButton(
+                            onClick = onSaveToDownloads,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Save to Downloads")
+                        }
+                        BouncyOutlinedButton(
+                            onClick = onSaveAs,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Save as…")
+                        }
+                    }
                 }
+            }
+        }
+    }
+}
+
+/** Host/Co-host voice dropdown over the bundled TtsVoices catalog; null selection = theme default. */
+@Composable
+private fun PodcastVoicePickerDropdown(
+    label: String,
+    selectedId: String,
+    defaultId: String,
+    enabled: Boolean,
+    onSelect: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { if (enabled) expanded = it }, modifier = modifier) {
+        OutlinedTextField(
+            value = TtsVoices.display(selectedId),
+            onValueChange = {},
+            readOnly = true,
+            enabled = enabled,
+            label = { Text(label) },
+            supportingText = {
+                Text(if (selectedId == defaultId) "Theme default" else "Custom", style = MaterialTheme.typography.labelSmall)
+            },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Theme default (${"$"}{TtsVoices.display(defaultId)})") },
+                onClick = { onSelect(null); expanded = false },
+            )
+            TtsVoices.catalog.forEach { v ->
+                DropdownMenuItem(
+                    text = { Text(v.display()) },
+                    onClick = { onSelect(v.id); expanded = false },
+                )
             }
         }
     }

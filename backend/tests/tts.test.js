@@ -7,13 +7,19 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { VOICES, MAX_CHARS, withTimeout, synthesize } = require('../ai/TtsService');
+const { VOICES, MAX_CHARS, withTimeout, synthesize, resolveVoiceId } = require('../ai/TtsService');
 
 describe('TtsService', () => {
   it('exposes exactly two validated voices', () => {
     assert.deepEqual(Object.keys(VOICES).sort(), ['female', 'male']);
     assert.equal(VOICES.female, 'en-US-AriaNeural');
     assert.equal(VOICES.male, 'en-US-GuyNeural');
+  });
+
+  it('AC4 back-compat: legacy VOICES are exactly the female/male aliases of the catalog', () => {
+    assert.equal(resolveVoiceId('female').voiceName, VOICES.female);
+    assert.equal(resolveVoiceId('male').voiceName, VOICES.male);
+    assert.equal(resolveVoiceId('bogus'), null);
   });
 
   it('propagates synthesis errors as a rejected promise', async () => {

@@ -111,11 +111,20 @@ data class JeviDeckDetailUiState(
     val cards: List<Flashcard> = emptyList(),
     val isLoading: Boolean = true,
     val audioState: DeckAudioState = DeckAudioState.Idle,
+    // Podcast settings (lane D): theme id null = first theme; voice overrides are
+    // per deck+theme and null = the theme's default voice for that speaker.
+    val podcastThemeId: String? = null,
+    val voiceAOverride: String? = null,
+    val voiceBOverride: String? = null,
+    // Transient snackbar text (partial coverage warning, export result); UI clears via clearAudioMessage().
+    val audioMessage: String? = null,
 )
 
 sealed interface DeckAudioState {
     data object Idle : DeckAudioState
-    data object Generating : DeckAudioState
+    // was `data object` — now carries an optional progress line ("Writing the script…",
+    // "Synthesizing line 4 of 23…"); default null keeps old `Generating()` use sites valid.
+    data class Generating(val progressNote: String? = null) : DeckAudioState
     data class Ready(val playable: Boolean, val positionMs: Int = 0, val durationMs: Int = 0) : DeckAudioState
     data class Failed(val message: String) : DeckAudioState
 }
@@ -127,6 +136,7 @@ class JeviDeckDetailViewModel @Inject constructor(
     private val getDeckFlashcards: GetDeckFlashcardsUseCase,
     private val deleteDeck: DeleteJeviDeckUseCase,
     private val audioOverviewManager: com.edukasyon.studentai.core.audio.AudioOverviewManager,
+    private val preferences: com.edukasyon.studentai.data.preferences.UserPreferences,
 ) : ViewModel() {
     private val deckId: String = savedStateHandle.get<String>("deckId")
         ?: JeviConstants.DEFAULT_DECK_ID
@@ -150,11 +160,109 @@ class JeviDeckDetailViewModel @Inject constructor(
                     deck = deck,
                     cards = cards,
                     isLoading = false,
+                    podcastThemeId = _uiState.value.podcastThemeId,
+                    voiceAOverride = _uiState.value.voiceAOverride,
+                    voiceBOverride = _uiState.value.voiceBOverride,
+                    audioState = _uiState.value.audioState,
+                    audioMessage = _uiState.value.audioMessage,
                 )
             }.collect { state ->
                 _uiState.value = state
+                syncAudioCache()
             }
         }
+        // Podcast settings (theme + per deck+theme voice overrides) load once and
+        // live-update when the pickers change them; switching settings re-checks
+        // the cache so an already-generated episode is instantly playable (AC2).
+        viewModelScope.launch {
+            combine(
+                preferences.podcastThemeId,
+                preferences.podcastVoiceOverridesA,
+                preferences.podcastVoiceOverridesB,
+            ) { themeId, overridesA, overridesB ->
+                val effectiveThemeId = com.edukasyon.studentai.core.audio.PodcastThemes.byId(themeId).id
+                Triple(
+                    themeId,
+                    overridesA[voiceOverrideKey(effectiveThemeId)],
+                    overridesB[voiceOverrideKey(effectiveThemeId)],
+                )
+            }.collect { (themeId, voiceA, voiceB) ->
+                _uiState.update {
+                    it.copy(podcastThemeId = themeId, voiceAOverride = voiceA, voiceBOverride = voiceB)
+                }
+                stopPlaybackAndSyncCache()
+            }
+        }
+    }
+
+    /** Effective theme for generation/playback: selected theme + per-deck voice overrides. */
+    fun activePodcastTheme(): com.edukasyon.studentai.core.audio.PodcastTheme {
+        val base = com.edukasyon.studentai.core.audio.PodcastThemes.byId(_uiState.value.podcastThemeId)
+        return base.copy(
+            voiceA = _uiState.value.voiceAOverride ?: base.voiceA,
+            voiceB = _uiState.value.voiceBOverride ?: base.voiceB,
+        )
+    }
+
+    private fun voiceOverrideKey(themeId: String) = "$deckId|$themeId"
+
+    fun selectPodcastTheme(themeId: String) {
+        viewModelScope.launch { preferences.setPodcastThemeId(themeId) }
+    }
+
+    fun setPodcastVoiceA(voice: String?) {
+        viewModelScope.launch {
+            preferences.setPodcastVoiceA(
+                deckId,
+                com.edukasyon.studentai.core.audio.PodcastThemes.byId(_uiState.value.podcastThemeId).id,
+                voice,
+            )
+        }
+    }
+
+    fun setPodcastVoiceB(voice: String?) {
+        viewModelScope.launch {
+            preferences.setPodcastVoiceB(
+                deckId,
+                com.edukasyon.studentai.core.audio.PodcastThemes.byId(_uiState.value.podcastThemeId).id,
+                voice,
+            )
+        }
+    }
+
+    /** Show the cache state that matches the current theme/voice mix. */
+    private fun syncAudioCache() {
+        val deck = _uiState.value.deck ?: return
+        val cards = _uiState.value.cards
+        if (cards.isEmpty()) return
+        when (_uiState.value.audioState) {
+            is DeckAudioState.Generating -> return
+            else -> {
+                val cached = audioOverviewManager.cachedFile(deck, cards, activePodcastTheme())
+                _uiState.update {
+                    if (cached != null && it.audioState !is DeckAudioState.Ready) {
+                        it.copy(audioState = DeckAudioState.Ready(playable = false))
+                    } else if (cached == null && it.audioState is DeckAudioState.Ready) {
+                        it.copy(audioState = DeckAudioState.Idle)
+                    } else {
+                        it
+                    }
+                }
+            }
+        }
+    }
+
+    /** Theme/voice change: tear the current player down, then re-sync with the new cache. */
+    private fun stopPlaybackAndSyncCache() {
+        progressTicker?.cancel()
+        progressTicker = null
+        runCatching { player?.release() }
+        player = null
+        syncAudioCache()
+    }
+
+    fun clearAudioMessage() {
+        _uiState.update { it.copy(audioMessage = null) }
     }
 
     fun deleteCurrentDeck() {
@@ -165,25 +273,100 @@ class JeviDeckDetailViewModel @Inject constructor(
         }
     }
 
-    /** Generates (or reuses cached) Audio Overview script + MP3 for the current deck. */
+    /** Generates (or reuses cached) Audio Overview script + MP3 for the current deck + selected theme/voices. */
     fun generateAudioOverview() {
         val deck = _uiState.value.deck ?: return
         val cards = _uiState.value.cards
         if (cards.isEmpty() || _uiState.value.audioState is DeckAudioState.Generating) return
         viewModelScope.launch {
-            _uiState.update { it.copy(audioState = DeckAudioState.Generating) }
-            when (val result = audioOverviewManager.overviewFor(deck, cards)) {
+            _uiState.update { it.copy(audioState = DeckAudioState.Generating()) }
+            val theme = activePodcastTheme()
+            when (
+                val result = audioOverviewManager.overviewFor(
+                    deck = deck,
+                    cards = cards,
+                    theme = theme,
+                    onProgress = { stage, lineDone, lineTotal ->
+                        val note = when (stage) {
+                            com.edukasyon.studentai.core.audio.PodcastStatusEvent.Scripting -> "Writing the script…"
+                            com.edukasyon.studentai.core.audio.PodcastStatusEvent.Auditing -> "Checking card coverage…"
+                            com.edukasyon.studentai.core.audio.PodcastStatusEvent.Synthesizing ->
+                                if (lineTotal > 0) "Generating line $lineDone of $lineTotal…"
+                                else "Voicing the episode…"
+                        }
+                        _uiState.update { s ->
+                            if (s.audioState is DeckAudioState.Generating) {
+                                s.copy(audioState = DeckAudioState.Generating(progressNote = note))
+                            } else s
+                        }
+                    },
+                )
+            ) {
                 is com.edukasyon.studentai.core.audio.AudioOverviewManager.Result.Ready ->
-                    _uiState.update { it.copy(audioState = DeckAudioState.Ready(playable = false)) }
+                    _uiState.update {
+                        it.copy(
+                            audioState = DeckAudioState.Ready(playable = false),
+                            audioMessage = result.partialCoverage.takeIf { missing -> missing.isNotEmpty() }?.let { missing ->
+                                "Covered ${cards.size - missing.size} of ${cards.size} cards (missed ${missing.joinToString(", ")}) — regenerate for full coverage."
+                            },
+                        )
+                    }
                 is com.edukasyon.studentai.core.audio.AudioOverviewManager.Result.Failed ->
                     _uiState.update { it.copy(audioState = DeckAudioState.Failed(result.message)) }
             }
         }
     }
 
+    /** Ready-state: copy the cached episode into the public Downloads folder. */
+    fun saveEpisodeToDownloads() {
+        val deck = _uiState.value.deck ?: return
+        val file = audioOverviewManager.cachedFile(deck, _uiState.value.cards, activePodcastTheme()) ?: return
+        viewModelScope.launch {
+            val result = audioOverviewManager.exportToDevice(
+                file = file,
+                deckTitle = deck.title,
+                themeId = com.edukasyon.studentai.core.audio.PodcastThemes.byId(_uiState.value.podcastThemeId).id,
+            )
+            val message = when (result) {
+                is com.edukasyon.studentai.core.audio.AudioOverviewManager.ExportResult.Saved ->
+                    "Saved ${result.displayPath}"
+                is com.edukasyon.studentai.core.audio.AudioOverviewManager.ExportResult.Failed -> result.message
+            }
+            _uiState.update { it.copy(audioMessage = message) }
+        }
+    }
+
+    /** Suggested file name for the SAF "Save as…" launcher. */
+    fun episodeExportName(): String {
+        val deck = _uiState.value.deck ?: return "JEVI episode.mp3"
+        return com.edukasyon.studentai.core.audio.AudioOverviewManager.exportedDisplayName(
+            deckTitle = deck.title,
+            themeId = com.edukasyon.studentai.core.audio.PodcastThemes.byId(_uiState.value.podcastThemeId).id,
+        )
+    }
+
+    /** ACTION_CREATE_DOCUMENT intent to launch from the UI for "Save as…". */
+    fun episodeExportIntent(): android.content.Intent =
+        audioOverviewManager.exportIntent(episodeExportName())
+
+    /** Handles the uri returned by the ACTION_CREATE_DOCUMENT launcher ([AudioOverviewManager.exportIntent]). */
+    fun exportEpisodeToUri(uri: android.net.Uri) {
+        val deck = _uiState.value.deck ?: return
+        val file = audioOverviewManager.cachedFile(deck, _uiState.value.cards, activePodcastTheme()) ?: return
+        viewModelScope.launch {
+            val result = audioOverviewManager.exportToUri(file = file, uri = uri)
+            val message = when (result) {
+                is com.edukasyon.studentai.core.audio.AudioOverviewManager.ExportResult.Saved ->
+                    "Saved ${result.displayPath}"
+                is com.edukasyon.studentai.core.audio.AudioOverviewManager.ExportResult.Failed -> result.message
+            }
+            _uiState.update { it.copy(audioMessage = message) }
+        }
+    }
+
     fun playOrPauseAudio() {
         val deck = _uiState.value.deck ?: return
-        val file = audioOverviewManager.cachedFile(deck, _uiState.value.cards) ?: return
+        val file = audioOverviewManager.cachedFile(deck, _uiState.value.cards, activePodcastTheme()) ?: return
         val current = player
         val state = _uiState.value.audioState
         if (current != null && state is DeckAudioState.Ready && state.playable) {

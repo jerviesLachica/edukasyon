@@ -74,6 +74,9 @@ class UserPreferences @Inject constructor(
         val FIREBASE_AUTH_EMAIL = stringPreferencesKey("firebase_auth_email")
         val GOOGLE_ACCOUNT_LINKED = booleanPreferencesKey("google_account_linked")
         val AUTH_STRATEGY = stringPreferencesKey("auth_strategy")
+        val PODCAST_THEME_ID = stringPreferencesKey("podcast_theme_id")
+        val PODCAST_VOICE_A = stringPreferencesKey("podcast_voice_a")
+        val PODCAST_VOICE_B = stringPreferencesKey("podcast_voice_b")
     }
 
     private val templateJson = Json { ignoreUnknownKeys = true }
@@ -113,6 +116,17 @@ class UserPreferences @Inject constructor(
     }
     val authStrategy: Flow<AuthStrategy> = context.dataStore.data.map { prefs ->
         AuthStrategy.fromKey(prefs[Keys.AUTH_STRATEGY])
+    }
+    /** Selected podcast theme id; null/unknown ids resolve to the first theme via PodcastThemes.byId(). */
+    val podcastThemeId: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[Keys.PODCAST_THEME_ID]?.takeIf { it.isNotBlank() }
+    }
+    /** Per-speaker voice overrides keyed by "<deckId>|<themeId>"; absent = theme default voice. */
+    val podcastVoiceOverridesA: Flow<Map<String, String>> = context.dataStore.data.map { prefs ->
+        decodeVoiceOverrides(prefs[Keys.PODCAST_VOICE_A])
+    }
+    val podcastVoiceOverridesB: Flow<Map<String, String>> = context.dataStore.data.map { prefs ->
+        decodeVoiceOverrides(prefs[Keys.PODCAST_VOICE_B])
     }
     val useMockAi: Flow<Boolean> = context.dataStore.data.map { it[Keys.USE_MOCK_AI] ?: false }
     val aiModel: Flow<AiModel> = context.dataStore.data.map { prefs ->
@@ -234,6 +248,33 @@ class UserPreferences @Inject constructor(
     suspend fun setAlarmSoundName(name: String) {
         context.dataStore.edit { it[Keys.ALARM_SOUND_NAME] = name }
     }
+
+    suspend fun setPodcastThemeId(id: String) {
+        context.dataStore.edit { it[Keys.PODCAST_THEME_ID] = id }
+    }
+
+    /** Podcast voice overrides persist as a JSON map keyed by "<deckId>|<themeId>". */
+    suspend fun setPodcastVoiceA(deckId: String, themeId: String, voice: String?) {
+        context.dataStore.edit { prefs ->
+            val map = decodeVoiceOverrides(prefs[Keys.PODCAST_VOICE_A]).toMutableMap()
+            val key = "$deckId|$themeId"
+            if (voice.isNullOrBlank()) map.remove(key) else map[key] = voice
+            if (map.isEmpty()) prefs.remove(Keys.PODCAST_VOICE_A) else prefs[Keys.PODCAST_VOICE_A] = templateJson.encodeToString(map)
+        }
+    }
+
+    suspend fun setPodcastVoiceB(deckId: String, themeId: String, voice: String?) {
+        context.dataStore.edit { prefs ->
+            val map = decodeVoiceOverrides(prefs[Keys.PODCAST_VOICE_B]).toMutableMap()
+            val key = "$deckId|$themeId"
+            if (voice.isNullOrBlank()) map.remove(key) else map[key] = voice
+            if (map.isEmpty()) prefs.remove(Keys.PODCAST_VOICE_B) else prefs[Keys.PODCAST_VOICE_B] = templateJson.encodeToString(map)
+        }
+    }
+
+    private fun decodeVoiceOverrides(raw: String?): Map<String, String> =
+        if (raw.isNullOrBlank()) emptyMap()
+        else runCatching { templateJson.decodeFromString<Map<String, String>>(raw) }.getOrDefault(emptyMap())
 
     suspend fun setOnboardingWidgetsExplored(explored: Boolean) {
         context.dataStore.edit { it[Keys.ONBOARDING_WIDGETS_EXPLORED] = explored }
