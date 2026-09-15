@@ -62,7 +62,7 @@ class AppUpdateMessagingService : FirebaseMessagingService() {
         val installPi = PendingIntent.getActivity(this, REQUEST_INSTALL, openIntent, flags)
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_schedmate)
             .setContentTitle("SchedMate $versionName is available")
             .setContentText(notes)
             .setStyle(NotificationCompat.BigTextStyle().bigText(notes))

@@ -28,3 +28,8 @@ generate_jarvis_avatar.py
 
 secrets/
 *.key.json
+
+# Agent workflow state (operators' local ledgers/plans, not app content)
+.omh/runs/
+.hermes/
+IDEA.md
