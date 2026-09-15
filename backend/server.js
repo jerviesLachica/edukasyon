@@ -1232,6 +1232,45 @@ app.get('/api/ai/tts/voices', async (req, res) => {
   return res.json({ voices: ttsService.publicVoices() });
 });
 
+// ── Page Notes: image → structured markdown ───────────────────────────────────
+const { handlePageNotes, handleQuizFromPageNotes } = require('./ai/PageNotesService');
+
+app.post('/api/ai/page-notes', (req, res) =>
+  gateway.handle(req, res, {
+    endpoint: 'page-notes',
+    extractInputText: () => 'image page transcription',
+    validate: (body) => {
+      if (!body.imageBase64 || typeof body.imageBase64 !== 'string') {
+        return { ok: false, code: 'MISSING_IMAGE', message: 'imageBase64 (base64 JPEG/PNG) is required.' };
+      }
+      return { ok: true };
+    },
+    handler: handlePageNotes,
+    validateOutput: (result) =>
+      result && typeof result.markdown === 'string' && result.markdown.trim().length > 0
+        ? { valid: true, data: result }
+        : { valid: false, error: 'AI returned empty page notes' },
+  })
+);
+
+app.post('/api/ai/quiz-from-page-notes', (req, res) =>
+  gateway.handle(req, res, {
+    endpoint: 'flashcards',  // reuse flashcards quota/rate since quiz-from-page-notes is quiz-tier
+    extractInputText: (body) => body.text || '',
+    validate: (body) => {
+      if (!body.text || typeof body.text !== 'string' || !body.text.trim()) {
+        return { ok: false, code: 'MISSING_TEXT', message: 'text (page notes markdown) is required.' };
+      }
+      return { ok: true };
+    },
+    handler: handleQuizFromPageNotes,
+    validateOutput: (result) =>
+      result && Array.isArray(result.questions) && result.questions.length > 0
+        ? { valid: true, data: result }
+        : { valid: false, error: 'No quiz questions generated' },
+  })
+);
+
 // Internal: announce a new app version to ALL users via FCM topic broadcast.
 // Guarded by the x-admin-key header (must match ADMIN_API_KEY env var).
 app.post('/internal/broadcast-update', async (req, res) => {

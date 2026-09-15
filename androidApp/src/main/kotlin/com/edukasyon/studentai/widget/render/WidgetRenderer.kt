@@ -115,27 +115,33 @@ object WidgetRenderer {
 
     // ===== Pieces =====
 
+    private const val TAG = "WidgetV2"
+
     private fun paintBackground(context: Context, views: RemoteViews, config: WidgetConfig) {
         val (w, h) = widgetSizeDp(context, config)
-        // Pixel cap: long edge in dp scaled to device density, bounded by
-        // the 384px Binder-safe hard ceiling (never larger — ~1 MB limit).
         val capPx = (maxOf(w, h) * context.resources.displayMetrics.density)
             .toInt().coerceAtMost(384).coerceAtLeast(120)
-        // 1. Custom photo background (if configured and readable).
         val photoPath = config.backgroundImagePath
+        android.util.Log.i(TAG, "paintBg: id=${config.appWidgetId} photoPath=${photoPath?.take(50)} w=$w h=$h capPx=$capPx")
         if (!photoPath.isNullOrBlank()) {
+            val file = java.io.File(photoPath)
+            android.util.Log.i(TAG, "paintBg: file exists=${file.exists()} readable=${file.canRead()} size=${if(file.exists()) file.length() else 0}")
             val decoded = decodeCappedBitmap(photoPath, w, h, capPx)
             if (decoded != null) {
+                android.util.Log.i(TAG, "paintBg: decoded OK ${decoded.width}x${decoded.height}")
                 runCatching {
                     views.setImageViewBitmap(R.id.v2_bg, decoded)
+                    android.util.Log.i(TAG, "paintBg: setImageViewBitmap OK")
                 }.onFailure {
-                    // Binder-too-large or RemoteViews rejection: fall through to preset.
+                    android.util.Log.e(TAG, "paintBg: setImageViewBitmap FAILED", it)
                     fallbackBackground(context, views, config, w, h, capPx)
                 }
                 return
+            } else {
+                android.util.Log.w(TAG, "paintBg: decodeCappedBitmap returned NULL")
             }
         }
-        // 2. Preset design bitmap (with its own internal fallback).
+        android.util.Log.i(TAG, "paintBg: using DESIGN preset")
         fallbackBackground(context, views, config, w, h, capPx)
     }
 
@@ -203,17 +209,19 @@ object WidgetRenderer {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(path, bounds)
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-            // Cap the long edge to the caller-provided pixel budget (384px hard
-            // ceiling — Binder transaction limit), never larger.
+            // Cap the long edge to the pixel budget (sample-size decode).
             val sample = computeSampleSize(bounds.outWidth, bounds.outHeight, maxPx)
             val opts = BitmapFactory.Options().apply { inSampleSize = sample }
             val decoded = BitmapFactory.decodeFile(path, opts) ?: return null
-            // Scale to exact target (centerCrop-like via exact fit).
-            val density = 1f // already in px budget, not device dp
-            val targetW = (widthDp * density).toInt().coerceAtMost(maxPx).coerceAtLeast(1)
-            val targetH = (heightDp * density).toInt().coerceAtMost(maxPx).coerceAtLeast(1)
-            if (decoded.width != targetW || decoded.height != targetH) {
-                val scaled = android.graphics.Bitmap.createScaledBitmap(decoded, targetW, targetH, true)
+            // Preserve aspect ratio: the ImageView is centerCrop, so exact
+            // target fitting here would STRETCH the photo (square into a
+            // 2x3 cell). Only trim the long edge to the cap; no distortion.
+            val longest = maxOf(decoded.width, decoded.height)
+            if (longest > maxPx) {
+                val ratio = maxPx.toFloat() / longest
+                val w = (decoded.width * ratio).toInt().coerceAtLeast(1)
+                val h = (decoded.height * ratio).toInt().coerceAtLeast(1)
+                val scaled = android.graphics.Bitmap.createScaledBitmap(decoded, w, h, true)
                 if (scaled != decoded) decoded.recycle()
                 return scaled
             }

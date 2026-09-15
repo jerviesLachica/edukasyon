@@ -264,10 +264,34 @@ private val ORDERED_LIST_REGEX = Regex("""^\s*(\d+)\.\s+(.+)$""")
 internal fun hasRichContent(markdown: String): Boolean {
     if (markdown.contains("```mermaid")) return true
     if (markdown.contains("```chart")) return true
-    // Display math $$...$$
-    if (Regex("""\$\$[\s\S]+?\$\$""").containsMatchIn(markdown)) return true
-    // Inline math $...$ (at least one non-empty expression)
-    if (Regex("""(?<!\$)\$(?!\$)[^$\n]+?\$(?!\$)""").containsMatchIn(markdown)) return true
+    // Conservative $-scan: only real math expressions count. "$5 and $10"
+    // (currency) must stay on the fast Compose path.
+    return containsMath(markdown)
+}
+
+/** Mirrors renderInlineMath's scan; true when at least one $...$ holds math. */
+private fun containsMath(text: String): Boolean {
+    var i = 0
+    val n = text.length
+    while (i < n) {
+        if (i + 1 < n && text[i] == '$' && text[i + 1] == '$') {
+            val end = text.indexOf("$$", i + 2)
+            if (end != -1 && end > i + 2) {
+                if (looksLikeMath(text.substring(i + 2, end).trim())) return true
+                i = end + 2
+                continue
+            }
+        }
+        if (text[i] == '$') {
+            val end = text.indexOf('$', i + 1)
+            if (end != -1 && end > i + 1) {
+                if (looksLikeMath(text.substring(i + 1, end).trim())) return true
+                i = end + 1
+                continue
+            }
+        }
+        i++
+    }
     return false
 }
 

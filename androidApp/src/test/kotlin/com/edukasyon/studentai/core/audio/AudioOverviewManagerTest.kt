@@ -98,4 +98,58 @@ class AudioOverviewManagerTest {
         assertEquals(null, reqs[0].rate)
         assertEquals(null, reqs[0].pitch)
     }
+
+    // --- naturalness v2: per-line jitter ---------------------------------------
+
+    @Test
+    fun jitterFor_sameLineIndex_isDeterministic() {
+        val a = AudioOverviewManager.jitterFor(3, "+4%", "-2Hz")
+        val b = AudioOverviewManager.jitterFor(3, "+4%", "-2Hz")
+        assertEquals(a, b)
+    }
+
+    @Test
+    fun jitterFor_acrossTenIndices_atLeastOneDiffers() {
+        val outs = (0..9).map { AudioOverviewManager.jitterFor(it, "+4%", "-2Hz") }
+        assertTrue("jitter never varies", outs.distinct().size > 1)
+    }
+
+    @Test
+    fun jitterFor_formatsSignedRatePercentAndSignedPitchHz() {
+        for (i in 0..9) {
+            val (rate, pitch) = AudioOverviewManager.jitterFor(i, null, null)
+            assertTrue("rate '$rate' not +N%/-N%", Regex("""^[+-]\d+%$""").matches(rate))
+            assertTrue("pitch '$pitch' not +NHZ", Regex("""^[+-]\d+Hz$""").matches(pitch))
+        }
+    }
+
+    @Test
+    fun jitterFor_respectsBackendClamps_atBothExtremes() {
+        for (i in 0..19) {
+            val (rate, pitch) = AudioOverviewManager.jitterFor(i, "+100%", "+100Hz")
+            assertTrue(rate, rate.removeSuffix("%").toInt() in -50..100)
+            assertTrue(pitch, pitch.removeSuffix("Hz").toInt() in -100..100)
+            val (r2, p2) = AudioOverviewManager.jitterFor(i, "-50%", "-100Hz")
+            assertTrue(r2, r2.removeSuffix("%").toInt() in -50..100)
+            assertTrue(p2, p2.removeSuffix("Hz").toInt() in -100..100)
+        }
+    }
+
+    @Test
+    fun jitterFor_nullBaseMeansZero_andStaysWithinJitterWindow() {
+        for (i in 0..9) {
+            val (rate, pitch) = AudioOverviewManager.jitterFor(i, null, null)
+            assertTrue(rate, rate.removeSuffix("%").toInt() in -4..4)
+            assertTrue(pitch, pitch.removeSuffix("Hz").toInt() in -15..15)
+        }
+    }
+
+    @Test
+    fun previewRequestsFor_haveNoJitter() {
+        // Previews stay on the raw theme prosody (deterministic audition).
+        val theme = PodcastThemes.byId("hot_seats")
+        val reqs = AudioOverviewManager.previewRequestsFor(theme)
+        assertEquals(theme.prosodyA.rate, reqs[0].rate)
+        assertEquals(theme.prosodyB.rate, reqs[1].rate)
+    }
 }

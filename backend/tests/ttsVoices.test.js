@@ -21,7 +21,7 @@ const {
 } = require('../ai/TtsService');
 const { app } = require('../server');
 
-const CATALOG_IDS = ['female', 'male', 'aria', 'guy', 'jenny', 'davis', 'sonia'];
+const CATALOG_IDS = ['female', 'male', 'aria', 'guy', 'jenny', 'davis', 'sonia', 'andrew', 'ava'];
 const EXPECTED_VOICE_NAMES = {
   female: 'en-US-AriaNeural',
   male: 'en-US-GuyNeural',
@@ -30,6 +30,8 @@ const EXPECTED_VOICE_NAMES = {
   jenny: 'en-US-JennyNeural',
   davis: 'en-US-DavisNeural',
   sonia: 'en-GB-SoniaNeural',
+  andrew: 'en-US-AndrewMultilingualNeural',
+  ava: 'en-US-AvaMultilingualNeural',
 };
 
 /** Jest-less stub: TtsService.synthesize accepts an injectable EdgeTTS ctor. */
@@ -61,6 +63,41 @@ describe('resolveVoiceId', () => {
     assert.equal(resolveVoiceId('male').alias, true);
   });
 
+  it('multilingual dialogue voices andrew/ava are real (non-alias) catalog entries', () => {
+    const andrew = resolveVoiceId('andrew');
+    const ava = resolveVoiceId('ava');
+    assert.ok(andrew, 'andrew must resolve (Kotlin lane contract)');
+    assert.ok(ava, 'ava must resolve (Kotlin lane contract)');
+    assert.equal(andrew.label, 'Andrew');
+    assert.equal(andrew.gender, 'male');
+    assert.equal(andrew.locale, 'en-US');
+    assert.equal(andrew.shortName, 'en-US-AndrewMultilingualNeural');
+    assert.equal(andrew.voiceName, 'en-US-AndrewMultilingualNeural');
+    assert.equal(andrew.alias, undefined);
+    assert.equal(ava.label, 'Ava');
+    assert.equal(ava.gender, 'female');
+    assert.equal(ava.locale, 'en-US');
+    assert.equal(ava.shortName, 'en-US-AvaMultilingualNeural');
+    assert.equal(ava.voiceName, 'en-US-AvaMultilingualNeural');
+    assert.equal(ava.alias, undefined);
+    // publicVoices() lists the non-alias entries only → 7 voices, last two andrew/ava.
+    const pub = publicVoices();
+    assert.equal(pub.length, 7);
+    assert.deepEqual(pub.map((v) => v.id), ['aria', 'guy', 'jenny', 'davis', 'sonia', 'andrew', 'ava']);
+  });
+
+  it('multilingual voices synthesize through their MultilingualNeural shortName', async () => {
+    for (const [id, voiceName] of [
+      ['andrew', 'en-US-AndrewMultilingualNeural'],
+      ['ava', 'en-US-AvaMultilingualNeural'],
+    ]) {
+      const { calls, Ctor } = stubEdgeTts();
+      await synthesize('bonjour, how are you', id, { rate: '+4%', pitch: '-2Hz' }, Ctor);
+      assert.equal(calls[0].voiceName, voiceName);
+      assert.deepEqual(calls[0].options, { rate: '+4%', pitch: '-2Hz' });
+    }
+  });
+
   it('rejects unknown, empty, case-wrong and non-string ids', () => {
     assert.equal(resolveVoiceId('rogue-voice'), null);
     assert.equal(resolveVoiceId(''), null);
@@ -75,7 +112,9 @@ describe('resolveVoiceId', () => {
       assert.ok(v.label && typeof v.label === 'string');
       assert.ok(['female', 'male'].includes(v.gender), `${v.id} gender`);
       assert.match(v.locale, /^[a-z]{2}-[A-Z]{2}$/);
-      assert.ok(/^[A-Z][a-z]+$/.test(v.shortName), `${v.id} shortName`);
+      // Bare style ('Aria') or full Edge style ('en-US-AndrewMultilingualNeural',
+      // used by the multilingual voices whose shortName IS the Edge short name).
+      assert.ok(/^[A-Z][a-z]+$/.test(v.shortName) || /^[a-z]{2}-[A-Z]{2}-\w+Neural$/.test(v.shortName), `${v.id} shortName`);
     }
   });
 });
@@ -210,7 +249,7 @@ describe('GET /api/ai/tts/voices (live app)', () => {
 
   after(() => new Promise((resolve) => httpServer.close(resolve)));
 
-  it('returns the 5 real voices, no aliases, exact field shape', async () => {
+  it('returns the 7 real voices, no aliases, exact field shape', async () => {
     const res = await fetch(`${baseUrl}/api/ai/tts/voices`, {
       headers: { 'x-device-id': 'lane-b-test-device' },
     });
@@ -223,6 +262,8 @@ describe('GET /api/ai/tts/voices (live app)', () => {
         { id: 'jenny', label: 'Jenny', gender: 'female', locale: 'en-US' },
         { id: 'davis', label: 'Davis', gender: 'male', locale: 'en-US' },
         { id: 'sonia', label: 'Sonia', gender: 'female', locale: 'en-GB' },
+        { id: 'andrew', label: 'Andrew', gender: 'male', locale: 'en-US' },
+        { id: 'ava', label: 'Ava', gender: 'female', locale: 'en-US' },
       ],
     });
   });

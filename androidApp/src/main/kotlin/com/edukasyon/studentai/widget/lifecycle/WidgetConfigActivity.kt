@@ -98,6 +98,7 @@ class WidgetConfigActivity : ComponentActivity() {
                 secondaryColorHex = "#F8B195"
             ) {
                 V2ConfigScreen(
+                    appWidgetId = appWidgetId,
                     initialType = existing?.displayType ?: WidgetDisplayType.TASKS,
                     initialDesign = existing?.designPreset ?: WidgetDesignPreset.LINE_GRID,
                     initialPhotoPath = existing?.backgroundImagePath,
@@ -124,6 +125,9 @@ class WidgetConfigActivity : ComponentActivity() {
             backgroundImagePath = photoPath
         )
         WidgetConfigStore.save(this, config)
+        // The saved config now points at photoPath (or null). Superseded
+        // copies of THIS widget can finally go.
+        if (photoPath != null) pruneOldPhotos(id, photoPath) else pruneOldPhotos(id, null)
         Log.i(TAG, "WIDGET_CONFIG_LOADED: saved id=$id $type/$design bgPath=${photoPath?.take(30)}... (CONFIGURATION_SAVED)")
         // 3-4. Rebuild + render through the manager BEFORE RESULT_OK.
         lifecycleScope.launch {
@@ -161,6 +165,7 @@ class WidgetConfigActivity : ComponentActivity() {
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun V2ConfigScreen(
+    appWidgetId: Int,
     initialType: WidgetDisplayType,
     initialDesign: WidgetDesignPreset,
     initialPhotoPath: String?,
@@ -177,7 +182,9 @@ private fun V2ConfigScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            val savedPath = context.copyAndScalePhoto(uri)
+            // Copy only — old files are pruned at SAVE time. Deleting on pick
+            // would destroy the previous photo if the user cancels.
+            val savedPath = context.copyPhotoForWidget(appWidgetId, uri)
             if (savedPath != null) {
                 photoPath = savedPath
             }
@@ -385,28 +392,42 @@ private fun previewItems(displayType: WidgetDisplayType): List<String> {
 /**
  * Copies a content URI (from the photo picker) into app-private storage,
  * downscales it to a Binder-safe size, and returns the absolute file path.
- * Returns null if the URI cannot be read or processed safely.
+ * File name is deterministic per widget id + timestamp so save-time pruning
+ * can identify superseded copies. Returns null if the URI cannot be read.
  */
-private fun Context.copyAndScalePhoto(uri: Uri, maxPx: Int = 512): String? {
+private fun Context.copyPhotoForWidget(appWidgetId: Int, uri: Uri, maxPx: Int = 512): String? {
     return try {
         // No persistable-permission call here: the picker used GetContent(),
         // whose transient grant rejects persistence claims. We copy the bytes
         // immediately under that transient grant instead.
-        val dir = File(filesDir, "widget-bg").apply { mkdirs() }
-        val outFile = File(dir, "widget_bg_${System.currentTimeMillis()}.png")
+        val dir = File(filesDir, "widget_photos").apply { mkdirs() }
+        val outFile = File(dir, "widget_${appWidgetId}_${System.currentTimeMillis()}.png")
         val bitmap = decodeCappedPhoto(uri, maxPx) ?: return null
         FileOutputStream(outFile).use { out ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 95, out)
         }
         if (bitmap.isRecycled.not()) bitmap.recycle()
-        // Orphan cleanup: the previous copies are superseded by outFile, so
-        // drop older widget_bg_*.png before handing the new path back.
-        dir.listFiles { f ->
-            f.isFile && f.name.startsWith("widget_bg_") && f.name != outFile.name
-        }?.forEach { it.delete() }
+        // NOTE: no pick-time deletion — cancelling the picker must not
+        // destroy the photo a live widget still references. Pruning happens
+        // in pruneOldPhotos() after a successful save.
         outFile.absolutePath
     } catch (_: Exception) {
         null
+    }
+}
+
+/**
+ * After a config save, delete superseded photo copies for THIS widget id
+ * (keeping the newly active file). Photos of other widget instances and the
+ * design generator's cache dir are untouched. Also used on widget deletion
+ * (keepPath = null) to reclaim the last photo.
+ */
+internal fun Context.pruneOldPhotos(appWidgetId: Int, keepPath: String?) {
+    runCatching {
+        val dir = File(filesDir, "widget_photos")
+        dir.listFiles { f ->
+            f.isFile && f.name.startsWith("widget_${appWidgetId}_") && f.absolutePath != keepPath
+        }?.forEach { it.delete() }
     }
 }
 

@@ -53,7 +53,13 @@ interface AiApiService {
         @Streaming
         @POST("api/ai/tts")
         suspend fun synthesizeSpeech(@Body request: TtsRequest): okhttp3.ResponseBody
-    }
+
+        @POST("api/ai/page-notes")
+        suspend fun pageNotes(@Body request: PageNotesRequest): PageNotesResponse
+        }
+
+@Serializable data class PageNotesRequest(val imageBase64: String)
+@Serializable data class PageNotesResponse(val markdown: String)
 
 @Serializable data class TtsRequest(val text: String, val voice: String = "female", val rate: String? = null, val pitch: String? = null)
 

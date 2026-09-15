@@ -33,9 +33,10 @@ import com.edukasyon.studentai.data.local.entity.*
         CachedHolidayEntity::class,
         LectureFileEntity::class,
         SourceEntity::class,
-        SourceChunkEntity::class
+        SourceChunkEntity::class,
+        PageNoteCacheEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class StudentAiDatabase : RoomDatabase() {
@@ -63,4 +64,5 @@ abstract class StudentAiDatabase : RoomDatabase() {
     abstract fun sourceDao(): SourceDao
     abstract fun cachedHolidayDao(): CachedHolidayDao
     abstract fun lectureFileDao(): LectureFileDao
+    abstract fun pageNoteCacheDao(): PageNoteCacheDao
 }

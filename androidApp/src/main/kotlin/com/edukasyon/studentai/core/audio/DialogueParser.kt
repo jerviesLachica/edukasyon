@@ -15,7 +15,12 @@ package com.edukasyon.studentai.core.audio
  */
 object DialogueParser {
 
-    data class Line(val speaker: Char, val text: String)
+    /**
+     * topicBreak: naturalness v2 — true when the raw script had a blank line
+     * immediately before this line (start of a new topic group → longer pause).
+     * The first parsed line is never a break.
+     */
+    data class Line(val speaker: Char, val text: String, val topicBreak: Boolean = false)
 
     // label = up to 30 chars starting/ending with a letter (dots/apostrophes/hyphens/space
     // allowed inside, e.g. "Prof. Chen" or "Co-host"), followed by ':' or '—'/'–'.
@@ -26,9 +31,15 @@ object DialogueParser {
         if (script.isBlank()) return emptyList()
         val assigned = HashMap<String, Char>() // label -> slot, first-occurrence order
         val out = mutableListOf<Line>()
+        var sawBlank = false
         for (raw in script.lineSequence()) {
             val line = raw.trim()
-            if (line.isEmpty()) continue
+            if (line.isEmpty()) {
+                sawBlank = true
+                continue
+            }
+            val breakForThis = sawBlank && out.isNotEmpty()
+            sawBlank = false // any non-blank line resets the pending break
             val m = markerRegex.find(line) ?: continue
             val label = m.groupValues[1].trim().trimEnd('.').uppercase()
             val text = clean(m.groupValues[2])
@@ -44,7 +55,7 @@ object DialogueParser {
                     }
                 }
             }
-            out += Line(speaker, text)
+            out += Line(speaker, text, breakForThis)
         }
         return out
     }

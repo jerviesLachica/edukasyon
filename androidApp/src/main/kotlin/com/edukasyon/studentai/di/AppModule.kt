@@ -19,6 +19,7 @@ import com.edukasyon.studentai.data.local.MIGRATION_8_9
 import com.edukasyon.studentai.data.local.MIGRATION_9_10
 import com.edukasyon.studentai.data.local.MIGRATION_10_11
 import com.edukasyon.studentai.data.local.MIGRATION_11_12
+import com.edukasyon.studentai.data.local.MIGRATION_12_13
 import com.edukasyon.studentai.data.repository.AiConversationRepositoryImpl
 import com.edukasyon.studentai.data.repository.AssignmentRepositoryImpl
 import com.edukasyon.studentai.data.repository.CalendarRepositoryImpl
@@ -85,6 +86,7 @@ object DatabaseModule {
                 MIGRATION_9_10,
                 MIGRATION_10_11,
                 MIGRATION_11_12,
+                MIGRATION_12_13,
             )
         if (BuildConfig.DEBUG) {
             // Recover from schema validation failures during development without manual app-data clears.
@@ -117,6 +119,7 @@ object DatabaseModule {
     @Provides fun provideCachedHolidayDao(db: StudentAiDatabase) = db.cachedHolidayDao()
     @Provides fun provideLectureFileDao(db: StudentAiDatabase) = db.lectureFileDao()
     @Provides fun provideSourceDao(db: StudentAiDatabase) = db.sourceDao()
+    @Provides fun providePageNoteCacheDao(db: StudentAiDatabase) = db.pageNoteCacheDao()
 }
 
 @Module

@@ -20,13 +20,13 @@ internal fun buildRichContentHtml(
 
     val bodyHtml = buildString {
         val blocks = splitContentBlocks(content)
-        for (block in blocks) {
+        blocks.forEachIndexed { blockIndex, block ->
             when {
                 block.isCodeFence && block.lang == "mermaid" -> {
                     append("""<div class="mermaid">${escapeHtml(block.code)}</div>""")
                 }
                 block.isCodeFence && block.lang == "chart" -> {
-                    val chartId = "chart_${blocks.indexOf(block)}"
+                    val chartId = "chart_$blockIndex"
                     append("""<div class="chart-container"><canvas id="$chartId"></canvas></div>""")
                     append(
                         """<script>
@@ -46,7 +46,7 @@ try {
                     append("""<pre class="code-block"><code class="language-${lang}">${escapeHtml(block.code)}</code></pre>""")
                 }
                 else -> {
-                    val withMath = renderInlineMath(block.text)
+                    val withMath = renderInlineMath(block.text, "b$blockIndex")
                     append("""<p class="msg-text">$withMath</p>""")
                 }
             }
@@ -87,8 +87,6 @@ mermaid.initialize({
 document.addEventListener('DOMContentLoaded',function(){
     renderMathInElement(document.body,{
         delimiters:[
-            {left:'$$',right:'$$',display:true},
-            {left:'$',right:'$',display:false},
             {left:'\\(',right:'\\)',display:false},
             {left:'\\[',right:'\\]',display:true},
         ],
@@ -152,37 +150,46 @@ internal fun splitContentBlocks(content: String): List<ContentBlock> {
     return blocks
 }
 
-/** Render inline $...$ and display $$...$$ math as KaTeX spans. */
-internal fun renderInlineMath(text: String): String {
+/**
+ * Render inline $...$ and display $$...$$ math as KaTeX spans.
+ * [idPrefix] must be unique per call site — sequential call indices keep
+ * element IDs globally distinct (a plain text index collides across blocks).
+ */
+internal fun renderInlineMath(text: String, idPrefix: String): String {
     val sb = StringBuilder()
     var i = 0
     while (i < text.length) {
         // Display math $$...$$
         if (i + 1 < text.length && text[i] == '$' && text[i + 1] == '$') {
             val end = text.indexOf("$$", i + 2)
-            if (end != -1) {
+            if (end != -1 && end > i + 2) {
                 val expr = text.substring(i + 2, end).trim()
-                val id = "dm_${i}"
-                sb.append("""<span id="$id"></span>""")
-                sb.append(
-                    """<script>try{katex.render('${escapeJs(expr)}',document.getElementById('$id'),{displayMode:true,throwOnError:false})}catch(e){document.getElementById('$id').textContent='$expr'}</script>"""
-                )
-                i = end + 2
-                continue
+                if (looksLikeMath(expr)) {
+                    val id = "${idPrefix}_d$i"
+                    sb.append("""<span id="$id"></span>""")
+                    sb.append(
+                        """<script>try{katex.render('${escapeJs(expr)}',document.getElementById('$id'),{displayMode:true,throwOnError:false})}catch(e){document.getElementById('$id').textContent='${escapeJs(expr)}'}</script>"""
+                    )
+                    i = end + 2
+                    continue
+                }
             }
         }
-        // Inline math $...$
+        // Inline math $...$ (only when it actually looks like math —
+        // "$5 and $10" must stay literal currency text)
         if (text[i] == '$') {
             val end = text.indexOf('$', i + 1)
             if (end != -1 && end > i + 1) {
                 val expr = text.substring(i + 1, end).trim()
-                val id = "im_${i}"
-                sb.append("""<span id="$id"></span>""")
-                sb.append(
-                    """<script>try{katex.render('${escapeJs(expr)}',document.getElementById('$id'),{displayMode:false,throwOnError:false})}catch(e){document.getElementById('$id').textContent='$expr'}</script>"""
-                )
-                i = end + 1
-                continue
+                if (looksLikeMath(expr)) {
+                    val id = "${idPrefix}_i$i"
+                    sb.append("""<span id="$id"></span>""")
+                    sb.append(
+                        """<script>try{katex.render('${escapeJs(expr)}',document.getElementById('$id'),{displayMode:false,throwOnError:false})}catch(e){document.getElementById('$id').textContent='${escapeJs(expr)}'}</script>"""
+                    )
+                    i = end + 1
+                    continue
+                }
             }
         }
         sb.append(escapeHtml(text[i].toString()))
@@ -191,8 +198,26 @@ internal fun renderInlineMath(text: String): String {
     return sb.toString()
 }
 
+/**
+ * Heuristic: real LaTeX contains markup or math operators, or is a single
+ * tight token. Rejects currency runs like "5 and " and bare numbers.
+ */
+internal fun looksLikeMath(expr: String): Boolean {
+    if (expr.isBlank()) return false
+    if (expr.contains('\\')) return true
+    if (Regex("""[_^{}=]""").containsMatchIn(expr)) return true
+    if (Regex("""\d\s*[+\-*/<>=]\s*\d""").containsMatchIn(expr)) return true
+    // No spaces + short + has letters/digits (e.g. "x^2" handled above;
+    // "E=mc2" too) — but reject multi-word prose.
+    return !expr.contains(' ') && Regex("""^[A-Za-z0-9.,;!?]+$""").matches(expr).not() &&
+        Regex("""^[A-Za-z0-9]+$""").matches(expr)
+}
+
 private fun escapeHtml(s: String): String =
     s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
 private fun escapeJs(s: String): String =
-    s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "")
+    s.replace("\\", "\\\\").replace("'", "\\'")
+        .replace("\n", "\\n").replace("\r", "")
+        // Neutralize "</script" so embedded strings can never close the tag.
+        .replace("<", "\\u003C")

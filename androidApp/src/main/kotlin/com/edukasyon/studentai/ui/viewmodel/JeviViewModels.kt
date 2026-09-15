@@ -3,6 +3,7 @@ package com.edukasyon.studentai.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.edukasyon.studentai.core.gamification.GizmoGamificationManager
+import com.edukasyon.studentai.core.document.DocumentPipeline
 import com.edukasyon.studentai.domain.model.Flashcard
 import com.edukasyon.studentai.domain.model.JeviConstants
 import com.edukasyon.studentai.domain.model.JeviDashboard
@@ -595,7 +596,14 @@ class JeviCreateViewModel @Inject constructor(
             _uiState.update { it.copy(error = "Could not read text from this document.") }
             return
         }
-        _uiState.update { it.copy(topic = text.take(4000), error = null) }
+        // Cap at 60k chars (DocumentPipeline.MAX_PAYLOAD_CHARS) with explicit warning
+        val capped = if (text.length > com.edukasyon.studentai.core.document.DocumentPipeline.MAX_PAYLOAD_CHARS) {
+            _uiState.update { it.copy(
+                error = "Document is ${text.length} chars. Only the first 60,000 characters will be used for generation."
+            ) }
+            text.take(com.edukasyon.studentai.core.document.DocumentPipeline.MAX_PAYLOAD_CHARS)
+        } else text
+        _uiState.update { it.copy(topic = capped, error = null) }
         generate()
     }
 
@@ -806,7 +814,14 @@ class JeviQuizViewModel @Inject constructor(
             _uiState.update { it.copy(error = "Could not read text from this document.") }
             return
         }
-        _uiState.update { it.copy(topic = text.take(4000), error = null) }
+        // Cap at 60k chars (DocumentPipeline.MAX_PAYLOAD_CHARS) with explicit warning
+        val capped = if (text.length > com.edukasyon.studentai.core.document.DocumentPipeline.MAX_PAYLOAD_CHARS) {
+            _uiState.update { it.copy(
+                error = "Document is ${text.length} chars. Only the first 60,000 characters will be used for generation."
+            ) }
+            text.take(com.edukasyon.studentai.core.document.DocumentPipeline.MAX_PAYLOAD_CHARS)
+        } else text
+        _uiState.update { it.copy(topic = capped, error = null) }
         generate()
     }
 

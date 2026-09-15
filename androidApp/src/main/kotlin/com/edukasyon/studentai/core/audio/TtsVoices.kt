@@ -21,6 +21,8 @@ object TtsVoices {
         TtsVoice(id = "jenny", label = "Jenny", gender = "female", locale = "en-US"),
         TtsVoice(id = "davis", label = "Davis", gender = "male", locale = "en-US"),
         TtsVoice(id = "sonia", label = "Sonia", gender = "female", locale = "en-GB"),
+        TtsVoice(id = "andrew", label = "Andrew", gender = "male", locale = "en-US"),
+        TtsVoice(id = "ava", label = "Ava", gender = "female", locale = "en-US"),
     )
 
     /** "Aria · F · en-US" for pickers; falls back to the raw id if unknown. */

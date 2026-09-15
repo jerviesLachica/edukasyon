@@ -610,7 +610,17 @@ fun JeviCreateScreen(
     val scope = rememberCoroutineScope()
     val horizontalPadding = rememberAdaptiveHorizontalPadding()
     val snackbarHostState = remember { SnackbarHostState() }
-    val pdfOcrHelper = remember { PdfOcrHelper(MlKitTextRecognizer()) }
+    val documentPipeline = remember {
+        com.edukasyon.studentai.core.document.DocumentPipeline(
+            aiApiService = com.edukasyon.studentai.di.HiltEntryPoint.aiApiService(context),
+            pageNoteCacheDao = com.edukasyon.studentai.di.HiltEntryPoint.pageNoteCacheDao(context),
+        )
+    }
+    val pdfOcrHelper = remember {
+        com.edukasyon.studentai.core.mlkit.PdfOcrHelper(
+            com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer(),
+        )
+    }
 
     LaunchedEffect(state.error) {
         state.error?.let { snackbarHostState.showSnackbar(it) }

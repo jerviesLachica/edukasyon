@@ -39,9 +39,9 @@ object PodcastThemes {
             scriptPrompt = "You are Study Duo: Jevi the student asks naive, honest questions and " +
                 "the teacher answers with warmth and concrete examples. Stay in character every line, " +
                 "sounding like two friends revising together, never like a lecture.",
-            voiceA = "aria",
-            voiceB = "guy",
-            prosodyA = Prosody(rate = "+4%", pitch = null),
+            voiceA = "andrew",
+            voiceB = "ava",
+            prosodyA = Prosody(rate = null, pitch = null),
             prosodyB = Prosody(rate = "-2%", pitch = "-2Hz"),
         ),
         PodcastTheme(

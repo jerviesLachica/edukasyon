@@ -1,6 +1,7 @@
 package com.edukasyon.studentai.core.audio
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,10 +27,22 @@ class PodcastThemesTest {
     @Test
     fun voicePairs_matchPlanContract() {
         val byId = PodcastThemes.default.associateBy { it.id }
-        assertEquals("aria" to "guy", pair(byId.getValue("study_duo")))
+        // naturalness v2: Study Duo moves to the multilingual Andrew/Ava pair
+        assertEquals("andrew" to "ava", pair(byId.getValue("study_duo")))
         assertEquals("jenny" to "davis", pair(byId.getValue("hot_seats")))
         assertEquals("sonia" to "guy", pair(byId.getValue("story_time")))
         assertEquals("aria" to "davis", pair(byId.getValue("debate_club")))
+    }
+
+    @Test
+    fun studyDuo_neutralBaseProsody_zeroOffsetsForJitter() {
+        val t = PodcastThemes.byId("study_duo")
+        // naturalness v2: study_duo leans on per-line jitter for variation, so
+        // its speaker A base rate/pitch are the library default (null = 0)
+        // while B keeps a small offset so the two voices still differ.
+        assertEquals(null, t.prosodyA.rate)
+        assertEquals(null, t.prosodyA.pitch)
+        assertNotEquals(t.prosodyA, t.prosodyB)
     }
 
     @Test

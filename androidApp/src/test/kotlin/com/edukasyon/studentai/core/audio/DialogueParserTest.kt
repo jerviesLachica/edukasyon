@@ -75,4 +75,29 @@ class DialogueParserTest {
     fun parse_emptyDialogueAfterTag_dropsLine() {
         assertEquals(1, DialogueParser.parse("A: \nB: something").size)
     }
+
+    // --- naturalness v2: topic breaks ----------------------------------------
+
+    @Test
+    fun parse_topicBreak_trueOnlyForLineFollowingBlank() {
+        val script = "A: first of topic one\nB: still topic one\n\nA: new topic opener\nB: same topic follow-up"
+        val lines = DialogueParser.parse(script)
+        assertEquals(4, lines.size)
+        assertEquals(listOf(false, false, true, false), lines.map { it.topicBreak })
+    }
+
+    @Test
+    fun parse_topicBreak_firstParsedLineFalseEvenWithLeadingBlanks() {
+        val lines = DialogueParser.parse("\n\nA: hello\nB: hi")
+        assertEquals(listOf(false, false), lines.map { it.topicBreak })
+    }
+
+    @Test
+    fun parse_topicBreak_runOfBlanksCountsOnceAndSurvivesProseBeforeTag() {
+        val lines = DialogueParser.parse("A: x\n\n\nSome scene note\nB: y")
+        assertEquals(2, lines.size)
+        // the non-blank prose line resets the break: only a blank *immediately*
+        // before the next parsed line marks a topic change
+        assertEquals(listOf(false, false), lines.map { it.topicBreak })
+    }
 }

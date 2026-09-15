@@ -161,7 +161,13 @@ object WidgetUpdateManager {
         }
         Log.i(TAG, "WIDGET_SNAPSHOT_BUILT: id=$appWidgetId tasks=${built.tasks.size} schedule=${built.schedule.size}")
 
-        if (previous != null && sameContent(previous.snapshot, built)) {
+        // Change-detection compares snapshot CONTENT only. A config change
+        // (new background photo, preset switch, display type) does NOT alter
+        // the content signature, so those reasons must bypass the skip or the
+        // homescreen keeps the stale design-paint forever.
+        val configForced = reason == RefreshReason.CONFIGURATION_SAVED ||
+            reason == RefreshReason.RESTORED
+        if (!configForced && previous != null && sameContent(previous.snapshot, built)) {
             Log.i(TAG, "WIDGET_RENDER_START: id=$appWidgetId unchanged, skipping platform update")
             return
         }

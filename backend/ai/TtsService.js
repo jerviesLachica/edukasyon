@@ -22,6 +22,10 @@ const VOICE_CATALOG = [
   { id: 'jenny', label: 'Jenny', gender: 'female', locale: 'en-US', shortName: 'Jenny', voiceName: 'en-US-JennyNeural' },
   { id: 'davis', label: 'Davis', gender: 'male', locale: 'en-US', shortName: 'Davis', voiceName: 'en-US-DavisNeural' },
   { id: 'sonia', label: 'Sonia', gender: 'female', locale: 'en-GB', shortName: 'Sonia', voiceName: 'en-GB-SoniaNeural' },
+  // Multilingual voices: read podcast dialogue far more naturally than the
+  // single-language set (proven against @andresaya/edge-tts with rate/pitch).
+  { id: 'andrew', label: 'Andrew', gender: 'male', locale: 'en-US', shortName: 'en-US-AndrewMultilingualNeural', voiceName: 'en-US-AndrewMultilingualNeural' },
+  { id: 'ava', label: 'Ava', gender: 'female', locale: 'en-US', shortName: 'en-US-AvaMultilingualNeural', voiceName: 'en-US-AvaMultilingualNeural' },
 ];
 
 // Derived view so pre-catalog callers/tests keep their `VOICES` contract

@@ -7,6 +7,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.annotation.VisibleForTesting
+import com.edukasyon.studentai.R
 import com.edukasyon.studentai.core.ai.AiChatRequest
 import com.edukasyon.studentai.core.ai.AiService
 import com.edukasyon.studentai.core.network.AiApiService
@@ -20,7 +22,12 @@ import java.io.IOException
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 /**
@@ -117,24 +124,12 @@ class AudioOverviewManager @Inject constructor(
                 val file = fileFor(deck.id, cacheKey(deck, cards, theme))
                 file.parentFile?.mkdirs()
                 val tmp = File(file.parentFile, file.name + ".part")
-                var done = 0
-                FileOutputStream(tmp).use { fos ->
-                    if (lines.isNotEmpty()) {
-                        // Dialogue mode: one request per line, serial, order-guaranteed.
-                        // (splitForSpeech is a no-op under the cap; guards runaway model lines.)
-                        for (line in lines) {
-                            val prosody = if (line.speaker == 'A') theme.prosodyA else theme.prosodyB
-                            val voice = if (line.speaker == 'A') theme.voiceA else theme.voiceB
-                            for (piece in splitForSpeech(line.text)) {
-                                api.synthesizeSpeech(
-                                    TtsRequest(text = piece, voice = voice, rate = prosody.rate, pitch = prosody.pitch)
-                                ).byteStream().use { input -> input.copyTo(fos) }
-                            }
-                            done += 1
-                            onProgress?.invoke(PodcastStatusEvent.Synthesizing, done, lines.size)
-                        }
-                    } else {
-                        // Monologue fallback (AC3): today's chunk path on the A voice.
+                if (lines.isNotEmpty()) {
+                    synthesizeDialogueOrdered(lines, theme, tmp, onProgress)
+                } else {
+                    // Monologue fallback (AC3): serial chunk path on the A voice —
+                    // no jitter, no pause clips: chunk boundaries already pause.
+                    FileOutputStream(tmp).use { fos ->
                         for (chunk in splitForSpeech(script)) {
                             api.synthesizeSpeech(
                                 TtsRequest(text = chunk, voice = theme.voiceA, rate = theme.prosodyA.rate, pitch = theme.prosodyA.pitch)
@@ -148,9 +143,81 @@ class AudioOverviewManager @Inject constructor(
             if (out.exists() && out.length() > 0) Result.Ready(out, partial)
             else Result.Failed("Speech synthesis produced no audio.")
         }.getOrElse {
-            Result.Failed("Speech synthesis failed: ${it.message ?: "check connection"}")
+            Result.Failed("Speech synthesis failed: " + (it.message ?: "check connection"))
         }
     }
+
+    /**
+     * Naturalness v2 dialogue path: synthesis requests run with bounded
+     * parallelism (SYNTH_CONCURRENCY workers), each line's bytes landing in its
+     * own per-line temp file; a second, strictly ordered pass concatenates the
+     * temps into [tmp] in script order (per line: audio bytes, then the pause
+     * clip — 650ms after a topic break, else 250ms) and deletes them.
+     * Concurrency can therefore never reorder the episode. Progress ticks
+     * count LINES WRITTEN in the ordered pass, not synthesis completion.
+     */
+    private suspend fun synthesizeDialogueOrdered(
+        lines: List<DialogueParser.Line>,
+        theme: PodcastTheme,
+        tmp: File,
+        onProgress: ((PodcastStatusEvent, Int, Int) -> Unit)?,
+    ) = coroutineScope {
+        val silenceShort = silenceClip(R.raw.silence_250ms)
+        val silenceLong = silenceClip(R.raw.silence_650ms)
+        val gate = Semaphore(SYNTH_CONCURRENCY)
+        // Fire every line's synthesis (bounded); each writes its own temp file.
+        val temps = lines.mapIndexed { index, line ->
+            async(Dispatchers.IO) {
+                gate.withPermit {
+                    val prosody = if (line.speaker == 'A') theme.prosodyA else theme.prosodyB
+                    val voice = if (line.speaker == 'A') theme.voiceA else theme.voiceB
+                    // Deterministic per-line jitter: same (index, base) => same
+                    // values, so regenerating an episode reproduces identical takes.
+                    val (rate, pitch) = jitterFor(index, prosody.rate, prosody.pitch)
+                    val part = File(tmp.parentFile, tmp.name + "." + index + ".piece")
+                    runCatching {
+                        FileOutputStream(part).use { fos ->
+                            // splitForSpeech is a no-op under the cap; guards runaway model lines.
+                            for (piece in splitForSpeech(line.text)) {
+                                api.synthesizeSpeech(
+                                    TtsRequest(text = piece, voice = voice, rate = rate, pitch = pitch)
+                                ).byteStream().use { input -> input.copyTo(fos) }
+                            }
+                        }
+                        part
+                    }.getOrElse {
+                        part.delete()
+                        throw it
+                    }
+                }
+            }
+        }
+        FileOutputStream(tmp).use { fos ->
+            var written = 0
+            // A failed line rethrows and cancels the scope — the episode aborts
+            // exactly like the serial v1 loop did, only faster.
+            temps.forEachIndexed { index, deferred ->
+                val part = deferred.await()
+                try {
+                    part.inputStream().use { it.copyTo(fos) }
+                    // Long beat BEFORE a topic-start line: write it after the previous
+                    // line so the gap lands at the boundary, not after the new topic's
+                    // first line.
+                    val nextStartsTopic = lines.getOrNull(index + 1)?.topicBreak == true
+                    fos.write(if (nextStartsTopic) silenceLong else silenceShort)
+                } finally {
+                    part.delete()
+                }
+                written += 1
+                onProgress?.invoke(PodcastStatusEvent.Synthesizing, written, lines.size)
+            }
+        }
+    }
+
+    /** Raw MP3 pause clip from res/raw, appended between lines like a tiny chunk. */
+    private fun silenceClip(resId: Int): ByteArray =
+        runCatching { appContext.resources.openRawResource(resId).use { it.readBytes() } }
+            .getOrDefault(ByteArray(0))
 
     /** Cached overview for the current deck contents + theme/voice mix, or null. */
     fun cachedFile(deck: JeviDeck, cards: List<Flashcard>, theme: PodcastTheme = PodcastThemes.default.first()): File? {
@@ -305,10 +372,47 @@ class AudioOverviewManager @Inject constructor(
                 append("|vb=").append(theme.voiceB)
                 append("|pa=").append(theme.prosodyA.rate).append('/').append(theme.prosodyA.pitch)
                 append("|pb=").append(theme.prosodyB.rate).append('/').append(theme.prosodyB.pitch)
+                // '|nat2': naturalness v2 (per-line jitter + pause clips) changes the
+                // audio for identical inputs — stale v1 episode files must not be served.
+                append("|nat2")
             }
             return MessageDigest.getInstance("SHA-256").digest(src.toByteArray())
                 .joinToString("") { "%02x".format(it) }.take(16)
         }
+
+        /**
+         * Naturalness v2 per-line prosody jitter: uniform ±4% rate / ±15Hz pitch
+         * around the theme's base (null base = 0), seeded by [lineIndex] so a
+         * regenerated episode reproduces identical takes. Clamped to the
+         * backend's validation bounds (rate [-50,100], pitch [-100,100] — see
+         * validateTtsRequest in backend/ai/TtsService.js).
+         */
+        @VisibleForTesting
+        internal fun jitterFor(
+            lineIndex: Int,
+            baseRate: String?,
+            basePitch: String?,
+        ): Pair<String, String> {
+            val rnd = Random(lineIndex.toLong() * -0x61C8864680B583B7L)
+            val rate = (parseSignedProsody(baseRate) + rnd.nextInt(-RATE_JITTER, RATE_JITTER + 1))
+                .coerceIn(RATE_MIN, RATE_MAX)
+            val pitch = (parseSignedProsody(basePitch) + rnd.nextInt(-PITCH_JITTER, PITCH_JITTER + 1))
+                .coerceIn(PITCH_MIN, PITCH_MAX)
+            return ("%+d%%".format(rate)) to ("%+dHz".format(pitch))
+        }
+
+        /** "+4%" / "-2Hz" / "4" -> Int; null or unparseable -> 0 (library default). */
+        private fun parseSignedProsody(value: String?): Int =
+            value?.trim()?.removeSuffix("%")?.removeSuffix("Hz")?.removePrefix("+")?.toIntOrNull() ?: 0
+
+        // --- naturalness v2 tunables (backend bounds mirror TtsService.js) ---
+        private const val SYNTH_CONCURRENCY = 6
+        private const val RATE_JITTER = 4 // ±%
+        private const val PITCH_JITTER = 15 // ±Hz
+        private const val RATE_MIN = -50
+        private const val RATE_MAX = 100
+        private const val PITCH_MIN = -100
+        private const val PITCH_MAX = 100
 
         // 'JEVI <deck> – <Theme>.mp3'
         internal fun exportedDisplayName(deckTitle: String, themeId: String): String {

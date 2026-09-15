@@ -67,6 +67,9 @@ class ScheduleWidgetProvider : android.appwidget.AppWidgetProvider() {
             // Drop per-instance state only. Never touch tasks/schedules.
             WidgetConfigStore.remove(context, id)
             WidgetSnapshotStore.remove(context, id)
+            // Reclaim this widget's background photo (keepPath=null deletes
+            // every copy belonging to the deleted id).
+            context.pruneOldPhotos(id, null)
             Log.i(TAG, "WIDGET_INIT_START: forgotten deleted id=$id")
         }
     }
