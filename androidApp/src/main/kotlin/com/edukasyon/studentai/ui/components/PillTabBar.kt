@@ -167,6 +167,9 @@ private fun HorizontalPillTabBar(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
+        // Transparent: the StarfieldScaffold background shows through the nav
+        // inset. The white band was the system contrast scrim — disabled in
+        // MainActivity (isNavigationBarContrastEnforced = false).
         color = Color.Transparent,
         tonalElevation = 0.dp,
     ) {

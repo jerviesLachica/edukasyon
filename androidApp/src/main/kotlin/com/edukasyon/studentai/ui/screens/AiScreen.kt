@@ -422,8 +422,7 @@ private fun AiTutorTab(
                 }
                 Column(
                     Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding(),
+                        .fillMaxWidth(),
                 ) {
                     attachError?.let { error ->
                         Text(
