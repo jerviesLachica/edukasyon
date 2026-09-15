@@ -13,6 +13,9 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
                 createdAt INTEGER NOT NULL
             )"""
         )
-        db.execSQL("CREATE INDEX IF NOT EXISTS index_page_note_cache_pageNum ON page_note_cache(pageNum)")
+        // No index on pageNum: PageNoteCacheEntity declares none, and Room's
+        // post-migration validation compares against the entity — creating
+        // index_page_note_cache_pageNum here made every open-from-12 migration
+        // fail validation and crash the app on first DB query (Schedule/Planner).
     }
 }
