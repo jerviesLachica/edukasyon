@@ -13,7 +13,7 @@ import javax.inject.Singleton
 sealed class ShareError(message: String, cause: Throwable? = null) : Exception(message, cause) {
     data object InvalidCode : ShareError("That code doesn't look right.")
     data object NotFound : ShareError("No share found for that code.")
-    data object PermissionDenied : ShareError("This share isn't public.")
+    data object PermissionDenied : ShareError("The share server rejected this request.")
     data object Expired : ShareError("This share has expired.")
     data object AlreadyTaken : ShareError("That code is already in use.")
     data object TooLarge : ShareError("There's too much content to share.")
@@ -82,7 +82,10 @@ class ShareRepository @Inject constructor(
         val snapshot = try {
             shares.document(code).get().await()
         } catch (e: FirebaseFirestoreException) {
-            throw wrapped(e)
+            // An expired doc also trips the read rule -> PERMISSION_DENIED; to the
+            // redeemer that's indistinguishable from gone, and it should read as such.
+            throw if (e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED)
+                ShareError.NotFound else wrapped(e)
         }
         if (!snapshot.exists()) throw ShareError.NotFound
         val data = snapshot.data ?: throw ShareError.NotFound
