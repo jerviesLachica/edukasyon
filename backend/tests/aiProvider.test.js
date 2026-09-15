@@ -71,6 +71,12 @@ describe('AiProvider OrcaRouter Integration', () => {
       status: 429,
       text: async () => 'rate limited',
     });
+    // The real 2026-09 policy error: OpenCode's free tier rejects server-side use.
+    const missingSessionId = () => ({
+      ok: false,
+      status: 400,
+      text: async () => JSON.stringify({ type: 'error', error: { type: 'MissingSessionID', message: "OpenCode's free tier can only be used in OpenCode" } }),
+    });
 
     beforeEach(() => {
       realFetch = globalThis.fetch;
@@ -92,9 +98,45 @@ describe('AiProvider OrcaRouter Integration', () => {
       });
     }
 
-    it('text chat hits Zen FIRST with the first Zen model', async () => {
+    function providerWithZenEnabled() {
+      return createAiProvider({
+        baseUrl: 'https://api.hcnsec.cn/v1',
+        apiKey: 'mock-...ec',
+        orcaBaseUrl: 'https://api.orcarouter.ai/v1',
+        orcaApiKey: 'mock-...ca',
+        zenBaseUrl: 'https://opencode.ai/zen/v1',
+        zenApiKey: 'mock-...en',
+        zenEnabled: true,
+      });
+    }
+
+    it('Zen fast lane is OPT-IN: with a key but no enable flag, text goes straight to hcnsec', async () => {
       const provider = providerWithZen();
-      assert.strictEqual(provider.hasZenKey, true);
+      assert.strictEqual(provider.zenActive, false, 'key alone must not activate Zen');
+      globalThis.fetch = async (url, opts) => {
+        calls.push({ url, body: JSON.parse(opts.body) });
+        return okReply('auto');
+      };
+      const result = await provider.chatCompletion(
+        [{ role: 'user', content: 'hi' }],
+        { isVision: false },
+      );
+      assert.strictEqual(result.reply, 'hello');
+      for (const c of calls) {
+        assert.ok(!String(c.url).includes('opencode.ai'), `must not hit Zen when not enabled, got ${c.url}`);
+      }
+      assert.ok(String(calls[0].url).includes('hcnsec'), 'first call is hcnsec');
+    });
+
+    it('enabled Zen: text chat hits Zen FIRST with the first Zen model', async () => {
+      const provider = createAiProvider({
+        baseUrl: 'https://api.hcnsec.cn/v1',
+        apiKey: 'mock-key-hcnsec',
+        zenBaseUrl: 'https://opencode.ai/zen/v1',
+        zenApiKey: 'mock-key-zen',
+        zenEnabled: true,
+      });
+      assert.strictEqual(provider.zenActive, true);
       globalThis.fetch = async (url, opts) => {
         calls.push({ url, body: JSON.parse(opts.body) });
         return okReply('nemotron-3.5-lightning-free');
@@ -112,8 +154,14 @@ describe('AiProvider OrcaRouter Integration', () => {
       assert.strictEqual(calls[0].body.model, 'nemotron-3.5-lightning-free');
     });
 
-    it('zen fast lane walks all five models in order before hcnsec', async () => {
-      const provider = providerWithZen();
+    it('enabled zen fast lane walks all five models in order before hcnsec', async () => {
+      const provider = createAiProvider({
+        baseUrl: 'https://api.hcnsec.cn/v1',
+        apiKey: 'mock-key-hcnsec',
+        zenBaseUrl: 'https://opencode.ai/zen/v1',
+        zenApiKey: 'mock-key-zen',
+        zenEnabled: true,
+      });
       globalThis.fetch = async (url, opts) => {
         calls.push({ url, body: JSON.parse(opts.body) });
         if (String(url).includes('opencode.ai')) return rateLimited();
@@ -138,11 +186,17 @@ describe('AiProvider OrcaRouter Integration', () => {
       assert.ok(String(calls[calls.length - 1].url).includes('hcnsec'), 'final fallback is hcnsec');
     });
 
-    it('text chat falls back to hcnsec when Zen returns 429', async () => {
-      const provider = providerWithZen();
+    it('zen MissingSessionID policy 400 advances to the next candidate, then hcnsec', async () => {
+      const provider = createAiProvider({
+        baseUrl: 'https://api.hcnsec.cn/v1',
+        apiKey: 'mock-key-hcnsec',
+        zenBaseUrl: 'https://opencode.ai/zen/v1',
+        zenApiKey: 'mock-key-zen',
+        zenEnabled: true,
+      });
       globalThis.fetch = async (url, opts) => {
         calls.push({ url, body: JSON.parse(opts.body) });
-        if (String(url).includes('opencode.ai')) return rateLimited();
+        if (String(url).includes('opencode.ai')) return missingSessionId();
         return okReply('auto');
       };
       const result = await provider.chatCompletion(
@@ -150,13 +204,13 @@ describe('AiProvider OrcaRouter Integration', () => {
         { isVision: false },
       );
       assert.strictEqual(result.reply, 'hello');
-      assert.ok(calls.length >= 2, 'should retry after Zen 429');
-      assert.ok(String(calls[0].url).includes('opencode.ai'), 'first call is Zen');
-      assert.ok(String(calls[calls.length - 1].url).includes('hcnsec'), 'fallback call is hcnsec');
+      const zenCalls = calls.filter((c) => String(c.url).includes('opencode.ai'));
+      assert.strictEqual(zenCalls.length, 5, 'all five zen candidates are walked');
+      assert.ok(String(calls[calls.length - 1].url).includes('hcnsec'), 'ends on hcnsec');
     });
 
     it('zen 403 advances to the next candidate (401/402/403/429 are retryable)', async () => {
-      const provider = providerWithZen();
+      const provider = providerWithZenEnabled();
       let n = 0;
       globalThis.fetch = async (url, opts) => {
         calls.push({ url, body: JSON.parse(opts.body) });
@@ -215,7 +269,7 @@ describe('AiProvider OrcaRouter Integration', () => {
     });
 
     it('thinking requests (nemotron-3.5-lightning-free slug) go to hcnsec auto, never Zen', async () => {
-      const provider = providerWithZen();
+      const provider = providerWithZenEnabled();
       globalThis.fetch = async (url, opts) => {
         calls.push({ url, body: JSON.parse(opts.body) });
         return okReply('auto');
@@ -234,7 +288,7 @@ describe('AiProvider OrcaRouter Integration', () => {
     });
 
     it('explicit thinking:true forces hcnsec auto even for AUTO model', async () => {
-      const provider = providerWithZen();
+      const provider = providerWithZenEnabled();
       globalThis.fetch = async (url, opts) => {
         calls.push({ url, body: JSON.parse(opts.body) });
         return okReply('auto');
@@ -251,7 +305,7 @@ describe('AiProvider OrcaRouter Integration', () => {
     });
 
     it('explicit thinking:false sends nemotron-3.5-lightning-free slug to Zen fast path', async () => {
-      const provider = providerWithZen();
+      const provider = providerWithZenEnabled();
       globalThis.fetch = async (url, opts) => {
         calls.push({ url, body: JSON.parse(opts.body) });
         return okReply('nemotron-3.5-lightning-free');
@@ -274,6 +328,7 @@ describe('AiProvider OrcaRouter Integration', () => {
         geminiApiKey: 'mock-key-gemini',
         zenBaseUrl: 'https://opencode.ai/zen/v1',
         zenApiKey: 'mock-key-zen',
+        zenEnabled: true,
       });
       assert.strictEqual(provider.ZEN_VISION_MODEL, 'deepseek-v4-flash-vision-exp');
       const visionMsg = [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,xx' } }] }];
@@ -297,6 +352,7 @@ describe('AiProvider OrcaRouter Integration', () => {
         geminiApiKey: 'mock-key-gemini',
         zenBaseUrl: 'https://opencode.ai/zen/v1',
         zenApiKey: 'mock-key-zen',
+        zenEnabled: true,
       });
       const visionMsg = [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,xx' } }] }];
       const denied = () => ({ ok: false, status: 429, text: async () => 'rate limited' });
@@ -529,6 +585,7 @@ describe('AiProvider thinking-mode answer collapse', () => {
       apiKey: 'mock-key-hcnsec',
       zenBaseUrl: 'https://opencode.ai/zen/v1',
       zenApiKey: 'mock-key-zen',
+      zenEnabled: true,
     });
     let n = 0;
     globalThis.fetch = async (url, opts) => {

@@ -116,7 +116,13 @@ function createAiProvider(config = {}) {
   // (OpenAI-compatible /v1, Authorization Bearer — same sender shape as
   // orca/cerebras, only base URL and key differ). Free tier models;
   // 401/402/403/429 advance to the next candidate (see isRetryableModelError).
+  //
+  // OPT-IN since 2026-09: OpenCode policy now rejects server-side use of the
+  // free tier ("MissingSessionID — free tier can only be used in OpenCode"),
+  // so a key alone must NOT put Zen in the chain. Set ZEN_ENABLED=true only
+  // when Zen access is known to work for this deployment.
   const ZEN_API_KEY = config.zenApiKey || process.env.ZEN_API_KEY || process.env.OPENCODE_API_KEY || '';
+  const ZEN_ENABLED = String(config.zenEnabled || process.env.ZEN_ENABLED || '').toLowerCase() === 'true';
   const ZEN_BASE_URL = (
     config.zenBaseUrl ||
     process.env.ZEN_BASE_URL ||
@@ -373,14 +379,14 @@ function createAiProvider(config = {}) {
       const primary = thinking ? 'auto' : (model || (isVision ? VISION_MODEL : TEXT_MODEL));
       // Zen (OpenCode) fast lane goes FIRST for non-thinking text-only chat.
       // Thinking (Zen slug / explicit flag) stays on hcnsec auto.
-      if (!isVision && !thinking && ZEN_API_KEY) {
+      if (!isVision && !thinking && ZEN_API_KEY && ZEN_ENABLED) {
         for (const zenModel of ZEN_TEXT_MODELS) {
           chain.push({ model: zenModel, provider: 'zen' });
         }
       }
       // Zen vision goes FIRST when configured — Gemini, OrcaRouter and
       // hcnsec (via modelFallbackChain below) remain as fallbacks.
-      if (isVision && ZEN_API_KEY) {
+      if (isVision && ZEN_API_KEY && ZEN_ENABLED) {
         chain.push({ model: ZEN_VISION_MODEL, provider: 'zen' });
       }
       for (const candidate of modelFallbackChain(primary, { isVision })) {
@@ -568,6 +574,7 @@ function createAiProvider(config = {}) {
     hasAiKey,
     hasCerebrasKey: Boolean(CEREBRAS_API_KEY),
     hasZenKey: Boolean(ZEN_API_KEY),
+    zenActive: ZEN_ENABLED && Boolean(ZEN_API_KEY),
     hasGeminiKey: Boolean(GEMINI_API_KEY),
     AI_BASE_URL,
     CEREBRAS_BASE_URL,
