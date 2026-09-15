@@ -59,6 +59,10 @@ const {
   ASSIGNMENT_BREAKDOWN_USER_TEXT_PREFIX,
   ASSIGNMENT_BREAKDOWN_USER_IMAGE_PREFIX,
 } = require('./prompts/assignment-breakdown-system-prompt');
+const {
+  FLASHCARDS_SYSTEM_PROMPT,
+  FLASHCARDS_JSON_SHAPE,
+} = require('./prompts/flashcards-system-prompt');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -667,6 +671,18 @@ async function handleSummarize({ body, provider: ai, maxTokens, signal }) {
 const FLASHCARDS_CHUNK_CHARS = 10_000;
 const FLASHCARDS_MAX_CARDS = 60;
 const FLASHCARDS_CONCURRENCY = 3;
+/**
+ * Material at or below this size gets ONE whole-document call so the model
+ * sees full context (no fragmented/duplicated coverage across chunks).
+ * 14k chars ≈ ~4-5k tokens — safe for the hcnsec auto route's context.
+ */
+const FLASHCARDS_SINGLE_CALL_CHARS = 14_000;
+/**
+ * A whole-doc pass emits 10-15 JSON cards (~2-3k output tokens). The route's
+ * maxOutputTokens floor (2048 for flashcards) truncates mid-JSON, so the
+ * single-call branch raises it. Chunked calls stay per-chunk-budgeted.
+ */
+const FLASHCARDS_MIN_OUTPUT_TOKENS = 3000;
 
 /** Split long material on paragraph boundaries so every section gets cards. */
 function splitFlashcardsChunks(text) {
@@ -700,28 +716,42 @@ function splitFlashcardsChunks(text) {
 async function handleFlashcards({ body, provider: ai, maxTokens, signal }) {
   const text = body.text || '';
   const model = ai.resolveTextModel(body.model);
-  const chunks = splitFlashcardsChunks(text);
-  const runChunk = async (section, index) => {
-    const partLabel = chunks.length > 1 ? ` (Part ${index + 1} of ${chunks.length})` : '';
+
+  const runCall = async (section, partLabel, callMaxTokens) => {
     const content = await ai.chatCompletionText(
       [
-        { role: 'system', content: 'Generate study flashcards from notes. Respond with JSON only.' },
+        { role: 'system', content: FLASHCARDS_SYSTEM_PROMPT },
         {
           role: 'user',
-          content: `Create 6-8 flashcards from this material${partLabel} \u2014 cover only what is in THIS section. JSON shape:
-{"cards":[{"question":"...","answer":"...","topic":"optional topic"}]}
+          content: `Create flashcards from this study material${partLabel}. Aim for 10-15 atomic cards with even coverage across all sections. JSON shape:
+${FLASHCARDS_JSON_SHAPE}
 Notes:\n${wrapUntrustedDocument(section)}`,
         },
       ],
-      { temperature: 0.5, maxTokens, model, signal }
+      { temperature: 0.5, maxTokens: callMaxTokens, model, signal }
     );
     const parsed = ai.extractJson(content);
     return Array.isArray(parsed.cards) ? parsed.cards : [];
   };
+
+  // Single whole-document pass: the model sees all sections at once, so
+  // coverage stays even and cross-chunk duplicates can't form.
+  if (text.length <= FLASHCARDS_SINGLE_CALL_CHARS) {
+    const cards = await runCall(text, '', Math.max(maxTokens, FLASHCARDS_MIN_OUTPUT_TOKENS));
+    return { cards: cards.slice(0, FLASHCARDS_MAX_CARDS) };
+  }
+
+  // Fallback for huge documents: existing paragraph-boundary chunking in
+  // parallel batches, unchanged token budget per chunk.
+  const chunks = splitFlashcardsChunks(text);
   const allCards = [];
   for (let i = 0; i < chunks.length; i += FLASHCARDS_CONCURRENCY) {
     const batch = chunks.slice(i, i + FLASHCARDS_CONCURRENCY);
-    const results = await Promise.all(batch.map((section, offset) => runChunk(section, i + offset)));
+    const results = await Promise.all(
+      batch.map((section, offset) =>
+        runCall(section, ` (Part ${i + offset + 1} of ${chunks.length})`, maxTokens)
+      )
+    );
     for (const cards of results) allCards.push(...cards);
   }
   return { cards: allCards.slice(0, FLASHCARDS_MAX_CARDS) };
@@ -1334,4 +1364,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, handleChat, isLearningTopic };
+module.exports = { app, handleChat, handleFlashcards, isLearningTopic };

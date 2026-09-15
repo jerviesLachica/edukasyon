@@ -98,8 +98,9 @@ object ChatAttachmentUtils {
     }
 
     /**
-     * Best-effort extraction of embedded text from text-based PDFs (no OCR).
-     * Returns null when the PDF appears scanned or has insufficient extractable text.
+     * Heuristic: does [s] look like human-readable text rather than font-encoded
+     * mojibake? Used to gate embedded PDF extraction so scanned/garbled output
+     * falls through to OCR instead of being served as if it were a text layer.
      */
     fun isLegibleText(s: String): Boolean {
         if (s.isBlank()) return false
@@ -116,9 +117,71 @@ object ChatAttachmentUtils {
         return wordLike.toDouble() / tokens.size >= 0.4
     }
 
+    /**
+     * Best-effort extraction of embedded text from text-based PDFs (no OCR).
+     * Returns null when the PDF appears scanned or has insufficient extractable text.
+     *
+     * Whole-doc view over [extractEmbeddedPdfTextPerPage]; falls back to a raw
+     * scan of the file when no page structure yields text (odd/linearized PDFs).
+     */
     fun extractEmbeddedPdfText(bytes: ByteArray): String? {
         if (bytes.isEmpty()) return null
+        extractEmbeddedPdfTextPerPage(bytes)
+            .mapNotNull { it?.takeIf(String::isNotBlank) }
+            .joinToString("\n\n")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .takeIf { it.length >= 150 && isLegibleText(it) }
+            ?.let { return it }
+        // Structure-based extraction found nothing usable — scan raw bytes as before.
+        val joined = scanPdfTextTokens(bytes.toString(Charsets.ISO_8859_1))
+        return joined.takeIf { it.length >= 150 && isLegibleText(it) }
+    }
+
+    /**
+     * Per-page text-layer extraction: one entry per `/Type /Page` object, in
+     * document order (matches `PdfRenderer` page order for typical PDFs). Each
+     * entry holds the text found in that page's `/Contents` stream(s) —
+     * including Flate-compressed streams, which a raw scan of the file misses —
+     * or null when the page has no extractable text (scanned/vector pages,
+     * unresolvable content references, corrupted streams).
+     */
+    fun extractEmbeddedPdfTextPerPage(bytes: ByteArray): List<String?> {
+        if (bytes.isEmpty()) return emptyList()
         val raw = bytes.toString(Charsets.ISO_8859_1)
+        val objects = parsePdfObjects(raw)
+        val pageObjects = objects.filter { PAGE_TYPE_PATTERN.containsMatchIn(it.dict) }
+        if (pageObjects.isEmpty()) return emptyList()
+        return pageObjects.map { page ->
+            val chunks = mutableListOf<String>()
+            for (num in contentObjectNumbers(page.dict)) {
+                val obj = objects.firstOrNull { it.num == num } ?: continue
+                val text = streamText(obj, objects)
+                if (text != null) chunks.add(text)
+            }
+            chunks.joinToString(" ")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+                .takeIf { it.isNotEmpty() }
+        }
+    }
+
+    /** Count of whitespace-separated tokens in [text]; blank or null text has zero words. */
+    fun usableWordCount(text: String?): Int =
+        text?.trim()?.takeIf { it.isNotEmpty() }?.split(Regex("\\s+"))?.size ?: 0
+
+    /** Object numbers referenced by `/Contents N 0 R` or `/Contents [N 0 R M 0 R]`. */
+    private fun contentObjectNumbers(pageDict: String): List<Int> =
+        CONTENT_REF_PATTERN.findAll(pageDict)
+            .flatMap { match ->
+                val body = match.groupValues[1]
+                listOfNotNull(body.toIntOrNull()) +
+                    INDIRECT_REF_PATTERN.findAll(body).mapNotNull { it.groupValues[1].toIntOrNull() }
+            }
+            .toList()
+
+    /** Extracts literal/hex show-text strings from PDF content (works on inflated streams too). */
+    private fun scanPdfTextTokens(raw: String): String {
         val chunks = mutableListOf<String>()
         var index = 0
         while (index < raw.length) {
@@ -127,9 +190,7 @@ object ChatAttachmentUtils {
                     val parsed = parsePdfLiteralString(raw, index)
                     if (parsed != null) {
                         val (text, nextIndex) = parsed
-                        if (text.length >= 2 && text.any { it.isLetterOrDigit() }) {
-                            chunks.add(text)
-                        }
+                        if (isTextChunk(text)) chunks.add(text)
                         index = nextIndex
                     } else {
                         index++
@@ -139,9 +200,7 @@ object ChatAttachmentUtils {
                     val parsed = parsePdfHexString(raw, index)
                     if (parsed != null) {
                         val (text, nextIndex) = parsed
-                        if (text.length >= 2 && text.any { it.isLetterOrDigit() }) {
-                            chunks.add(text)
-                        }
+                        if (isTextChunk(text)) chunks.add(text)
                         index = nextIndex
                     } else {
                         index++
@@ -150,12 +209,108 @@ object ChatAttachmentUtils {
                 else -> index++
             }
         }
-        val joined = chunks
-            .joinToString(" ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-        return joined.takeIf { it.length >= 150 && isLegibleText(it) }
+        return chunks.joinToString(" ").replace(Regex("\\s+"), " ").trim()
     }
+
+    /**
+     * Keeps real show-text and drops binary garbage that sneaks into scans of
+     * raw/compressed data: must be ≥2 chars, contain a letter/digit, and hold no
+     * control characters beyond tab/newline/carriage-return.
+     */
+    private fun isTextChunk(text: String): Boolean =
+        text.length >= 2 &&
+            text.any { it.isLetterOrDigit() } &&
+            !text.any { (it.code < 9) || (it.code in 11..12) || (it.code in 14..31) }
+
+    private class PdfObject(val num: Int, val dict: String, val stream: ByteArray?)
+
+    /**
+     * Parses `N G obj ... endobj` segments into dictionaries plus stream bodies.
+     * Stream bodies run from after the `stream` keyword line (CR/LF/CRLF) to
+     * `endstream`, preferring the declared `/Length` when present.
+     */
+    private fun parsePdfObjects(raw: String): List<PdfObject> {
+        val objects = mutableListOf<PdfObject>()
+        for (match in OBJ_HEADER_PATTERN.findAll(raw)) {
+            val num = match.groupValues[1].toIntOrNull() ?: continue
+            val bodyStart = match.range.last + 1
+            val endObj = raw.indexOf("endobj", bodyStart)
+            if (endObj < 0) continue
+            val body = raw.substring(bodyStart, endObj)
+            val keywordIdx = body.indexOf("stream")
+            if (keywordIdx < 0) {
+                objects.add(PdfObject(num, body, null))
+                continue
+            }
+            val dict = body.substring(0, keywordIdx)
+            var dataStart = keywordIdx + "stream".length
+            if (dataStart < body.length && body[dataStart].code == 13) dataStart++ // CR
+            if (dataStart < body.length && body[dataStart] == '\n') dataStart++ // LF
+            val declared = LENGTH_PATTERN.find(dict)?.groupValues?.get(1)?.toIntOrNull()
+            var dataEnd = -1
+            if (declared != null && declared > 0 && dataStart + declared <= body.length) {
+                dataEnd = dataStart + declared
+            } else {
+                val endStream = body.indexOf("endstream", dataStart)
+                if (endStream > dataStart) {
+                    dataEnd = endStream
+                    if (body[dataEnd - 1].code == 13) dataEnd--
+                    if (body[dataEnd - 1] == '\n') dataEnd--
+                }
+            }
+            val stream = if (dataEnd > dataStart) {
+                body.substring(dataStart, dataEnd).toByteArray(Charsets.ISO_8859_1)
+            } else {
+                null
+            }
+            objects.add(PdfObject(num, dict, stream))
+        }
+        return objects
+    }
+
+    /** Text of one `/Contents` object: inflate if Flate, then scan for show-text strings. */
+    private fun streamText(contentObj: PdfObject, objects: List<PdfObject>): String? {
+        val body = contentObj.stream
+        if (body != null) {
+            val decoded = if (contentObj.dict.contains("FlateDecode")) inflateFlate(body) else body
+            if (decoded != null) {
+                val text = scanPdfTextTokens(String(decoded, Charsets.ISO_8859_1))
+                if (text.isNotEmpty()) return text
+            }
+            return null
+        }
+        // Indirect reference: /Contents points at an object that holds the real reference/stream.
+        val ref = INDIRECT_REF_PATTERN.find(contentObj.dict)?.groupValues?.get(1)?.toIntOrNull()
+        val target = ref?.let { n -> objects.firstOrNull { it.num == n } } ?: return null
+        if (target.num == contentObj.num) return null // self-reference guard
+        return streamText(target, objects)
+    }
+
+    /** zlib inflate with raw-inflate fallback; null on malformed data (page then goes to vision). */
+    private fun inflateFlate(data: ByteArray): ByteArray? =
+        inflateWith(data, nowrap = false) ?: inflateWith(data, nowrap = true)
+
+    private fun inflateWith(data: ByteArray, nowrap: Boolean): ByteArray? = try {
+        val inflater = java.util.zip.Inflater(nowrap)
+        inflater.setInput(data)
+        val out = ByteArrayOutputStream(data.size * 4 + 64)
+        val buf = ByteArray(8192)
+        while (!inflater.finished()) {
+            val n = inflater.inflate(buf)
+            if (n == 0 && (inflater.needsInput() || inflater.needsDictionary())) break
+            out.write(buf, 0, n)
+        }
+        inflater.end()
+        out.toByteArray()
+    } catch (e: java.util.zip.DataFormatException) {
+        null
+    }
+
+    private val PAGE_TYPE_PATTERN = Regex("/Type\\s*/Page(?![s/])")
+    private val CONTENT_REF_PATTERN = Regex("/Contents\\s*(\\[[^\\]]*]|\\d+\\s+\\d+\\s+R|\\d+)")
+    private val INDIRECT_REF_PATTERN = Regex("(\\d+)\\s+\\d+\\s+R")
+    private val OBJ_HEADER_PATTERN = Regex("(\\d+)\\s+\\d+\\s+obj\\b")
+    private val LENGTH_PATTERN = Regex("/Length\\s+(\\d+)")
 
     /**
      * Renders the first PDF page as a JPEG for vision models when text extraction is unavailable.

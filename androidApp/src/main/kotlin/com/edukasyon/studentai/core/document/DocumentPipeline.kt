@@ -8,6 +8,7 @@ import android.util.Log
 import com.edukasyon.studentai.core.network.AiApiService
 import com.edukasyon.studentai.core.network.PageNotesRequest
 import com.edukasyon.studentai.core.network.PageNotesResponse
+import com.edukasyon.studentai.core.util.ChatAttachmentUtils
 import com.edukasyon.studentai.data.local.dao.PageNoteCacheDao
 import com.edukasyon.studentai.data.local.entity.PageNoteCacheEntity
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +39,9 @@ enum class PageStatus {
     FAILED,
 }
 
+// NOTE: text-layer pages intentionally reuse DONE — a new enum value would
+// break exhaustive `when (status)` sites on screens this lane may not edit.
+
 /**
  * Progress event emitted per page as it moves through the pipeline.
  */
@@ -57,6 +61,10 @@ data class DocumentResult(
     val mergedMarkdown: String,
     val totalChars: Int,
     val wasFullyCached: Boolean,
+    /** Pages read from the PDF text layer for free (zero vision calls). */
+    val textLayerPageCount: Int = 0,
+    /** Pages that needed a rendered image + vision API call. */
+    val visionPageCount: Int = 0,
 )
 
 data class PageNote(
@@ -86,6 +94,16 @@ class DocumentPipeline @Inject constructor(
         private const val CONCURRENCY = 3
         private const val BACKOFF_CONCURRENCY = 2
         private const val MAX_RETRIES = 2
+
+        /** Pages with at least this many decoded text-layer words skip vision entirely. */
+        const val MIN_TEXTLAYER_WORDS = 25
+
+        /**
+         * Hybrid gate: true when a page's decoded text layer is rich enough to
+         * use as-is (free), false when the page must be rendered + read by vision.
+         */
+        fun pageUsesTextLayer(text: String?): Boolean =
+            ChatAttachmentUtils.usableWordCount(text) >= MIN_TEXTLAYER_WORDS
     }
 
     private val semaphore = Semaphore(CONCURRENCY)
@@ -124,10 +142,40 @@ class DocumentPipeline @Inject constructor(
             Log.w(TAG, "Document has ${pages.size} pages, hard cap is $HARD_MAX_PAGES — some pages will be silently dropped")
         }
 
+        // Hybrid gate: decode the PDF text layer once (free). Pages whose text
+        // layer has >= MIN_TEXTLAYER_WORDS words are used as-is — no Room lookup,
+        // no vision call. Page order here assumes /Type /Page object order
+        // matches PdfRenderer order (true for virtually all PDFs); on mismatch
+        // a page falls back to the vision path, so quality never regresses.
+        val textLayerPages: List<String?> = runCatching {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (bytes != null && bytes.size >= 5 && String(bytes, 0, 5, Charsets.ISO_8859_1) == "%PDF-") {
+                ChatAttachmentUtils.extractEmbeddedPdfTextPerPage(bytes)
+            } else {
+                emptyList()
+            }
+        }.getOrDefault(emptyList())
+        var textLayerPageCount = 0
+
         // Check cache for all pages — zero AI calls on cache hit
         val cachedResults = mutableListOf<PageNote?>()
         var allCached = true
         for (i in 0 until pageLimit) {
+            val textLayer = textLayerPages.getOrNull(i)?.takeIf { pageUsesTextLayer(it) }
+            if (textLayer != null) {
+                cachedResults.add(
+                    PageNote(
+                        pageNum = pages[i].num,
+                        markdown = textLayer.trim(),
+                        sha256 = "text:" + DocumentPageCache.sha256(pages[i].jpegBytes),
+                    )
+                )
+                textLayerPageCount++
+                _progressFlow.emit(
+                    PageProgress(pages[i].num, pageLimit, PageStatus.DONE, textLayer.trim())
+                )
+                continue
+            }
             val sha256 = DocumentPageCache.sha256(pages[i].jpegBytes)
             val cached = pageNoteCacheDao.getBySha256(sha256)
             if (cached != null) {
@@ -148,13 +196,15 @@ class DocumentPipeline @Inject constructor(
         }
 
         if (allCached) {
-            Log.i(TAG, "All $pageLimit pages from cache — zero AI calls")
+            Log.i(TAG, "All $pageLimit pages resolved without vision (text layer or cache) — zero AI calls")
             val merged = buildMergedMarkdown(cachedResults.filterNotNull())
             return@withContext DocumentResult(
                 pageNotes = cachedResults.filterNotNull(),
                 mergedMarkdown = merged,
                 totalChars = merged.length,
-                wasFullyCached = true,
+                wasFullyCached = textLayerPageCount == 0,
+                textLayerPageCount = textLayerPageCount,
+                visionPageCount = 0,
             )
         }
 
@@ -166,6 +216,7 @@ class DocumentPipeline @Inject constructor(
         }
 
         val uncachedIndices = (0 until pageLimit).filter { results[it] == null }
+        val visionPageCount = uncachedIndices.size
 
         for (index in uncachedIndices) {
             val pageInfo = pages[index]
@@ -192,6 +243,11 @@ class DocumentPipeline @Inject constructor(
 
         val pageNotes = results.filterNotNull().sortedBy { it.pageNum }
         val merged = buildMergedMarkdown(pageNotes)
+        Log.i(
+            TAG,
+            "Hybrid read: $textLayerPageCount text-layer pages (free), $visionPageCount vision pages, " +
+                "cache hits ${pageLimit - textLayerPageCount - visionPageCount}",
+        )
 
         // Warn if exceeding 60k chars
         if (merged.length > MAX_PAYLOAD_CHARS) {
@@ -203,6 +259,8 @@ class DocumentPipeline @Inject constructor(
             mergedMarkdown = merged,
             totalChars = merged.length,
             wasFullyCached = false,
+            textLayerPageCount = textLayerPageCount,
+            visionPageCount = visionPageCount,
         )
     }
 

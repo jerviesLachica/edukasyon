@@ -31,9 +31,15 @@ class FlashcardValidator {
     if (!data || !Array.isArray(data.cards)) {
       return { valid: false, error: 'Missing cards array' };
     }
-    const cards = data.cards.filter(
-      (c) => c && isNonEmptyString(c.question) && isNonEmptyString(c.answer)
-    );
+    // Dedup: twin cards (same question after trim+lowercase) never reach the UI.
+    const seen = new Set();
+    const cards = data.cards.filter((c) => {
+      if (!c || !isNonEmptyString(c.question) || !isNonEmptyString(c.answer)) return false;
+      const key = c.question.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     if (cards.length === 0) {
       return { valid: false, error: 'No valid flashcards' };
     }
