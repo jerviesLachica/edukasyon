@@ -79,6 +79,13 @@ async function handlePageNotes({ body, provider: ai, maxTokens, signal }) {
     temperature: 0.1,
     maxTokens: Math.min(maxTokens, 4096),
     model,
+    // When the dedicated scan provider (NIM) is active, pin the request to
+    // exactly that model. Without this, chatCompletion's vision fallback
+    // chain prepends Gemini/Orca lanes (GEMINI_API_KEY falls back to the
+    // embedding key, which 401s) and each page burns dead lanes first —
+    // ~25-90s instead of the direct NIM ~5s. Mirrors handleScheduleAnalysis's
+    // wireModelOverride usage.
+    ...(scan ? { wireModelOverride: model } : {}),
     isVision: true,
     signal,
   });
