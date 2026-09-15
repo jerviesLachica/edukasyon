@@ -1,6 +1,9 @@
 package com.edukasyon.studentai.ui.screens
 
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.Ringtone
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -34,6 +37,10 @@ import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import com.edukasyon.studentai.ui.viewmodel.NotificationSettingsViewModel
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.launch
+
+// Sentinel preview key for the null-URI "System Default" sound (null is
+// reserved as the MediaPlayer stop state in the preview logic).
+private const val SYSTEM_SOUND_PREVIEW_KEY = "system_default"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -340,6 +347,67 @@ fun NotificationSettingsDetailScreen(
                             )
                         }
                     )
+                    // Sound preview: play the candidate alarm through the
+                    // alarm stream (same routing the real reminder uses) so
+                    // the student hears it BEFORE committing it as their alarm.
+                    val appCtx = LocalContext.current.applicationContext
+                    var playingPreviewKey by remember { mutableStateOf<String?>(null) }
+                    var previewPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+                    var previewRingtone by remember { mutableStateOf<Ringtone?>(null) }
+                    val alarmAudioAttrs = AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                    fun stopPreview() {
+                        runCatching { previewPlayer?.stop() }
+                        runCatching { previewPlayer?.release() }
+                        previewPlayer = null
+                        runCatching { previewRingtone?.stop() }
+                        previewRingtone = null
+                        playingPreviewKey = null
+                    }
+                    fun previewSound(uri: String?) {
+                        val key = uri ?: SYSTEM_SOUND_PREVIEW_KEY
+                        val wasPlayingThis = playingPreviewKey == key
+                        stopPreview()
+                        if (wasPlayingThis) return
+                        val defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                        if (uri == null) {
+                            // System default resolves to a Ringtone, not a file URI MediaPlayer can take.
+                            runCatching {
+                                val ringtone = defaultUri?.let { RingtoneManager.getRingtone(appCtx, it) }
+                                ringtone?.audioAttributes = alarmAudioAttrs
+                                ringtone?.play()
+                                previewRingtone = ringtone
+                                playingPreviewKey = key
+                            }
+                            return
+                        }
+                        runCatching {
+                            previewPlayer = android.media.MediaPlayer().apply {
+                                setDataSource(appCtx, Uri.parse(uri))
+                                setAudioAttributes(alarmAudioAttrs)
+                                setOnCompletionListener { stopPreview() }
+                                prepare()
+                                start()
+                                playingPreviewKey = key
+                            }
+                        }.onFailure { stopPreview() }
+                    }
+                    DisposableEffect(Unit) {
+                        onDispose { stopPreview() }
+                    }
+                    // Alarm ringtones loop forever via the Ringtone API; clip any
+                    // preview to a listenable length instead of leaving it droning.
+                    LaunchedEffect(playingPreviewKey) {
+                        if (playingPreviewKey != null) {
+                            val startedKey = playingPreviewKey
+                            kotlinx.coroutines.delay(8_000)
+                            if (playingPreviewKey == startedKey) stopPreview()
+                        }
+                    }
+
                     val soundPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.GetContent()
                     ) { uri: Uri? ->
@@ -358,6 +426,8 @@ fun NotificationSettingsDetailScreen(
                             }.getOrNull() ?: "Custom"
                             viewModel.setAlarmSoundUri(uri.toString())
                             viewModel.setAlarmSoundName(name)
+                            // Hear what you just picked before it becomes your alarm.
+                            previewSound(uri.toString())
                         }
                     }
 
@@ -368,19 +438,31 @@ fun NotificationSettingsDetailScreen(
                         "Tone 3" to "android.resource://${LocalContext.current.packageName}/raw/tone_3"
                     )
                     presetSounds.forEach { (name, uri) ->
+                        val previewKey = uri ?: SYSTEM_SOUND_PREVIEW_KEY
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
                                     viewModel.setAlarmSoundName(name)
                                     viewModel.setAlarmSoundUri(uri)
+                                    previewSound(uri)
                                 },
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 name,
                                 style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.padding(vertical = 12.dp)
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(vertical = 12.dp)
+                            )
+                            Icon(
+                                imageVector = if (playingPreviewKey == previewKey) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                contentDescription = if (playingPreviewKey == previewKey) "Stop preview" else "Preview $name",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clickable { previewSound(uri) }
                             )
                         }
                     }
