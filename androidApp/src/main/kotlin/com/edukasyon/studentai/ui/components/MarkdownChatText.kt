@@ -30,6 +30,20 @@ fun MarkdownChatText(
     markdown: String,
     modifier: Modifier = Modifier,
 ) {
+    // Rich content path: math, diagrams, graphs → WebView renderer
+    if (hasRichContent(markdown)) {
+        val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+        val html = remember(markdown, isDark) {
+            buildRichContentHtml(markdown, isDark)
+        }
+        RichContentRenderer(
+            html = html,
+            modifier = modifier.fillMaxWidth(),
+        )
+        return
+    }
+
+    // Plain markdown path: existing Compose renderer
     val colors = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
     val blocks = remember(markdown) { parseMarkdownBlocks(markdown) }
@@ -245,6 +259,21 @@ private fun parseParagraph(
 
 private val BULLET_LIST_REGEX = Regex("""^\s*[-*+]\s+(.+)$""")
 private val ORDERED_LIST_REGEX = Regex("""^\s*(\d+)\.\s+(.+)$""")
+
+/** Returns true if the message contains renderable rich content (math, diagrams, graphs). */
+internal fun hasRichContent(markdown: String): Boolean {
+    if (markdown.contains("```mermaid")) return true
+    if (markdown.contains("```chart")) return true
+    // Display math $$...$$
+    if (Regex("""\$\$[\s\S]+?\$\$""").containsMatchIn(markdown)) return true
+    // Inline math $...$ (at least one non-empty expression)
+    if (Regex("""(?<!\$)\$(?!\$)[^$\n]+?\$(?!\$)""").containsMatchIn(markdown)) return true
+    return false
+}
+
+private fun androidx.compose.ui.graphics.Color.luminance(): Float {
+    return 0.299f * red + 0.587f * green + 0.114f * blue
+}
 
 internal fun buildInlineMarkdown(
     text: String,
