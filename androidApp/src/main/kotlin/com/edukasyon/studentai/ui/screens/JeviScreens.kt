@@ -622,6 +622,12 @@ fun JeviCreateScreen(
     LaunchedEffect(state.error) {
         state.error?.let { snackbarHostState.showSnackbar(it) }
     }
+    LaunchedEffect(state.infoNote) {
+        state.infoNote?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearInfoNote()
+        }
+    }
 
     // Per-page read progress, scanner-style ("Page 2 of 5 · vision read").
     LaunchedEffect(documentPipeline) {
@@ -643,7 +649,10 @@ fun JeviCreateScreen(
             val result = runCatching { documentPipeline.processDocument(context, uri, fileName) }
                 .onFailure { viewModel.finishExtraction(null) }
                 .getOrNull()
-            viewModel.finishExtraction(result?.mergedMarkdown?.takeIf { it.isNotBlank() })
+            val coverageNote = result?.takeIf { it.skippedPageCount > 0 }?.let {
+                "Read ${it.pageNotes.size} of ${it.pageNotes.size + it.skippedPageCount} pages — the rest were left out (12-page limit per import)."
+            }
+            viewModel.finishExtraction(result?.mergedMarkdown?.takeIf { it.isNotBlank() }, coverageNote)
         }
     }
 
@@ -1292,7 +1301,10 @@ fun JeviQuizArenaScreen(
             val result = runCatching { documentPipeline.processDocument(context, uri, fileName) }
                 .onFailure { viewModel.finishExtraction(null) }
                 .getOrNull()
-            viewModel.finishExtraction(result?.mergedMarkdown?.takeIf { it.isNotBlank() })
+            val coverageNote = result?.takeIf { it.skippedPageCount > 0 }?.let {
+                "Read ${it.pageNotes.size} of ${it.pageNotes.size + it.skippedPageCount} pages — the rest were left out (12-page limit per import)."
+            }
+            viewModel.finishExtraction(result?.mergedMarkdown?.takeIf { it.isNotBlank() }, coverageNote)
         }
     }
 

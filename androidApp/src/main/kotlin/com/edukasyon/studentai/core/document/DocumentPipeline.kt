@@ -65,6 +65,8 @@ data class DocumentResult(
     val textLayerPageCount: Int = 0,
     /** Pages that needed a rendered image + vision API call. */
     val visionPageCount: Int = 0,
+    /** Pages beyond the per-import vision cap that were NOT read (0 = full coverage). */
+    val skippedPageCount: Int = 0,
 )
 
 data class PageNote(
@@ -205,6 +207,7 @@ class DocumentPipeline @Inject constructor(
                 wasFullyCached = textLayerPageCount == 0,
                 textLayerPageCount = textLayerPageCount,
                 visionPageCount = 0,
+                skippedPageCount = (pages.size - pageLimit).coerceAtLeast(0),
             )
         }
 
@@ -243,10 +246,11 @@ class DocumentPipeline @Inject constructor(
 
         val pageNotes = results.filterNotNull().sortedBy { it.pageNum }
         val merged = buildMergedMarkdown(pageNotes)
+        val skipped = (pages.size - pageLimit).coerceAtLeast(0)
         Log.i(
             TAG,
             "Hybrid read: $textLayerPageCount text-layer pages (free), $visionPageCount vision pages, " +
-                "cache hits ${pageLimit - textLayerPageCount - visionPageCount}",
+                "cache hits ${pageLimit - textLayerPageCount - visionPageCount}, skipped beyond cap $skipped",
         )
 
         // Warn if exceeding 60k chars
