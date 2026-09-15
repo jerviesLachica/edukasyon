@@ -11,6 +11,17 @@ data class ChangelogEntry(
 object ChangelogRepository {
     val changelog = listOf(
         ChangelogEntry(
+            versionName = "1.2.7",
+            versionCode = 10,
+            releaseDate = "2026-09-14",
+            isMandatory = false,
+            notes = listOf(
+                "Share your timetable or any JEVI deck with classmates using a private 6-char code or QR — no scanning or retyping needed.",
+                "Imported schedules animate into place and skip classes you already have.",
+                "The Widget setup screen now scrolls on small screens.",
+            ),
+        ),
+        ChangelogEntry(
             versionName = "1.2.6",
             versionCode = 9,
             releaseDate = "2026-08-31",
