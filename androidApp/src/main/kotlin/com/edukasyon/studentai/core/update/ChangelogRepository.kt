@@ -11,14 +11,18 @@ data class ChangelogEntry(
 object ChangelogRepository {
     val changelog = listOf(
         ChangelogEntry(
-            versionName = "1.2.7",
+            versionName = "2.0.0",
             versionCode = 10,
-            releaseDate = "2026-09-14",
+            releaseDate = "2026-09-15",
             isMandatory = false,
             notes = listOf(
+                "Jevi can now show real math equations, diagrams and charts right in chat — ask it to draw a graph or solve an equation.",
+                "Widget photo backgrounds now actually appear on your home screen (no more design fallback), keep their aspect ratio, and clean up storage properly.",
                 "Share your timetable or any JEVI deck with classmates using a private 6-char code or QR — no scanning or retyping needed.",
+                "Podcast-style Audio Overviews for decks: 4 themes, A/B voice picker, and audition previews.",
+                "Brand-new launcher icon that fits every phone's safe zone (Huawei/Xiaomi/Samsung), plus proper notification icon.",
+                "Nav bar and chat box layout polish — the input sits snug above the tab bar with no white band.",
                 "Imported schedules animate into place and skip classes you already have.",
-                "The Widget setup screen now scrolls on small screens.",
             ),
         ),
         ChangelogEntry(
