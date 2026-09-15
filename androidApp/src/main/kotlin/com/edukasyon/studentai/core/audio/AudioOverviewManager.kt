@@ -159,6 +159,37 @@ class AudioOverviewManager @Inject constructor(
         return if (f.exists() && f.length() > 0) f else null
     }
 
+    // --- audition previews ----------------------------------------------------
+
+    /**
+     * Synthesize [requests] serially into one small preview MP3 under the cache
+     * dir, keyed by [key] (repeat taps are instant). Returns null on failure —
+     * previews must never surface a hard error.
+     */
+    suspend fun preview(key: String, requests: List<TtsRequest>): File? = withContext(Dispatchers.IO) {
+        val safeKey = key.map { if (it.isLetterOrDigit()) it else '_' }.joinToString("").take(64)
+        if (safeKey.isEmpty()) return@withContext null
+        val dir = File(appContext.cacheDir, PREVIEW_DIR)
+        dir.mkdirs()
+        val f = File(dir, "$safeKey.mp3")
+        if (f.exists() && f.length() > 0) return@withContext f
+        val tmp = File(dir, "$safeKey.part")
+        runCatching {
+            FileOutputStream(tmp).use { fos ->
+                for (req in requests) {
+                    api.synthesizeSpeech(req).byteStream().use { input -> input.copyTo(fos) }
+                }
+            }
+            if (!tmp.renameTo(f)) {
+                tmp.delete()
+                null
+            } else if (f.length() > 0) f else null
+        }.getOrElse {
+            tmp.delete()
+            null
+        }
+    }
+
     // --- export to Downloads / SAF ------------------------------------------
 
     /**
@@ -232,7 +263,23 @@ class AudioOverviewManager @Inject constructor(
 
     companion object {
         private const val OVERVIEW_DIR = "audio_overviews"
+        private const val PREVIEW_DIR = "audio_previews"
         private const val MAX_CHUNK_CHARS = 2800
+
+        // Canned audition lines so a preview sounds like the real show, not a generic "hello world".
+        const val THEME_SAMPLE_A = "Hey, want to run through this deck together?"
+        const val THEME_SAMPLE_B = "Sure thing. One card at a time, and stop me if I get it wrong."
+        const val VOICE_SAMPLE = "Hi, this is how I'll sound in your episode."
+
+        /** Two-line exchange in the theme's exact voice pair + prosody. */
+        fun previewRequestsFor(theme: PodcastTheme): List<TtsRequest> = listOf(
+            TtsRequest(text = THEME_SAMPLE_A, voice = theme.voiceA, rate = theme.prosodyA.rate, pitch = theme.prosodyA.pitch),
+            TtsRequest(text = THEME_SAMPLE_B, voice = theme.voiceB, rate = theme.prosodyB.rate, pitch = theme.prosodyB.pitch),
+        )
+
+        /** Single-line audition for one voice, neutral prosody (isolates the timbre). */
+        fun previewRequestsForVoice(voiceId: String): List<TtsRequest> =
+            listOf(TtsRequest(text = VOICE_SAMPLE, voice = voiceId))
 
         /** Shared dialogue contract footer appended after every theme prompt. */
         internal const val DIALOGUE_CONTRACT =

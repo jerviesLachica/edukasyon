@@ -78,4 +78,24 @@ class AudioOverviewManagerTest {
         assertTrue(name, !name.contains(':') && !name.contains('/'))
         assertTrue(name, name.contains("Study Duo"))
     }
+
+    @Test
+    fun previewRequestsFor_themeAlternatesVoicesWithProsody() {
+        val theme = PodcastThemes.byId("hot_seats")
+        val reqs = AudioOverviewManager.previewRequestsFor(theme)
+        assertEquals(2, reqs.size)
+        assertEquals(theme.voiceA, reqs[0].voice)
+        assertEquals(theme.voiceB, reqs[1].voice)
+        assertEquals(theme.prosodyA.rate, reqs[0].rate)
+        assertEquals(theme.prosodyB.pitch, reqs[1].pitch)
+    }
+
+    @Test
+    fun previewRequestsForVoice_singleNeutralLine() {
+        val reqs = AudioOverviewManager.previewRequestsForVoice("jenny")
+        assertEquals(1, reqs.size)
+        assertEquals("jenny", reqs[0].voice)
+        assertEquals(null, reqs[0].rate)
+        assertEquals(null, reqs[0].pitch)
+    }
 }

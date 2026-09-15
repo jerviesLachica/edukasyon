@@ -118,6 +118,8 @@ data class JeviDeckDetailUiState(
     val voiceBOverride: String? = null,
     // Transient snackbar text (partial coverage warning, export result); UI clears via clearAudioMessage().
     val audioMessage: String? = null,
+    // Which audition preview ("th_<themeId>" / "v_<voiceId>") is currently playing; null = none.
+    val previewPlayingKey: String? = null,
 )
 
 sealed interface DeckAudioState {
@@ -150,6 +152,11 @@ class JeviDeckDetailViewModel @Inject constructor(
     private var player: android.media.MediaPlayer? = null
     private var progressTicker: kotlinx.coroutines.Job? = null
 
+    // Audition previews (theme/voice try-before-select). Separate player so an
+    // episode that's playing keeps its position; only one preview at a time.
+    private var previewPlayer: android.media.MediaPlayer? = null
+    private var previewJob: kotlinx.coroutines.Job? = null
+
     init {
         viewModelScope.launch {
             combine(
@@ -165,6 +172,7 @@ class JeviDeckDetailViewModel @Inject constructor(
                     voiceBOverride = _uiState.value.voiceBOverride,
                     audioState = _uiState.value.audioState,
                     audioMessage = _uiState.value.audioMessage,
+                    previewPlayingKey = _uiState.value.previewPlayingKey,
                 )
             }.collect { state ->
                 _uiState.value = state
@@ -263,6 +271,82 @@ class JeviDeckDetailViewModel @Inject constructor(
 
     fun clearAudioMessage() {
         _uiState.update { it.copy(audioMessage = null) }
+    }
+
+    /**
+     * Toggle an audition preview: [key] identifies the option ("th_<themeId>" or
+     * "v_<voiceId>"); tapping the playing one stops it. Synthesis runs off the
+     * cached preview file (instant on repeat); failures stop silently.
+     */
+    fun audition(key: String, requests: () -> List<com.edukasyon.studentai.core.network.TtsRequest>) {
+        previewJob?.cancel()
+        runCatching { previewPlayer?.stop() }
+        runCatching { previewPlayer?.release() }
+        previewPlayer = null
+        if (_uiState.value.previewPlayingKey == key) {
+            _uiState.update { it.copy(previewPlayingKey = null) }
+            return
+        }
+        _uiState.update { it.copy(previewPlayingKey = key) }
+        previewJob = viewModelScope.launch {
+            val file = audioOverviewManager.preview(key, requests())
+            if (file == null || _uiState.value.previewPlayingKey != key) {
+                _uiState.update {
+                    if (it.previewPlayingKey == key) {
+                        it.copy(
+                            previewPlayingKey = null,
+                            audioMessage = if (file == null) "Preview unavailable — check your connection." else it.audioMessage,
+                        )
+                    } else it
+                }
+                return@launch
+            }
+            runCatching {
+                val mp = android.media.MediaPlayer().apply {
+                    setDataSource(file.absolutePath)
+                    setAudioAttributes(
+                        android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    setOnCompletionListener {
+                        if (_uiState.value.previewPlayingKey == key) {
+                            _uiState.update { it.copy(previewPlayingKey = null) }
+                        }
+                        runCatching { release() }
+                        if (previewPlayer === this) previewPlayer = null
+                    }
+                    prepare()
+                    start()
+                }
+                previewPlayer = mp
+            }.onFailure {
+                _uiState.update { if (it.previewPlayingKey == key) it.copy(previewPlayingKey = null) else it }
+            }
+        }
+    }
+
+    fun auditionTheme(theme: com.edukasyon.studentai.core.audio.PodcastTheme) {
+        // Voice overrides are stored per deck+selected-theme; only apply them
+        // when auditioning the currently selected theme, otherwise defaults.
+        val selectedId = com.edukasyon.studentai.core.audio.PodcastThemes.byId(_uiState.value.podcastThemeId).id
+        val effective = if (theme.id == selectedId) {
+            theme.copy(
+                voiceA = _uiState.value.voiceAOverride ?: theme.voiceA,
+                voiceB = _uiState.value.voiceBOverride ?: theme.voiceB,
+            )
+        } else theme
+        // Key includes the effective pair so a voice change re-synthesizes instead of replaying a stale cache.
+        audition("th_${theme.id}_${effective.voiceA}_${effective.voiceB}") {
+            com.edukasyon.studentai.core.audio.AudioOverviewManager.previewRequestsFor(effective)
+        }
+    }
+
+    fun auditionVoice(voiceId: String) {
+        audition("v_$voiceId") {
+            com.edukasyon.studentai.core.audio.AudioOverviewManager.previewRequestsForVoice(voiceId)
+        }
     }
 
     fun deleteCurrentDeck() {
@@ -428,6 +512,9 @@ class JeviDeckDetailViewModel @Inject constructor(
         progressTicker?.cancel()
         runCatching { player?.release() }
         player = null
+        previewJob?.cancel()
+        runCatching { previewPlayer?.release() }
+        previewPlayer = null
     }
 }
 

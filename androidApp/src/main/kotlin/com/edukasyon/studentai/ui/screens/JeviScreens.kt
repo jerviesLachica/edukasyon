@@ -527,9 +527,12 @@ fun JeviDeckDetailScreen(
                                 themeId = state.podcastThemeId,
                                 voiceAOverride = state.voiceAOverride,
                                 voiceBOverride = state.voiceBOverride,
+                                previewPlayingKey = state.previewPlayingKey,
                                 onSelectTheme = viewModel::selectPodcastTheme,
                                 onSelectVoiceA = viewModel::setPodcastVoiceA,
                                 onSelectVoiceB = viewModel::setPodcastVoiceB,
+                                onAuditionTheme = viewModel::auditionTheme,
+                                onAuditionVoice = viewModel::auditionVoice,
                                 onGenerate = viewModel::generateAudioOverview,
                                 onPlayPause = viewModel::playOrPauseAudio,
                                 onSeek = viewModel::seekAudio,
@@ -1564,9 +1567,12 @@ private fun DeckAudioOverviewSection(
     themeId: String?,
     voiceAOverride: String?,
     voiceBOverride: String?,
+    previewPlayingKey: String?,
     onSelectTheme: (String) -> Unit,
     onSelectVoiceA: (String?) -> Unit,
     onSelectVoiceB: (String?) -> Unit,
+    onAuditionTheme: (com.edukasyon.studentai.core.audio.PodcastTheme) -> Unit,
+    onAuditionVoice: (String) -> Unit,
     onGenerate: () -> Unit,
     onPlayPause: () -> Unit,
     onSeek: (Float) -> Unit,
@@ -1594,17 +1600,28 @@ private fun DeckAudioOverviewSection(
                 )
                 Spacer(Modifier.weight(1f))
             }
-            // Theme chips: each carries its own embedded script prompt + default voices.
+            // Theme chips: each carries its own embedded script prompt + default voices;
+            // a compact ▶ sits inside the label (separate tap target from select) with
+            // roomy wrap gaps.
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 PodcastThemes.default.forEach { t ->
                     FilterChip(
                         selected = t.id == theme.id,
                         onClick = { if (!generating) onSelectTheme(t.id) },
                         enabled = !generating,
-                        label = { Text("${t.emoji} ${t.title}") },
+                        label = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                AuditionButton(
+                                    playing = previewPlayingKey?.startsWith("th_${t.id}") == true,
+                                    onClick = { onAuditionTheme(t) },
+                                    compact = true,
+                                )
+                                Text("${t.emoji} ${t.title}")
+                            }
+                        },
                     )
                 }
             }
@@ -1620,7 +1637,9 @@ private fun DeckAudioOverviewSection(
                     selectedId = voiceAOverride ?: theme.voiceA,
                     defaultId = theme.voiceA,
                     enabled = !generating,
+                    previewPlayingKey = previewPlayingKey,
                     onSelect = onSelectVoiceA,
+                    onAudition = onAuditionVoice,
                     modifier = Modifier.weight(1f),
                 )
                 PodcastVoicePickerDropdown(
@@ -1628,7 +1647,9 @@ private fun DeckAudioOverviewSection(
                     selectedId = voiceBOverride ?: theme.voiceB,
                     defaultId = theme.voiceB,
                     enabled = !generating,
+                    previewPlayingKey = previewPlayingKey,
                     onSelect = onSelectVoiceB,
+                    onAudition = onAuditionVoice,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -1714,36 +1735,77 @@ private fun PodcastVoicePickerDropdown(
     selectedId: String,
     defaultId: String,
     enabled: Boolean,
+    previewPlayingKey: String?,
     onSelect: (String?) -> Unit,
+    onAudition: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = TtsVoices.catalog.firstOrNull { it.id == selectedId }?.label ?: selectedId
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { if (enabled) expanded = it }, modifier = modifier) {
         OutlinedTextField(
-            value = TtsVoices.display(selectedId),
+            // Short value (just the name) — the field is half-width, full details
+            // (gender · locale) live in the menu rows where there's room.
+            value = selectedLabel,
             onValueChange = {},
             readOnly = true,
             enabled = enabled,
+            singleLine = true,
             label = { Text(label) },
             supportingText = {
                 Text(if (selectedId == defaultId) "Theme default" else "Custom", style = MaterialTheme.typography.labelSmall)
             },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            trailingIcon = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AuditionButton(
+                        playing = previewPlayingKey == "v_$selectedId",
+                        onClick = { onAudition(selectedId) },
+                        compact = true,
+                    )
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded)
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor(MenuAnchorType.PrimaryNotEditable),
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
-                text = { Text("Theme default (" + TtsVoices.display(defaultId) + ")") },
+                text = { Text("Theme default · " + TtsVoices.display(defaultId)) },
                 onClick = { onSelect(null); expanded = false },
             )
             TtsVoices.catalog.forEach { v ->
                 DropdownMenuItem(
                     text = { Text(TtsVoices.display(v.id)) },
+                    trailingIcon = {
+                        AuditionButton(
+                            playing = previewPlayingKey == "v_${v.id}",
+                            onClick = { onAudition(v.id) },
+                            compact = true,
+                        )
+                    },
                     onClick = { onSelect(v.id); expanded = false },
                 )
             }
         }
+    }
+}
+
+/** Play/stop icon that auditions one preview clip; stop state while [playing]. compact = tight slot (chips/fields). */
+@Composable
+private fun AuditionButton(
+    playing: Boolean,
+    onClick: () -> Unit,
+    compact: Boolean = false,
+) {
+    val box = if (compact) 30.dp else 36.dp
+    val iconSize = if (compact) 18.dp else 20.dp
+    IconButton(onClick = onClick, modifier = Modifier.size(box)) {
+        Icon(
+            imageVector = if (playing) Icons.Default.Stop else Icons.Default.PlayArrow,
+            contentDescription = if (playing) "Stop preview" else "Preview",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(iconSize),
+        )
     }
 }
