@@ -338,13 +338,33 @@ class DocumentPipeline @Inject constructor(
     }
 
     /**
-     * Render PDF pages to JPEG byte arrays.
+     * Render PDF pages to JPEG byte arrays. Plain images (jpg/png URIs from
+     * camera/gallery) decode to a single page, downsampled to MAX_IMAGE_DIMENSION.
      */
     private suspend fun renderPages(
         context: Context,
         uri: Uri,
         fileName: String,
     ): List<RenderedPage> = withContext(Dispatchers.IO) {
+        // Not a PDF? Treat as image: decode + downsample to one rendered page.
+        runCatching {
+            val pfd = context.contentResolver.openFileDescriptor(uri, "r") ?: return@runCatching null
+            pfd.use { fd ->
+                val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeFileDescriptor(fd.fileDescriptor, null, opts)
+                if (opts.outWidth <= 0 || opts.outHeight <= 0) return@use null
+                var sample = 1
+                while (maxOf(opts.outWidth, opts.outHeight) / (sample * 2) >= MAX_IMAGE_DIMENSION) sample *= 2
+                val bmp = android.graphics.BitmapFactory.decodeFileDescriptor(
+                    fd.fileDescriptor, null,
+                    android.graphics.BitmapFactory.Options().apply { inSampleSize = sample },
+                ) ?: return@use null
+                val jpeg = encodeJpeg(bmp)
+                bmp.recycle()
+                listOf(RenderedPage(num = 1, jpegBytes = jpeg))
+            }
+        }.getOrNull()?.let { return@withContext it }
+
         val pfd = context.contentResolver.openFileDescriptor(uri, "r")
             ?: return@withContext emptyList()
 

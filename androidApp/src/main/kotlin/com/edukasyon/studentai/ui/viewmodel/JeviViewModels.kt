@@ -523,6 +523,8 @@ data class JeviCreateUiState(
     val topic: String = "",
     val isGenerating: Boolean = false,
     val isExtracting: Boolean = false,
+    // Scanner-style live status while a document is being read ("Page 2 of 5 · reading").
+    val extractionNote: String? = null,
     val generatedCards: List<Flashcard> = emptyList(),
     val saved: Boolean = false,
     val error: String? = null,
@@ -607,6 +609,25 @@ class JeviCreateViewModel @Inject constructor(
         generate()
     }
 
+    /** Start of a scanner-style document read: block inputs, show progress. */
+    fun beginExtraction() {
+        _uiState.update { it.copy(isExtracting = true, extractionNote = null, error = null) }
+    }
+
+    fun updateExtractionNote(note: String) {
+        _uiState.update { if (it.isExtracting) it.copy(extractionNote = note) else it }
+    }
+
+    /** End of document read; hand the clean markdown to generation, or surface failure. */
+    fun finishExtraction(markdown: String?) {
+        _uiState.update { it.copy(isExtracting = false, extractionNote = null) }
+        if (markdown == null) {
+            _uiState.update { it.copy(error = "Couldn't read this document. Try another file or check your connection.") }
+            return
+        }
+        generateFromDocument(markdown)
+    }
+
     fun addCard(question: String, answer: String) {
         val q = question.trim()
         val a = answer.trim()
@@ -678,6 +699,7 @@ data class JeviQuizUiState(
     val source: JeviQuizSource = JeviQuizSource.DECK,
     val isGenerating: Boolean = false,
     val isExtracting: Boolean = false,
+    val extractionNote: String? = null,
     val error: String? = null,
     val gizmo: GizmoCompanionState = GizmoCompanionState(),
     val generatedQuiz: Quiz? = null,
@@ -823,6 +845,25 @@ class JeviQuizViewModel @Inject constructor(
         } else text
         _uiState.update { it.copy(topic = capped, error = null) }
         generate()
+    }
+
+    /** Start of a scanner-style document read: block inputs, show progress. */
+    fun beginExtraction() {
+        _uiState.update { it.copy(isExtracting = true, extractionNote = null, error = null) }
+    }
+
+    fun updateExtractionNote(note: String) {
+        _uiState.update { if (it.isExtracting) it.copy(extractionNote = note) else it }
+    }
+
+    /** End of document read; hand the clean markdown to generation, or surface failure. */
+    fun finishExtraction(markdown: String?) {
+        _uiState.update { it.copy(isExtracting = false, extractionNote = null) }
+        if (markdown == null) {
+            _uiState.update { it.copy(error = "Couldn't read this document. Try another file or check your connection.") }
+            return
+        }
+        generateFromDocument(markdown)
     }
 
     fun startSavedQuiz(quizId: String) {

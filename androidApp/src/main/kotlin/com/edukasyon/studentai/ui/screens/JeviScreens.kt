@@ -30,6 +30,8 @@ import com.edukasyon.studentai.core.audio.PodcastThemes
 import com.edukasyon.studentai.core.audio.TtsVoices
 import com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer
 import com.edukasyon.studentai.core.mlkit.PdfOcrHelper
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import com.edukasyon.studentai.domain.model.Flashcard
 import com.edukasyon.studentai.domain.model.JeviConstants
 import com.edukasyon.studentai.domain.model.JeviDeck
@@ -616,14 +618,16 @@ fun JeviCreateScreen(
             pageNoteCacheDao = com.edukasyon.studentai.di.HiltEntryPoint.pageNoteCacheDao(context),
         )
     }
-    val pdfOcrHelper = remember {
-        com.edukasyon.studentai.core.mlkit.PdfOcrHelper(
-            com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer(),
-        )
-    }
 
     LaunchedEffect(state.error) {
         state.error?.let { snackbarHostState.showSnackbar(it) }
+    }
+
+    // Per-page read progress, scanner-style ("Page 2 of 5 · vision read").
+    LaunchedEffect(documentPipeline) {
+        documentPipeline.progressFlow.onEach { p ->
+            viewModel.updateExtractionNote("Page ${p.pageNum} of ${p.totalPages} · ${p.status.name.lowercase()}")
+        }.launchIn(this)
     }
 
     val pdfPicker = rememberLauncherForActivityResult(
@@ -635,8 +639,11 @@ fun JeviCreateScreen(
                 cursor.moveToFirst()
                 cursor.getString(cursor.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME))
             } ?: "document.pdf"
-            val text = pdfOcrHelper.extractTextFromPdf(context, uri, fileName)
-            text?.let { viewModel.generateFromDocument(it) }
+            viewModel.beginExtraction()
+            val result = runCatching { documentPipeline.processDocument(context, uri, fileName) }
+                .onFailure { viewModel.finishExtraction(null) }
+                .getOrNull()
+            viewModel.finishExtraction(result?.mergedMarkdown?.takeIf { it.isNotBlank() })
         }
     }
 
@@ -645,8 +652,11 @@ fun JeviCreateScreen(
     ) { uri ->
         uri ?: return@rememberLauncherForActivityResult
         scope.launch {
-            val text = pdfOcrHelper.recognizeImage(context, uri)
-            text?.let { viewModel.generateFromDocument(it) }
+            viewModel.beginExtraction()
+            val result = runCatching { documentPipeline.processDocument(context, uri, "photo.jpg") }
+                .onFailure { viewModel.finishExtraction(null) }
+                .getOrNull()
+            viewModel.finishExtraction(result?.mergedMarkdown?.takeIf { it.isNotBlank() })
         }
     }
 
@@ -765,7 +775,7 @@ fun JeviCreateScreen(
                                     modifier = Modifier.size(18.dp),
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text("Reading document…")
+                                Text(state.extractionNote ?: "Reading document…")
                             }
                             else -> {
                                 Icon(Icons.Default.AutoAwesome, contentDescription = null)
@@ -1256,7 +1266,18 @@ fun JeviQuizArenaScreen(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val pdfOcrHelper = remember { PdfOcrHelper(MlKitTextRecognizer()) }
+    val documentPipeline = remember {
+        com.edukasyon.studentai.core.document.DocumentPipeline(
+            aiApiService = com.edukasyon.studentai.di.HiltEntryPoint.aiApiService(context),
+            pageNoteCacheDao = com.edukasyon.studentai.di.HiltEntryPoint.pageNoteCacheDao(context),
+        )
+    }
+
+    LaunchedEffect(documentPipeline) {
+        documentPipeline.progressFlow.onEach { p ->
+            viewModel.updateExtractionNote("Page ${p.pageNum} of ${p.totalPages} · ${p.status.name.lowercase()}")
+        }.launchIn(this)
+    }
 
     val pdfPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -1267,8 +1288,11 @@ fun JeviQuizArenaScreen(
                 cursor.moveToFirst()
                 cursor.getString(cursor.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME))
             } ?: "document.pdf"
-            val text = pdfOcrHelper.extractTextFromPdf(context, uri, fileName)
-            text?.let { viewModel.generateFromDocument(it) }
+            viewModel.beginExtraction()
+            val result = runCatching { documentPipeline.processDocument(context, uri, fileName) }
+                .onFailure { viewModel.finishExtraction(null) }
+                .getOrNull()
+            viewModel.finishExtraction(result?.mergedMarkdown?.takeIf { it.isNotBlank() })
         }
     }
 
@@ -1277,8 +1301,11 @@ fun JeviQuizArenaScreen(
     ) { uri ->
         uri ?: return@rememberLauncherForActivityResult
         scope.launch {
-            val text = pdfOcrHelper.recognizeImage(context, uri)
-            text?.let { viewModel.generateFromDocument(it) }
+            viewModel.beginExtraction()
+            val result = runCatching { documentPipeline.processDocument(context, uri, "photo.jpg") }
+                .onFailure { viewModel.finishExtraction(null) }
+                .getOrNull()
+            viewModel.finishExtraction(result?.mergedMarkdown?.takeIf { it.isNotBlank() })
         }
     }
 
@@ -1516,12 +1543,22 @@ fun JeviQuizArenaScreen(
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !state.isGenerating && !state.isExtracting,
                         ) {
+                            if (state.isExtracting) {
+                                StudentAiLoader(
+                                    label = null,
+                                    style = StudentAiLoaderStyle.Compact,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(state.extractionNote ?: "Reading document…")
+                            } else {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 if (state.source == JeviQuizSource.DECK) "Generate from Deck"
                                 else "Generate Quiz",
                             )
+                            }
                         }
                     }
 
