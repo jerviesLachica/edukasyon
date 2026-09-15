@@ -51,6 +51,9 @@ fun RichContentRenderer(
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.allowFileAccess = false
+                // System font-scale/textZoom breaks the CSS-px≈dp assumption
+                // used to map scrollHeight to Modifier.height — pin it.
+                settings.textZoom = 100
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
                 settings.builtInZoomControls = false
