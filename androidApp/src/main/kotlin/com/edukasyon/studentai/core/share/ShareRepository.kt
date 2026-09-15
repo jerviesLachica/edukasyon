@@ -48,17 +48,25 @@ class ShareRepository @Inject constructor(
         if (doc.isExpiredAt(System.currentTimeMillis())) throw ShareError.Expired
 
         // Collision-check first; on a live clash, re-roll a fresh code up to the retry cap.
+        // A PERMISSION_DENIED here never means "server broken": with rules that reject
+        // expired/absent docs, it's the normal response to get()ing a free (missing) or
+        // stale code — re-roll instead of failing the publish.
         var attemptCode = code
         var attempts = 0
         while (true) {
             val existing = try {
                 shares.document(attemptCode).get().await()
             } catch (e: FirebaseFirestoreException) {
+                if (e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                    if (++attempts > MAX_COLLISION_RETRIES) throw ShareError.AlreadyTaken
+                    attemptCode = ShareCode.generate()
+                    continue
+                }
                 throw wrapped(e)
             }
-            val stale = existing.data?.let { ShareDocument.fromMap(it) }
-                ?.isExpiredAt(System.currentTimeMillis()) == true
-            if (!existing.exists() || stale) break
+            if (!existing.exists()) break
+            // Expired shares can't be overwritten (delete is denied by rules), so an
+            // existing doc — live or stale — is occupied: re-roll.
             if (++attempts > MAX_COLLISION_RETRIES) throw ShareError.AlreadyTaken
             attemptCode = ShareCode.generate()
         }
