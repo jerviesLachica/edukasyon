@@ -5,11 +5,11 @@ service cloud.firestore {
     // createdAt/expiresAt are epoch-millisecond integers; compared via toMillis().
     match /shares/{code} {
       // Anyone who knows the code may read it until it expires. The
-      // resource.data == null short-circuit lets get() on a not-yet-existing
-      // code answer NOT_FOUND instead of tripping over resource.data.expiresAt
-      // (a null-property error denies the read as PERMISSION_DENIED, which
-      // made publishing a fresh code impossible).
-      allow get: if resource.data == null || resource.data.expiresAt > request.time.toMillis();
+      // `resource == null` short-circuit (NOT resource.data — `resource` itself is
+      // null for absent docs, and touching .data on it errors -> deny) lets get()
+      // on a not-yet-existing code answer NOT_FOUND instead of PERMISSION_DENIED,
+      // which had made publishing a fresh code impossible.
+      allow get: if resource == null || resource.data.expiresAt > request.time.toMillis();
       allow list: if resource.data.expiresAt > request.time.toMillis();
 
       // Writers must be signed in and post a well-formed, unexpired, zero-view document.
