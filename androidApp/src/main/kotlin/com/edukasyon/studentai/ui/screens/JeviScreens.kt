@@ -1735,12 +1735,12 @@ private fun PodcastVoicePickerDropdown(
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
-                text = { Text("Theme default (${"$"}{TtsVoices.display(defaultId)})") },
+                text = { Text("Theme default (" + TtsVoices.display(defaultId) + ")") },
                 onClick = { onSelect(null); expanded = false },
             )
             TtsVoices.catalog.forEach { v ->
                 DropdownMenuItem(
-                    text = { Text(v.display()) },
+                    text = { Text(TtsVoices.display(v.id)) },
                     onClick = { onSelect(v.id); expanded = false },
                 )
             }
