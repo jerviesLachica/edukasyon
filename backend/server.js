@@ -500,7 +500,10 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
   }
   if (!imageBase64) throw new Error('imageBase64 is required');
 
-  const model = ai.resolveVisionModel(scan ? scan.model : requestedModel);
+  // resolveVisionModel guards the hcnsec-facing slug; on the NIM scan lane the
+  // configured SCAN_VISION_MODEL is authoritative (mirror PageNotesService) —
+  // the NIM slug is not in this provider's VISION_CAPABLE_MODELS list.
+  const model = scan ? scan.model : ai.resolveVisionModel(requestedModel);
   // Keep up to ~900 chars of OCR context — on-device OCR often catches day
   // columns and times the vision model misreads. Image stays source of truth.
   const ocrContext = extractedText?.trim() && extractedText.trim().length < 900
@@ -550,7 +553,15 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
     return { parsed: null, completion };
   }
 
-  let { parsed, completion } = parseCompletion(await runCompletion(null));
+  // With the dedicated scan lane (NIM) active, pin the wire model so the
+  // chain goes straight to NIM instead of walking hcnsec MiniMax-M3 (currently
+  // 503 model_not_found) and then the OrcaRouter GLM lane — which thinks
+  // unconditionally (2-3k chars of reasoning_content) and adds 20-40s.
+  // Wire format: NIM slug 'meta/llama-3.2-11b-vision-instruct' goes to the
+  // scan provider as-is via wireModelOverride (see PageNotesService, same fix).
+  let { parsed, completion } = parseCompletion(
+    await runCompletion(scan ? model : null),
+  );
 
   if (!parsed) {
     const full = (completion.reply || completion.reasoning || '');
