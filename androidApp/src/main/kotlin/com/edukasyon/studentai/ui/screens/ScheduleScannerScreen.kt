@@ -122,7 +122,8 @@ fun ScheduleScannerScreen(
 
     fun submitScanImage(bytes: ByteArray) {
         pendingScanImageBytes = bytes
-        viewModel.analyzeScheduleImage(bytes)
+        val resized = resizeScanBytes(bytes)
+        viewModel.analyzeScheduleImage(resized)
     }
 
     val launchDocumentScan = rememberDocumentScanLauncher(
@@ -505,6 +506,31 @@ private suspend fun PreviewView.awaitAttachedToWindow() {
 
 private fun userFacingCameraError(@Suppress("UNUSED_PARAMETER") error: Exception): String =
     "Camera unavailable — use Gallery instead"
+
+private const val MAX_SCAN_DIMENSION = 1024 // downscale camera/gallery images — timetables are text, 1024px is plenty; cuts wire payload 20-40x
+
+private fun resizeForScan(bitmap: Bitmap): Bitmap {
+    val longest = maxOf(bitmap.width, bitmap.height)
+    if (longest <= MAX_SCAN_DIMENSION) return bitmap
+    val scale = MAX_SCAN_DIMENSION.toFloat() / longest
+    val w = (bitmap.width * scale).toInt().coerceAtLeast(1)
+    val h = (bitmap.height * scale).toInt().coerceAtLeast(1)
+    return Bitmap.createScaledBitmap(bitmap, w, h, true)
+}
+
+private fun resizeScanBytes(bytes: ByteArray): ByteArray {
+    val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+    val longest = maxOf(opts.outWidth, opts.outHeight)
+    if (longest <= MAX_SCAN_DIMENSION) return bytes
+    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return bytes
+    val scaled = resizeForScan(bitmap)
+    if (scaled !== bitmap) bitmap.recycle()
+    return ByteArrayOutputStream().use { stream ->
+        scaled.compress(Bitmap.CompressFormat.JPEG, 70, stream)
+        stream.toByteArray()
+    }
+}
 
 private fun imageProxyToJpeg(image: ImageProxy): ByteArray {
     val rotationDegrees = image.imageInfo.rotationDegrees
