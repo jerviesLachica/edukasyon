@@ -32,4 +32,5 @@ secrets/
 # Agent workflow state (operators' local ledgers/plans, not app content)
 .omh/runs/
 .hermes/
+.claude/
 IDEA.md
