@@ -28,7 +28,7 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
-        buildConfigField("String", "AI_BACKEND_URL", "\"https://studentai-backend-ha0z.onrender.com/\"")
+        buildConfigField("String", "AI_BACKEND_URL", "\"https://jerviesLachica-schedmate-backend.hf.space/\"")
     }
 
     signingConfigs {
@@ -48,7 +48,7 @@ android {
 
     buildTypes {
         release {
-            buildConfigField("String", "AI_BACKEND_URL", "\"https://studentai-backend-ha0z.onrender.com/\"")
+            buildConfigField("String", "AI_BACKEND_URL", "\"https://jerviesLachica-schedmate-backend.hf.space/\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
