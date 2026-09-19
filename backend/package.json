@@ -1,6 +1,6 @@
 {
   "name": "studentai-backend",
-  "version": "1.0.0",
+  "version": "2.1.1",
   "description": "Secure AI proxy backend for SchedMate Android app",
   "main": "server.js",
   "scripts": {

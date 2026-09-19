@@ -11,6 +11,18 @@ data class ChangelogEntry(
 object ChangelogRepository {
     val changelog = listOf(
         ChangelogEntry(
+            versionName = "2.1.1",
+            versionCode = 12,
+            releaseDate = "2026-09-19",
+            isMandatory = false,
+            notes = listOf(
+                "Multi-Provider Free AI Engine: Zero-downtime AI study assistant backed by a multi-provider round-robin pool (Groq, Google Gemini, OpenRouter, and HCNsec).",
+                "Sub-Second Responses: Ultra-fast Groq integration delivers quiz generation, flashcard creation, and study plan answers in under 800ms.",
+                "Automatic Circuit-Breaker Failover: Seamless retry logic prevents rate limits and server errors with zero dropped requests.",
+                "Multi-Modal Vision Load Balancing: Enhanced assignment scanning and document OCR powered by Gemini 2.5 Flash and fast vision routing.",
+            ),
+        ),
+        ChangelogEntry(
             versionName = "2.1.0",
             versionCode = 11,
             releaseDate = "2026-09-19",
