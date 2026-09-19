@@ -1243,6 +1243,10 @@ class AiViewModel @Inject constructor(
             when (conversation.type) {
                 AiConversationType.TUTOR -> {
                     val messages = storedMessages.map { msg ->
+                        val toolAction = if (!msg.isUser) {
+                            com.edukasyon.studentai.core.ai.AiConversationMetadata
+                                .decodeToolAction(msg.metadataJson)
+                        } else null
                         GizmoChatMessage(
                             sender = if (msg.isUser) "You" else "Jevi",
                             content = msg.content,
@@ -1267,6 +1271,8 @@ class AiViewModel @Inject constructor(
                             } else {
                                 emptyList()
                             },
+                            toolActionType = toolAction?.type,
+                            toolActionData = toolAction?.data,
                         )
                     }
                     _uiState.update {
@@ -1723,6 +1729,9 @@ class AiViewModel @Inject constructor(
                     }
                 }
                 val finalContent = parsed.displayText.ifBlank { reply.ifBlank { "I've processed your request." } }
+                val toolActionMeta = response.toolAction?.let {
+                    com.edukasyon.studentai.core.ai.ToolActionMeta(it.type, it.data)
+                }
                 safePersistMessage(
                     AiConversationMessage(
                         id = aiMessageId(),
@@ -1736,6 +1745,7 @@ class AiViewModel @Inject constructor(
                                 citedViews.map {
                                     com.edukasyon.studentai.core.ai.CitedChunkMeta(it.id, it.sourceId, it.label, it.text)
                                 },
+                                toolActionMeta,
                             ),
                     )
                 )
@@ -1753,6 +1763,8 @@ class AiViewModel @Inject constructor(
                             timestamp = assistantTimestamp,
                             reasoning = reasoning,
                             citations = citedViews,
+                            toolActionType = response.toolAction?.type,
+                            toolActionData = response.toolAction?.data,
                         ),
                         studyProposals = studyBlocks,
                         followUps = followUps,
@@ -2193,6 +2205,145 @@ class AiViewModel @Inject constructor(
                 _uiState.update { it.copy(quizSaved = true, statusMessage = "Quiz saved to library") }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message ?: "Failed to save quiz") }
+            }
+        }
+    }
+
+    fun saveToolDeck(title: String, cardsJson: String) {
+        viewModelScope.launch {
+            try {
+                val parsedCards = mutableListOf<Flashcard>()
+                runCatching {
+                    val root = kotlinx.serialization.json.Json.parseToJsonElement(cardsJson)
+                    val cardsArray = (root as? kotlinx.serialization.json.JsonObject)?.get("cards") as? kotlinx.serialization.json.JsonArray
+                    cardsArray?.forEach { el ->
+                        val obj = el as? kotlinx.serialization.json.JsonObject ?: return@forEach
+                        val front = (obj["front"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                            ?: (obj["question"] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+                        val back = (obj["back"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                            ?: (obj["answer"] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+                        val topic = (obj["topic"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        if (front.isNotBlank() && back.isNotBlank()) {
+                            parsedCards += Flashcard(
+                                id = java.util.UUID.randomUUID().toString(),
+                                question = front,
+                                answer = back,
+                                subjectId = null,
+                                topic = topic ?: title,
+                                difficulty = "MEDIUM",
+                                reviewCount = 0,
+                                correctCount = 0,
+                                incorrectCount = 0,
+                                lastReviewedAt = null,
+                                nextReviewAt = null,
+                            )
+                        }
+                    }
+                }
+                if (parsedCards.isEmpty()) {
+                    _uiState.update { it.copy(statusMessage = "Could not parse flashcard deck") }
+                    return@launch
+                }
+                val deckId = java.util.UUID.randomUUID().toString()
+                val deck = com.edukasyon.studentai.domain.model.JeviDeck(
+                    id = deckId,
+                    title = title.ifBlank { "Study Deck" },
+                    description = "Created from Jevi AI conversation",
+                    subjectId = null,
+                    sourceNoteId = null,
+                    colorHex = "#2563EB",
+                    createdAt = System.currentTimeMillis(),
+                    updatedAt = System.currentTimeMillis(),
+                    cardCount = parsedCards.size,
+                )
+                jeviRepository.ensureDefaultDeck()
+                jeviRepository.createDeck(deck)
+                saveFlashcards.execute(parsedCards)
+                jeviRepository.saveFlashcardsToDeck(deckId, parsedCards)
+                awardXp(GizmoConstants.XP_SAVE_FLASHCARDS)
+                _uiState.update {
+                    it.copy(
+                        statusMessage = "Deck '${deck.title}' saved with ${parsedCards.size} cards! (+${GizmoConstants.XP_SAVE_FLASHCARDS} XP)"
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save tool deck", e)
+                _uiState.update { it.copy(error = "Failed to save deck: ${e.message}") }
+            }
+        }
+    }
+
+    fun scheduleToolTask(title: String, dueDate: String) {
+        viewModelScope.launch {
+            try {
+                val payload = com.edukasyon.studentai.core.ai.AiActionPayload(
+                    type = "add_task",
+                    title = title,
+                    description = if (dueDate.isNotBlank()) "Due: $dueDate · Created by Jevi AI Tutor" else "Created by Jevi AI Tutor",
+                    priority = "MEDIUM",
+                )
+                aiActionExecutor.execute(listOf(payload))
+                awardXp(GizmoConstants.XP_CHAT)
+                _uiState.update {
+                    it.copy(statusMessage = "Task '$title' added to your study schedule!")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to schedule tool task", e)
+                _uiState.update { it.copy(error = "Failed to add task: ${e.message}") }
+            }
+        }
+    }
+
+    fun launchToolQuiz(title: String, questionsJson: String) {
+        viewModelScope.launch {
+            try {
+                val questions = mutableListOf<com.edukasyon.studentai.domain.model.QuizQuestion>()
+                val quizId = java.util.UUID.randomUUID().toString()
+                runCatching {
+                    val root = kotlinx.serialization.json.Json.parseToJsonElement(questionsJson)
+                    val array = (root as? kotlinx.serialization.json.JsonObject)?.get("questions") as? kotlinx.serialization.json.JsonArray
+                    array?.forEachIndexed { idx, el ->
+                        val obj = el as? kotlinx.serialization.json.JsonObject ?: return@forEachIndexed
+                        val qText = (obj["question"] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+                        val correct = (obj["correctAnswer"] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+                        val optsArray = obj["options"] as? kotlinx.serialization.json.JsonArray
+                        val options = optsArray?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }.orEmpty()
+                        if (qText.isNotBlank()) {
+                            questions += com.edukasyon.studentai.domain.model.QuizQuestion(
+                                id = java.util.UUID.randomUUID().toString(),
+                                quizId = quizId,
+                                type = com.edukasyon.studentai.domain.model.QuestionType.MULTIPLE_CHOICE,
+                                question = qText,
+                                options = if (options.isNotEmpty()) options else listOf("True", "False"),
+                                correctAnswer = correct.ifBlank { options.firstOrNull().orEmpty() },
+                            )
+                        }
+                    }
+                }
+                if (questions.isEmpty()) {
+                    _uiState.update { it.copy(statusMessage = "Could not load quiz questions") }
+                    return@launch
+                }
+                val quiz = com.edukasyon.studentai.domain.model.Quiz(
+                    id = quizId,
+                    title = title.ifBlank { "Practice Quiz" },
+                    subjectId = null,
+                    sourceNoteId = null,
+                    createdAt = System.currentTimeMillis(),
+                    questions = questions,
+                )
+                saveQuiz.execute(quiz)
+                awardXp(GizmoConstants.XP_GENERATE_QUIZ)
+                _uiState.update {
+                    it.copy(
+                        generatedQuiz = quiz,
+                        quizSession = QuizSessionState(quiz = quiz),
+                        statusMessage = "Quiz '${quiz.title}' saved and ready in Quizzes!"
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to launch tool quiz", e)
+                _uiState.update { it.copy(error = "Failed to launch quiz: ${e.message}") }
             }
         }
     }

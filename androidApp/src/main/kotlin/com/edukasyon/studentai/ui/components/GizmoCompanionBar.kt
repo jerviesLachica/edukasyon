@@ -446,6 +446,220 @@ fun JeviReasoningSection(
 }
 
 @Composable
+fun JeviToolActionCard(
+    toolActionType: String,
+    toolActionData: String?,
+    onSaveDeck: ((title: String, cardsJson: String) -> Unit)? = null,
+    onScheduleTask: ((title: String, dueDate: String) -> Unit)? = null,
+    onLaunchQuiz: ((title: String, questionsJson: String) -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    val parsedJson = androidx.compose.runtime.remember(toolActionData) {
+        toolActionData?.takeIf { it.isNotBlank() }?.let {
+            runCatching {
+                kotlinx.serialization.json.Json.parseToJsonElement(it) as? kotlinx.serialization.json.JsonObject
+            }.getOrNull()
+        }
+    }
+    var actionCompleted by androidx.compose.runtime.remember(toolActionType, toolActionData) {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+
+    when (toolActionType) {
+        "evaluate_math" -> {
+            val expr = (parsedJson?.get("expression") as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+            val res = (parsedJson?.get("result") as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+            Surface(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("🧮", style = MaterialTheme.typography.titleMedium)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Verified Calculation",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = if (expr.isNotBlank()) "$expr = $res" else res,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+            }
+        }
+        "create_flashcard_deck" -> {
+            val title = (parsedJson?.get("title") as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "Flashcard Deck"
+            val cards = parsedJson?.get("cards") as? kotlinx.serialization.json.JsonArray
+            val count = cards?.size ?: 0
+            Surface(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.25f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)),
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text("🃏", style = MaterialTheme.typography.titleMedium)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Interactive Study Deck",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.secondary,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = "$title ($count cards)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            )
+                        }
+                    }
+                    if (onSaveDeck != null && toolActionData != null) {
+                        androidx.compose.material3.Button(
+                            onClick = {
+                                if (!actionCompleted) {
+                                    actionCompleted = true
+                                    onSaveDeck(title, toolActionData)
+                                }
+                            },
+                            enabled = !actionCompleted,
+                            modifier = Modifier.fillMaxWidth().height(36.dp),
+                            shape = RoundedCornerShape(8.dp),
+                        ) {
+                            Text(if (actionCompleted) "✓ Saved to Decks" else "💾 Save Deck to Study")
+                        }
+                    }
+                }
+            }
+        }
+        "create_study_task" -> {
+            val title = (parsedJson?.get("title") as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "Study Task"
+            val dueDate = (parsedJson?.get("dueDate") as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+            Surface(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.25f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)),
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text("📅", style = MaterialTheme.typography.titleMedium)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Study Schedule Task",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            )
+                            if (dueDate.isNotBlank()) {
+                                Text(
+                                    text = "Due: $dueDate",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    if (onScheduleTask != null) {
+                        androidx.compose.material3.Button(
+                            onClick = {
+                                if (!actionCompleted) {
+                                    actionCompleted = true
+                                    onScheduleTask(title, dueDate)
+                                }
+                            },
+                            enabled = !actionCompleted,
+                            modifier = Modifier.fillMaxWidth().height(36.dp),
+                            shape = RoundedCornerShape(8.dp),
+                        ) {
+                            Text(if (actionCompleted) "✓ Added to Schedule" else "📅 Add to Schedule")
+                        }
+                    }
+                }
+            }
+        }
+        "launch_practice_quiz" -> {
+            val title = (parsedJson?.get("title") as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "Practice Quiz"
+            val questions = parsedJson?.get("questions") as? kotlinx.serialization.json.JsonArray
+            val count = questions?.size ?: 0
+            Surface(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text("📝", style = MaterialTheme.typography.titleMedium)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Practice Quiz",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = "$title ($count questions)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            )
+                        }
+                    }
+                    if (onLaunchQuiz != null && toolActionData != null) {
+                        androidx.compose.material3.Button(
+                            onClick = {
+                                if (!actionCompleted) {
+                                    actionCompleted = true
+                                    onLaunchQuiz(title, toolActionData)
+                                }
+                            },
+                            enabled = !actionCompleted,
+                            modifier = Modifier.fillMaxWidth().height(36.dp),
+                            shape = RoundedCornerShape(8.dp),
+                        ) {
+                            Text(if (actionCompleted) "✓ Saved to Quiz Library" else "🎯 Start Quiz in Library")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun GizmoChatBubble(
     message: String,
     isUser: Boolean,
@@ -458,6 +672,11 @@ fun GizmoChatBubble(
     onSpeak: (() -> Unit)? = null,
     citations: List<com.edukasyon.studentai.domain.model.CitedChunkView> = emptyList(),
     onCitationClick: ((com.edukasyon.studentai.domain.model.CitedChunkView) -> Unit)? = null,
+    toolActionType: String? = null,
+    toolActionData: String? = null,
+    onSaveDeck: ((title: String, cardsJson: String) -> Unit)? = null,
+    onScheduleTask: ((title: String, dueDate: String) -> Unit)? = null,
+    onLaunchQuiz: ((title: String, questionsJson: String) -> Unit)? = null,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -528,6 +747,15 @@ fun GizmoChatBubble(
                             } else {
                                 MarkdownChatText(markdown = message)
                             }
+                        }
+                        if (!isUser && !toolActionType.isNullOrBlank()) {
+                            JeviToolActionCard(
+                                toolActionType = toolActionType,
+                                toolActionData = toolActionData,
+                                onSaveDeck = onSaveDeck,
+                                onScheduleTask = onScheduleTask,
+                                onLaunchQuiz = onLaunchQuiz,
+                            )
                         }
                         if (!isUser && citations.isNotEmpty() && onCitationClick != null) {
                             Column(

@@ -13,17 +13,24 @@ const DEFAULT_MODEL = 'gemini-embedding-001';
 const DEFAULT_DIMS = 768;
 
 function createEmbeddingClient(config = {}) {
-  const apiKey = config.apiKey || process.env.GEMINI_EMBEDDING_API_KEY || '';
+  const isGoogle = (config.baseUrl && config.baseUrl.includes('googleapis')) ||
+    Boolean(process.env.GEMINI_EMBEDDING_API_KEY) ||
+    (config.model && config.model.includes('gemini'));
+
+  const isOpenAi = !isGoogle && Boolean(config.apiKey || process.env.AI_API_KEY);
+
+  const apiKey = config.apiKey || (isGoogle ? process.env.GEMINI_EMBEDDING_API_KEY : (process.env.AI_API_KEY || ''));
   const baseUrl = (
     config.baseUrl ||
-    process.env.GEMINI_EMBEDDING_BASE_URL ||
-    'https://generativelanguage.googleapis.com/v1beta'
+    (isGoogle
+      ? (process.env.GEMINI_EMBEDDING_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta')
+      : (process.env.AI_BASE_URL || 'https://api.hcnsec.cn/v1'))
   ).replace(/\/$/, '');
-  const model = config.model || process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_MODEL;
-  const dims = Number(config.dims || process.env.GEMINI_EMBEDDING_DIMS || DEFAULT_DIMS);
+  const model = config.model || (isGoogle ? (process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_MODEL) : (process.env.EMBEDDING_MODEL || 'Qwen3-Embedding-8B'));
+  const dims = Number(config.dims || (isGoogle ? (process.env.GEMINI_EMBEDDING_DIMS || DEFAULT_DIMS) : 2048));
 
   function assertKey() {
-    if (!apiKey) throw new Error('Embeddings not configured (set GEMINI_EMBEDDING_API_KEY)');
+    if (!apiKey) throw new Error('Embeddings not configured (set GEMINI_EMBEDDING_API_KEY or AI_API_KEY)');
   }
 
   async function post(path, body, signal) {
@@ -56,12 +63,32 @@ function createEmbeddingClient(config = {}) {
   }
 
   /**
-   * Embed 1..N texts. Single text uses :embedContent; N use :batchEmbedContents
-   * (one HTTP call, one quota hit per request object).
+   * Embed 1..N texts. Supports both OpenAI /v1/embeddings and Gemini batchEmbedContents.
    */
   async function embedTexts(texts, { taskType = 'RETRIEVAL_DOCUMENT', signal } = {}) {
     if (!Array.isArray(texts) || texts.length === 0) return [];
     assertKey();
+
+    if (isOpenAi) {
+      const res = await fetch(`${baseUrl}/embeddings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          input: texts,
+        }),
+        signal,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Embedding API error ${res.status}: ${String(text).slice(0, 200)}`);
+      }
+      const json = await res.json();
+      return (json.data || []).map((d) => d.embedding);
+    }
     if (texts.length === 1) return [await embedOne(texts[0], taskType, signal)];
     const data = await post(
       `/models/${model}:batchEmbedContents`,

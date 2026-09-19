@@ -18,6 +18,8 @@ data class GizmoChatMessage(
     val attachmentIsImage: Boolean = false,
     val reasoning: String? = null,
     val citations: List<CitedChunkView> = emptyList(),
+    val toolActionType: String? = null,
+    val toolActionData: String? = null,
 )
 
 data class CitedChunkView(

@@ -280,3 +280,100 @@ describe('isLearningTopic', () => {
     }
   });
 });
+
+describe('handleChat learning tools', () => {
+  it('executes evaluate_math and returns toolAction with deterministic math result', async () => {
+    let callCount = 0;
+    const provider = {
+      resolveChatModel: () => 'auto',
+      requestHasVisionContent: () => false,
+      chatCompletion: async (_messages, options) => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            reply: '',
+            reasoning: null,
+            model: 'step-3.7-flash',
+            toolCalls: [
+              {
+                id: 'tc-1',
+                type: 'function',
+                function: {
+                  name: 'evaluate_math',
+                  arguments: JSON.stringify({ expression: 'sqrt(144) + 12 * 3' }),
+                },
+              },
+            ],
+          };
+        }
+        return {
+          reply: 'The result is 48.',
+          reasoning: 'Calculated sqrt(144)=12 and 12*3=36',
+          model: 'step-3.7-flash',
+        };
+      },
+    };
+
+    const result = await handleChat({
+      body: { message: 'Calculate sqrt(144) + 12 * 3' },
+      provider,
+      webSearch: { isConfigured: false },
+      maxTokens: 512,
+    });
+
+    assert.equal(callCount, 2, 'should invoke round 2 with tool output');
+    assert.equal(result.reply, 'The result is 48.');
+    assert.ok(result.toolAction, 'should include toolAction');
+    assert.equal(result.toolAction.type, 'math_result');
+    const data = JSON.parse(result.toolAction.data);
+    assert.equal(data.result, 48);
+  });
+
+  it('handles create_flashcard_deck and packages deck payload into toolAction', async () => {
+    let callCount = 0;
+    const provider = {
+      resolveChatModel: () => 'auto',
+      requestHasVisionContent: () => false,
+      chatCompletion: async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            reply: '',
+            model: 'step-3.7-flash',
+            toolCalls: [
+              {
+                id: 'tc-2',
+                type: 'function',
+                function: {
+                  name: 'create_flashcard_deck',
+                  arguments: JSON.stringify({
+                    title: 'Cells',
+                    cards: [{ question: 'What is cell?', answer: 'Basic unit of life' }],
+                  }),
+                },
+              },
+            ],
+          };
+        }
+        return {
+          reply: 'Here are your flashcards on Cells!',
+          model: 'step-3.7-flash',
+        };
+      },
+    };
+
+    const result = await handleChat({
+      body: { message: 'Make 1 flashcard on cell' },
+      provider,
+      webSearch: { isConfigured: false },
+      maxTokens: 512,
+    });
+
+    assert.equal(callCount, 2);
+    assert.ok(result.toolAction);
+    assert.equal(result.toolAction.type, 'create_flashcard_deck');
+    const data = JSON.parse(result.toolAction.data);
+    assert.equal(data.title, 'Cells');
+    assert.equal(data.cards.length, 1);
+  });
+});

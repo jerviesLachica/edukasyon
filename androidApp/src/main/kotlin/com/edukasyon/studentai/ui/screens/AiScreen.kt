@@ -192,6 +192,9 @@ fun AiScreen(
                 onViewerStep = { viewModel.stepViewer(it) },
                 onViewerClose = { viewModel.closeViewer() },
                 onRetryLastMessage = { viewModel.retryLastMessage() },
+                onSaveDeck = { title, data -> viewModel.saveToolDeck(title, data) },
+                onScheduleTask = { title, dueDate -> viewModel.scheduleToolTask(title, dueDate) },
+                onLaunchQuiz = { title, data -> viewModel.launchToolQuiz(title, data) },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -297,6 +300,9 @@ private fun AiTutorTab(
     onDeleteSource: (String) -> Unit = {},
     onViewerStep: (Int) -> Unit = {},
     onViewerClose: () -> Unit = {},
+    onSaveDeck: (String, String) -> Unit = { _, _ -> },
+    onScheduleTask: (String, String) -> Unit = { _, _ -> },
+    onLaunchQuiz: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val clipboard = LocalClipboardManager.current
@@ -465,6 +471,11 @@ private fun AiTutorTab(
                             attachmentIsImage = msg.attachmentIsImage,
                             reasoning = msg.reasoning,
                             citations = msg.citations,
+                            toolActionType = msg.toolActionType,
+                            toolActionData = msg.toolActionData,
+                            onSaveDeck = onSaveDeck,
+                            onScheduleTask = onScheduleTask,
+                            onLaunchQuiz = onLaunchQuiz,
                             onCitationClick = if (!msg.isUser && msg.citations.isNotEmpty()) {
                                 { onCitationClick(it) }
                             } else {

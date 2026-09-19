@@ -34,13 +34,11 @@ const DEFAULT_VISION_MODEL = 'nemotron-3.5-lightning-free';
 // ORCA_MODEL env if the key ever gains auto access.
 const ORCA_VISION_MODEL = process.env.ORCA_MODEL || 'z-ai/glm-5.3-flash-free';
 
-// Legacy slug from before the Zen migration. Old clients / Render envs may
-// still send `step-3.7-flash` or `agnes-2.5-flash` — normalize them to `nemotron-3.5-lightning-free` so quota
-// attribution and logs stay consistent; the wire layer maps it to `MiniMax-M3`.
 const LEGACY_VISION_ALIASES = {
-  'step-3.7-flash': 'nemotron-3.5-lightning-free',
-  'agnes-2.5-flash': 'nemotron-3.5-lightning-free',
+  'agnes-2.5-flash': 'step-3.7-flash',
 };
+
+const FAST_TEXT_MODEL = process.env.FAST_TEXT_MODEL || 'stepaudio-2.5-chat';
 
 function normalizeModelSlug(slug) {
   if (typeof slug !== 'string') return slug;
@@ -49,7 +47,6 @@ function normalizeModelSlug(slug) {
 }
 
 // Maps a resolved slug to the model id actually sent upstream.
-// Vision requests can use OrcaRouter (fast, $0) or fall back to MiniMax-M3 (slow, unlimited).
 function toWireModelSlug(slug, { isVision = false, provider = 'hcnsec' } = {}) {
   const normalized = normalizeModelSlug(slug);
   const textFallback = process.env.TEXT_MODEL || 'glm-4.5-air';
@@ -341,20 +338,26 @@ function createAiProvider(config = {}) {
       reasoning = null;
       replyHeuristic = true;
     }
-    if (!reply && !reasoning) throw new Error('AI API returned empty response');
+    const toolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
+    if (!reply && !reasoning && toolCalls.length === 0) throw new Error('AI API returned empty response');
     return {
-      reply: reply || (reasoning ? '' : '(No response text)'),
+      reply: reply || (reasoning ? '' : ''),
       reasoning,
       replyHeuristic,
       finishReason,
       model: data.model || null,
+      toolCalls,
     };
   }
 
-  async function chatCompletionOnce(messages, { temperature = 0.7, maxTokens = 2048, model, signal, responseFormat, reasoning, baseUrl, apiKey } = {}) {
+  async function chatCompletionOnce(messages, { temperature = 0.7, maxTokens = 2048, model, signal, responseFormat, reasoning, tools, toolChoice, baseUrl, apiKey } = {}) {
     const payload = { model, messages, temperature, max_tokens: maxTokens };
     // Structured-output hint; providers that don't support it are handled by the caller's fallback.
     if (responseFormat) payload.response_format = responseFormat;
+    if (tools && Array.isArray(tools) && tools.length > 0) {
+      payload.tools = tools;
+      if (toolChoice) payload.tool_choice = toolChoice;
+    }
     // reasoning parameter (e.g. for nemotron-3.5-lightning-free or OpenRouter thinking)
     // Pass object ({ effort: 'medium' }) or string reasoning_effort ('low'/'medium'/'high')
     if (reasoning && typeof reasoning !== 'string') {
@@ -378,7 +381,7 @@ function createAiProvider(config = {}) {
     return parseChatCompletionResult(data);
   }
 
-  async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, thinking: thinkingOpt, signal, responseFormat, reasoning, wireModelOverride } = {}) {
+  async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, thinking: thinkingOpt, signal, responseFormat, reasoning, tools, toolChoice, wireModelOverride } = {}) {
     if (!hasAiKey && !ZEN_API_KEY && (!isVision || !ORCA_API_KEY)) throw new Error('AI provider not configured (set AI_API_KEY, OPENCODE_API_KEY or ORCA_API_KEY)');
     // Thinking requests (explicit flag from effort, else the REASONING
     // model / Zen slug) go to hcnsec `auto` — never Cerebras.
@@ -438,6 +441,8 @@ function createAiProvider(config = {}) {
             signal,
             responseFormat,
             reasoning,
+            tools,
+            toolChoice,
             baseUrl,
             apiKey,
           });
@@ -637,6 +642,8 @@ function createAiProvider(config = {}) {
     DEFAULT_MODEL,
     TEXT_MODEL,
     VISION_MODEL,
+    FAST_TEXT_MODEL,
+    fastTextModel: FAST_TEXT_MODEL,
     ALLOWED_MODELS,
     resolveChatModel,
     resolveVisionModel,
@@ -649,4 +656,4 @@ function createAiProvider(config = {}) {
   };
 }
 
-module.exports = { createAiProvider, ALLOWED_MODELS, VISION_CAPABLE_MODELS, normalizeModelSlug, toWireModelSlug };
+module.exports = { createAiProvider, ALLOWED_MODELS, VISION_CAPABLE_MODELS, FAST_TEXT_MODEL, normalizeModelSlug, toWireModelSlug };

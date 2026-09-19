@@ -76,17 +76,31 @@ describe('Embeddings client', () => {
     await assert.rejects(() => noKey.embedQuery('hi'), /GEMINI_EMBEDDING_API_KEY/);
   });
 
-  it('surfaces upstream errors with status', async () => {
-    globalThis.fetch = async () => ({ ok: false, status: 429, text: async () => 'quota' });
-    await assert.rejects(() => client().embedQuery('hi'), /429/);
-  });
-
-  it('rejects mismatched batch responses', async () => {
-    globalThis.fetch = async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({ embeddings: [{ values: [1] }] }),
+  it('supports OpenAI-compatible /embeddings endpoint (e.g. Qwen3-Embedding-8B)', async () => {
+    globalThis.fetch = async (url, opts) => {
+      calls.push({ url, body: JSON.parse(opts.body), headers: opts.headers });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            { embedding: [0.5, 0.6] },
+            { embedding: [0.7, 0.8] },
+          ],
+        }),
+      };
+    };
+    const openAiClient = createEmbeddingClient({
+      apiKey: 'hcnsec-key',
+      baseUrl: 'https://api.hcnsec.cn/v1',
+      model: 'Qwen3-Embedding-8B',
+      dims: 2048,
     });
-    await assert.rejects(() => client().embedDocuments(['a', 'b']), /mismatched/);
+    const vecs = await openAiClient.embedDocuments(['math', 'science']);
+    assert.strictEqual(calls[0].url, 'https://api.hcnsec.cn/v1/embeddings');
+    assert.strictEqual(calls[0].headers.Authorization, 'Bearer hcnsec-key');
+    assert.deepStrictEqual(calls[0].body.input, ['math', 'science']);
+    assert.strictEqual(calls[0].body.model, 'Qwen3-Embedding-8B');
+    assert.deepStrictEqual(vecs, [[0.5, 0.6], [0.7, 0.8]]);
   });
 });

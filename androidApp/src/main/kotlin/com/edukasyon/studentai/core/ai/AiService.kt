@@ -30,6 +30,11 @@ data class AiChatRequest(
     val deckMode: Boolean = false,
 )
 
+data class ToolActionResult(
+    val type: String,
+    val data: String,
+)
+
 data class AiChatResponse(
     val reply: String,
     val conversationId: String,
@@ -37,6 +42,7 @@ data class AiChatResponse(
     val model: String? = null,
     val citedChunkIds: List<String> = emptyList(),
     val citedWebResults: List<CitedWebResult> = emptyList(),
+    val toolAction: ToolActionResult? = null,
 )
 
 data class CitedWebResult(

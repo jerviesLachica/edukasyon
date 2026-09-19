@@ -104,6 +104,11 @@ interface AiApiService {
     // delivered as the visible answer (reasoning null) — clients must render
     // it verbatim instead of re-running the reasoning splitter on it.
     val reasoningUsedAsReply: Boolean = false,
+    val toolAction: ToolActionDto? = null,
+)
+@Serializable data class ToolActionDto(
+    val type: String,
+    val data: String,
 )
 @Serializable data class CitedWebResultDto(
     val url: String,

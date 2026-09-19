@@ -9,6 +9,12 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 @Serializable
+data class ToolActionMeta(
+    val type: String,
+    val data: String,
+)
+
+@Serializable
 data class AiToolMetadataDto(
     val kind: String,
     val summary: String? = null,
@@ -16,6 +22,7 @@ data class AiToolMetadataDto(
     val flashcards: List<FlashcardDto>? = null,
     val quiz: QuizDto? = null,
     val citations: List<CitedChunkMeta>? = null,
+    val toolAction: ToolActionMeta? = null,
 )
 
 @Serializable
@@ -61,11 +68,19 @@ object AiConversationMetadata {
     fun encodeTutorReasoning(
         reasoning: String?,
         citations: List<CitedChunkMeta>? = null,
+        toolAction: ToolActionMeta? = null,
     ): String? {
         val cleanReasoning = reasoning?.trim()?.takeIf { it.isNotEmpty() }
         val cleanCites = citations?.takeIf { it.isNotEmpty() }
-        if (cleanReasoning == null && cleanCites == null) return null
-        return json.encodeToString(AiToolMetadataDto(kind = "TUTOR", reasoning = cleanReasoning, citations = cleanCites))
+        if (cleanReasoning == null && cleanCites == null && toolAction == null) return null
+        return json.encodeToString(
+            AiToolMetadataDto(
+                kind = "TUTOR",
+                reasoning = cleanReasoning,
+                citations = cleanCites,
+                toolAction = toolAction,
+            )
+        )
     }
 
     fun decodeCitations(raw: String?): List<CitedChunkMeta> =
@@ -73,6 +88,9 @@ object AiConversationMetadata {
 
     fun decodeTutorReasoning(raw: String?): String? =
         decode(raw)?.takeIf { it.kind == "TUTOR" }?.reasoning?.trim()?.takeIf { it.isNotEmpty() }
+
+    fun decodeToolAction(raw: String?): ToolActionMeta? =
+        decode(raw)?.toolAction
 
     fun encodeFlashcards(cards: List<Flashcard>): String =
         json.encodeToString(

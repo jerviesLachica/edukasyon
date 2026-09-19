@@ -313,6 +313,134 @@ function isLearningTopic(message) {
   return true;
 }
 
+const LEARNING_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'evaluate_math',
+      description: 'Calculates or simplifies a mathematical, algebraic, or scientific expression deterministically. Use this whenever the student asks for calculations, numerical values, formula evaluations, roots, or geometry problems so the math is 100% exact.',
+      parameters: {
+        type: 'object',
+        properties: {
+          expression: {
+            type: 'string',
+            description: 'The mathematical expression to evaluate, e.g. "sqrt(144) + 15 * 4" or "4 * 3.14159 * 7.5^2" or "sin(pi/6)"'
+          },
+          explanation: {
+            type: 'string',
+            description: 'Brief 1-sentence note of what formula or operation is being evaluated'
+          }
+        },
+        required: ['expression']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_flashcard_deck',
+      description: 'Creates a flashcard study deck for the student when they ask to generate, make, or save flashcards on a topic.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: {
+            type: 'string',
+            description: 'Title of the flashcard deck'
+          },
+          cards: {
+            type: 'array',
+            description: 'The flashcards to include in the deck',
+            items: {
+              type: 'object',
+              properties: {
+                question: { type: 'string', description: 'Question or prompt' },
+                answer: { type: 'string', description: 'Concise, clear answer' }
+              },
+              required: ['question', 'answer']
+            }
+          }
+        },
+        required: ['title', 'cards']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_study_task',
+      description: 'Schedules a homework deadline, study session, or task reminder when the student mentions needing to study, review, or submit work.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: {
+            type: 'string',
+            description: 'Title of the task or assignment'
+          },
+          dueDate: {
+            type: 'string',
+            description: 'Optional ISO date or human readable time, e.g. "Tomorrow 5:00 PM" or "Friday"'
+          },
+          subtasks: {
+            type: 'array',
+            description: 'Optional breakdown steps to accomplish the task',
+            items: { type: 'string' }
+          }
+        },
+        required: ['title']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'launch_practice_quiz',
+      description: 'Generates a quick practice quiz (3-5 questions) for the student to test their knowledge interactively.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Quiz title' },
+          questions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                question: { type: 'string' },
+                options: { type: 'array', items: { type: 'string' } },
+                correctAnswer: { type: 'string' },
+                explanation: { type: 'string' }
+              },
+              required: ['question', 'options', 'correctAnswer']
+            }
+          }
+        },
+        required: ['title', 'questions']
+      }
+    }
+  }
+];
+
+function safeEvaluateMath(expr) {
+  try {
+    if (typeof expr !== 'string') return null;
+    const clean = expr
+      .replace(/\^/g, '**')
+      .replace(/\bpi\b/gi, 'Math.PI')
+      .replace(/\be\b/gi, 'Math.E')
+      .replace(/\bsqrt\b/gi, 'Math.sqrt')
+      .replace(/\bsin\b/gi, 'Math.sin')
+      .replace(/\bcos\b/gi, 'Math.cos')
+      .replace(/\btan\b/gi, 'Math.tan')
+      .replace(/\blog\b/gi, 'Math.log10')
+      .replace(/\bln\b/gi, 'Math.log')
+      .replace(/\babs\b/gi, 'Math.abs');
+    if (!/^[\d\s+\-*/().,%MathPIEsqrtincoagl]+$/.test(clean)) return null;
+    const res = Function(`'use strict'; return (${clean})`)();
+    return typeof res === 'number' && !Number.isNaN(res) ? res : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
 // ── Route handlers (business logic only — safety handled by gateway) ─────────
 
 async function handleChat({ body, provider: ai, webSearch: searchService, maxTokens, signal }) {
@@ -434,15 +562,87 @@ ${numbered}`;
   ];
 
   let completionResult;
+  let toolAction = null;
   try {
     completionResult = await ai.chatCompletion(messages, {
       model,
       isVision: hasVisionAttachment,
       thinking,
       reasoning: thinking ? effort : undefined,
+      tools: LEARNING_TOOLS,
       maxTokens: chatMaxTokens,
       signal,
     });
+
+    if (completionResult.toolCalls && completionResult.toolCalls.length > 0) {
+      const tc = completionResult.toolCalls[0];
+      const fnName = tc.function?.name;
+      let args = {};
+      try { args = JSON.parse(tc.function?.arguments || '{}'); } catch (_e) {}
+
+      let toolOutput = '';
+      if (fnName === 'evaluate_math') {
+        const mathResult = safeEvaluateMath(args.expression);
+        toolOutput = JSON.stringify({ expression: args.expression, result: mathResult });
+        toolAction = {
+          type: 'math_result',
+          data: JSON.stringify({ expression: args.expression, result: mathResult, explanation: args.explanation || '' }),
+        };
+      } else if (fnName === 'create_flashcard_deck') {
+        const title = args.title || 'Study Deck';
+        const cards = Array.isArray(args.cards) ? args.cards : [];
+        toolOutput = JSON.stringify({ status: 'created', deckTitle: title, cardCount: cards.length });
+        toolAction = {
+          type: 'create_flashcard_deck',
+          data: JSON.stringify({ title, cards }),
+        };
+      } else if (fnName === 'create_study_task') {
+        toolOutput = JSON.stringify({ status: 'scheduled', title: args.title, dueDate: args.dueDate });
+        toolAction = {
+          type: 'create_study_task',
+          data: JSON.stringify({ title: args.title, dueDate: args.dueDate || '', subtasks: args.subtasks || [] }),
+        };
+      } else if (fnName === 'launch_practice_quiz') {
+        const title = args.title || 'Practice Quiz';
+        const questions = Array.isArray(args.questions) ? args.questions : [];
+        toolOutput = JSON.stringify({ status: 'quiz_ready', title, count: questions.length });
+        toolAction = {
+          type: 'launch_practice_quiz',
+          data: JSON.stringify({ title, questions }),
+        };
+      }
+
+      if (toolOutput) {
+        messages.push({
+          role: 'assistant',
+          content: completionResult.reply || '',
+          tool_calls: completionResult.toolCalls,
+        });
+        messages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: toolOutput,
+        });
+
+        try {
+          const round2 = await ai.chatCompletion(messages, {
+            model,
+            isVision: hasVisionAttachment,
+            thinking: false,
+            maxTokens: chatMaxTokens,
+            signal,
+          });
+          if (round2 && (round2.reply || round2.reasoning)) {
+            completionResult = {
+              ...round2,
+              reasoning: completionResult.reasoning || round2.reasoning,
+            };
+          }
+        } catch (round2Err) {
+          console.warn('[ai] Tool round 2 completion failed; using round 1 text', round2Err.message);
+        }
+      }
+    }
   } catch (err) {
     console.warn(`[ai] Upstream chat completion failed: ${err.message}. Falling back to Smart Study engine.`);
     completionResult = generateSmartStudyFallback(body, err);
@@ -496,6 +696,7 @@ ${numbered}`;
     // truncated thinking content). Clients render it verbatim and skip
     // re-splitting it into a thinking panel — otherwise the answer collapses.
     ...(replyHeuristic ? { reasoningUsedAsReply: true } : {}),
+    ...(toolAction ? { toolAction } : {}),
     conversationId: conversationId || crypto.randomUUID(),
     model: usedModel || model,
     effort,
@@ -682,13 +883,13 @@ async function handleEmbed({ body, signal }) {
 
 async function handleSummarize({ body, provider: ai, maxTokens, signal }) {
   const text = body.text || '';
-  const model = ai.resolveTextModel(body.model);
+  const model = body.model ? ai.resolveTextModel(body.model) : (ai.fastTextModel || 'stepaudio-2.5-chat');
   const result = await ai.chatCompletionText(
     [
       { role: 'system', content: 'Summarize study notes concisely. Preserve key facts and terminology. Use plain text, no bullet markdown unless helpful.' },
       { role: 'user', content: `Summarize these notes:\n\n${wrapUntrustedDocument(text)}` },
     ],
-    { temperature: 0.3, maxTokens, model, signal }
+    { temperature: 0.3, maxTokens, model, signal, thinking: false }
   );
   return { result };
 }
@@ -740,7 +941,7 @@ function splitFlashcardsChunks(text) {
 
 async function handleFlashcards({ body, provider: ai, maxTokens, signal }) {
   const text = body.text || '';
-  const model = ai.resolveTextModel(body.model);
+  const model = body.model ? ai.resolveTextModel(body.model) : (ai.fastTextModel || 'stepaudio-2.5-chat');
 
   const runCall = async (section, partLabel, callMaxTokens) => {
     const content = await ai.chatCompletionText(
@@ -787,7 +988,7 @@ async function handleQuiz({ body, provider: ai, maxTokens, signal }) {
   const count = Number(body.count) || 5;
   const targetCount = Math.min(Math.max(count, 3), 15);
   const difficulty = body.difficulty ? ` Difficulty target: ${String(body.difficulty).trim()}.` : '';
-  const model = ai.resolveTextModel(body.model);
+  const model = body.model ? ai.resolveTextModel(body.model) : (ai.fastTextModel || 'stepaudio-2.5-chat');
   const content = await ai.chatCompletionText(
     [
       { role: 'system', content: QUIZ_SYSTEM_PROMPT },
@@ -810,7 +1011,7 @@ ${wrapUntrustedDocument(text)}`,
 
 async function handleStudyPlan({ body, provider: ai, maxTokens, signal }) {
   const { examDate, availableHours, subjects, topics } = body;
-  const model = ai.resolveTextModel(body.model);
+  const model = body.model ? ai.resolveTextModel(body.model) : (ai.fastTextModel || 'stepaudio-2.5-chat');
   const exam = examDate ? new Date(examDate).toISOString().slice(0, 10) : 'unknown';
   const content = await ai.chatCompletionText(
     [
