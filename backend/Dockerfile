@@ -1,12 +1,18 @@
-# Dependencies
+FROM node:20-alpine
+
+# Non-root user for security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+WORKDIR /app
+
+# Install dependencies
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Copy source
+# Copy source (node_modules excluded via .dockerignore)
 COPY . .
 
-# Expose HF standard port
-EXPOSE 7860
+# Koyeb / most hosts use PORT env var, default 8080
+EXPOSE 8080
 
-# Start backend (PORT=7860 will be injected by HF Spaces)
+USER appuser
 CMD ["node", "server.js"]
