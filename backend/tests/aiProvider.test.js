@@ -47,13 +47,13 @@ describe('AiProvider OrcaRouter Integration', () => {
       });
     });
 
-    it('vision fallback chain should skip OrcaRouter and wire to MiniMax-M3', () => {
+    it('vision fallback chain should skip OrcaRouter and wire to step-3.7-flash', () => {
       const chain = provider.modelFallbackChain('nemotron-3.5-lightning-free', { isVision: true });
       assert.ok(!chain.includes('z-ai/glm-5.3-flash-free'), 'OrcaRouter model should not be in chain without API key');
-      // When converted to wire model, nemotron-3.5-lightning-free becomes MiniMax-M3
+      // When converted to wire model, nemotron-3.5-lightning-free becomes step-3.7-flash
       const { toWireModelSlug } = require('../ai/AiProvider');
       const wire = toWireModelSlug(chain[0], { isVision: true });
-      assert.strictEqual(wire, 'MiniMax-M3', 'Primary vision wire model should be MiniMax-M3');
+      assert.strictEqual(wire, 'step-3.7-flash', 'Primary vision wire model should be step-3.7-flash');
     });
   });
 
@@ -268,11 +268,11 @@ describe('AiProvider OrcaRouter Integration', () => {
       assert.ok(String(calls[0].url).includes('hcnsec'), 'goes straight to hcnsec');
     });
 
-    it('thinking requests (nemotron-3.5-lightning-free slug) go to hcnsec auto, never Zen', async () => {
+    it('thinking requests (nemotron-3.5-lightning-free slug) go to hcnsec textFallback, never Zen', async () => {
       const provider = providerWithZenEnabled();
       globalThis.fetch = async (url, opts) => {
         calls.push({ url, body: JSON.parse(opts.body) });
-        return okReply('auto');
+        return okReply('glm-4.5-air');
       };
       const result = await provider.chatCompletion(
         [{ role: 'user', content: 'think hard' }],
@@ -284,14 +284,14 @@ describe('AiProvider OrcaRouter Integration', () => {
         assert.ok(!String(c.url).includes('opencode.ai'), 'thinking must not hit Zen');
         assert.ok(String(c.url).includes('hcnsec'), 'thinking stays on hcnsec');
       }
-      assert.strictEqual(calls[0].body.model, 'auto', 'thinking resolves to hcnsec auto');
+      assert.strictEqual(calls[0].body.model, 'glm-4.5-air', 'thinking resolves to hcnsec glm-4.5-air');
     });
 
-    it('explicit thinking:true forces hcnsec auto even for AUTO model', async () => {
+    it('explicit thinking:true forces hcnsec glm-4.5-air even for AUTO model', async () => {
       const provider = providerWithZenEnabled();
       globalThis.fetch = async (url, opts) => {
         calls.push({ url, body: JSON.parse(opts.body) });
-        return okReply('auto');
+        return okReply('glm-4.5-air');
       };
       const result = await provider.chatCompletion(
         [{ role: 'user', content: 'think hard' }],
@@ -301,7 +301,7 @@ describe('AiProvider OrcaRouter Integration', () => {
       for (const c of calls) {
         assert.ok(!String(c.url).includes('opencode.ai'), 'explicit thinking must not hit Zen');
       }
-      assert.strictEqual(calls[0].body.model, 'auto');
+      assert.strictEqual(calls[0].body.model, 'glm-4.5-air');
     });
 
     it('explicit thinking:false sends nemotron-3.5-lightning-free slug to Zen fast path', async () => {
@@ -604,7 +604,7 @@ describe('AiProvider thinking-mode answer collapse', () => {
     assert.ok(!result.replyHeuristic, 'real retry answer is not heuristic');
     const chatCalls = calls.filter((c) => String(c.url).includes('/chat/completions'));
     assert.ok(chatCalls.length >= 2, `expected a second chat/completions fetch, got ${chatCalls.length}`);
-    assert.strictEqual(chatCalls[0].body.model, 'auto', 'thinking attempt leads with hcnsec auto');
+    assert.strictEqual(chatCalls[0].body.model, 'glm-4.5-air', 'thinking attempt leads with hcnsec glm-4.5-air');
     assert.ok(String(chatCalls[1].url).includes('opencode.ai'), 'no-thinking retry takes the Zen fast lane');
     assert.notStrictEqual(chatCalls[1].body.model, 'auto', 'retry must not stay on the thinking auto router');
   });
