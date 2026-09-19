@@ -41,6 +41,7 @@ import com.edukasyon.studentai.ui.components.EmptyState
 import com.edukasyon.studentai.ui.components.animatedClickable
 import com.edukasyon.studentai.ui.components.mascot.SchedMateMascot
 import com.edukasyon.studentai.ui.components.mascot.MascotMood
+import com.edukasyon.studentai.domain.model.Flashcard
 import com.edukasyon.studentai.ui.viewmodel.FlashcardStudyViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,6 +60,7 @@ fun FlashcardStudyScreen(
     val flashcardMaxWidth = rememberFlashcardMaxWidth()
     val haptic = LocalHapticFeedback.current
     var flipped by remember { mutableStateOf(false) }
+    val missedCards = remember { mutableStateListOf<Flashcard>() }
     val card = state.currentCard
     val totalCards = state.studyCards.size
     val currentNumber = (state.currentIndex + 1).coerceAtMost(totalCards)
@@ -147,6 +149,34 @@ fun FlashcardStudyScreen(
                                                 message = "Generate flashcards with JEVI AI or add cards to this deck.",
                                             )
                                         }
+                                        missedCards.isNotEmpty() -> {
+                                            SchedMateMascot(
+                                                mood = MascotMood.Learning,
+                                                size = 140.dp,
+                                                customSpeechText = "Nice review session! You marked ${missedCards.size} challenging ${if (missedCards.size == 1) "card" else "cards"}. Want to retry them now?",
+                                            )
+                                            EmptyState(
+                                                title = "Review Missed Cards",
+                                                message = "Strengthen your recall by doing a quick retry of missed cards.",
+                                            )
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                OutlinedButton(onClick = onBack) {
+                                                    Text("Done")
+                                                }
+                                                BouncyButton(
+                                                    onClick = {
+                                                        val toRetry = missedCards.toList()
+                                                        missedCards.clear()
+                                                        viewModel.retryCards(toRetry)
+                                                    }
+                                                ) {
+                                                    Text("Retry ${missedCards.size} Cards")
+                                                }
+                                            }
+                                        }
                                         else -> {
                                             SchedMateMascot(
                                                 mood = MascotMood.Motivated,
@@ -233,11 +263,13 @@ fun FlashcardStudyScreen(
                                     onAgain = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         flipped = false
+                                        if (missedCards.none { it.id == card.id }) missedCards.add(card)
                                         viewModel.rate(card, 0)
                                     },
                                     onHard = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         flipped = false
+                                        if (missedCards.none { it.id == card.id }) missedCards.add(card)
                                         viewModel.rate(card, 1)
                                     },
                                     onGood = {

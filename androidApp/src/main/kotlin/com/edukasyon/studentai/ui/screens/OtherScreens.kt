@@ -49,6 +49,7 @@ import com.edukasyon.studentai.ui.components.DocToStudyStudioSheet
 import com.edukasyon.studentai.domain.model.Note
 import com.edukasyon.studentai.ui.viewmodel.CalendarViewModel
 import com.edukasyon.studentai.ui.viewmodel.NotesViewModel
+import com.edukasyon.studentai.ui.viewmodel.NotesFilter
 import com.edukasyon.studentai.ui.viewmodel.ProfileViewModel
 import com.edukasyon.studentai.ui.viewmodel.ProfileUiState
 
@@ -906,6 +907,48 @@ fun NotesScreen(
                     shape = StudentAiShapes.chip,
                     singleLine = true,
                 )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FilterChip(
+                        selected = state.filter == NotesFilter.ALL,
+                        onClick = { viewModel.setFilter(NotesFilter.ALL) },
+                        label = { Text("All") },
+                        leadingIcon = if (state.filter == NotesFilter.ALL) {
+                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        } else null,
+                    )
+                    FilterChip(
+                        selected = state.filter == NotesFilter.PINNED,
+                        onClick = { viewModel.setFilter(NotesFilter.PINNED) },
+                        label = { Text("Pinned") },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.PushPin,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (state.filter == NotesFilter.PINNED) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                    )
+                    FilterChip(
+                        selected = state.filter == NotesFilter.FAVORITES,
+                        onClick = { viewModel.setFilter(NotesFilter.FAVORITES) },
+                        label = { Text("Favorites") },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Favorite,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (state.filter == NotesFilter.FAVORITES) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                    )
+                }
                 if (state.isLoading) {
                     LoadingState()
                 } else if (state.notes.isEmpty()) {

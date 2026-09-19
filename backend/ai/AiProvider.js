@@ -196,8 +196,8 @@ function createAiProvider(config = {}) {
 
   function isRetryableModelError(message) {
     // 402/401/403 included: dead/quota-less keys must fall back, not fail.
-    // (Cerebras returns 402 payment_required when free credits run out.)
-    return /503|502|429|410|404|402|401|403|400|NO_UPSTREAM|empty response|timeout|rate limit|payment_required|quota/i.test(String(message || ''));
+    // 5\d\d covers 500, 502, 503, 504, 520, 522, 524 Cloudflare and gateway errors.
+    return /5\d\d|429|410|404|402|401|403|400|NO_UPSTREAM|empty response|timeout|rate limit|payment_required|quota/i.test(String(message || ''));
   }
 
   function modelFallbackChain(primaryModel, { isVision = false } = {}) {
@@ -356,8 +356,12 @@ function createAiProvider(config = {}) {
     // Structured-output hint; providers that don't support it are handled by the caller's fallback.
     if (responseFormat) payload.response_format = responseFormat;
     // reasoning parameter (e.g. for nemotron-3.5-lightning-free or OpenRouter thinking)
-    // Only pass if it is an object (e.g. { effort: 'medium' }) or boolean
-    if (reasoning && typeof reasoning !== 'string') payload.reasoning = reasoning;
+    // Pass object ({ effort: 'medium' }) or string reasoning_effort ('low'/'medium'/'high')
+    if (reasoning && typeof reasoning !== 'string') {
+      payload.reasoning = reasoning;
+    } else if (typeof reasoning === 'string') {
+      payload.reasoning_effort = reasoning;
+    }
     const url = baseUrl || AI_BASE_URL;
     const key = apiKey || AI_API_KEY;
     const res = await fetch(`${url}/chat/completions`, {
@@ -416,7 +420,7 @@ function createAiProvider(config = {}) {
           chain.push({ model: wire, provider });
         }
       }
-      return chain.length ? chain : [{ model: isVision ? 'MiniMax-M3' : 'auto', provider: 'hcnsec' }];
+      return chain.length ? chain : [{ model: isVision ? 'step-3.7-flash' : 'step-3.7-flash', provider: 'hcnsec' }];
     }
 
     async function runChain(candidates) {

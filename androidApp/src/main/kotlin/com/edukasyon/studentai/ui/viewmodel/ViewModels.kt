@@ -646,7 +646,14 @@ class PlannerViewModel @Inject constructor(
     }
 }
 
-data class NotesUiState(val notes: List<Note> = emptyList(), val searchQuery: String = "", val isLoading: Boolean = true)
+enum class NotesFilter { ALL, PINNED, FAVORITES }
+
+data class NotesUiState(
+    val notes: List<Note> = emptyList(),
+    val searchQuery: String = "",
+    val filter: NotesFilter = NotesFilter.ALL,
+    val isLoading: Boolean = true,
+)
 
 @HiltViewModel
 class NotesViewModel @Inject constructor(
@@ -657,12 +664,42 @@ class NotesViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(NotesUiState())
     val uiState: StateFlow<NotesUiState> = _uiState.asStateFlow()
 
-    private fun sortNotes(notes: List<Note>): List<Note> =
-        notes.sortedWith(compareByDescending<Note> { it.isPinned }.thenByDescending { it.updatedAt })
+    private var rawNotes: List<Note> = emptyList()
+    private var searchJob: Job? = null
+
+    private fun applyFilterAndSort(notes: List<Note>, filter: NotesFilter): List<Note> {
+        val filtered = when (filter) {
+            NotesFilter.ALL -> notes
+            NotesFilter.PINNED -> notes.filter { it.isPinned }
+            NotesFilter.FAVORITES -> notes.filter { it.isFavorite }
+        }
+        return filtered.sortedWith(compareByDescending<Note> { it.isPinned }.thenByDescending { it.updatedAt })
+    }
 
     init {
-        viewModelScope.launch {
-            noteRepo.observeNotes().collect { notes -> _uiState.update { it.copy(notes = sortNotes(notes), isLoading = false) } }
+        observeNotesStream()
+    }
+
+    private fun observeNotesStream() {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            val flow = if (_uiState.value.searchQuery.isBlank()) {
+                noteRepo.observeNotes()
+            } else {
+                noteRepo.search(_uiState.value.searchQuery)
+            }
+            flow.collect { notes ->
+                rawNotes = notes
+                _uiState.update { s ->
+                    s.copy(notes = applyFilterAndSort(notes, s.filter), isLoading = false)
+                }
+            }
+        }
+    }
+
+    fun setFilter(filter: NotesFilter) {
+        _uiState.update { s ->
+            s.copy(filter = filter, notes = applyFilterAndSort(rawNotes, filter))
         }
     }
 
@@ -676,10 +713,7 @@ class NotesViewModel @Inject constructor(
     }
     fun search(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
-        viewModelScope.launch {
-            val flow = if (query.isBlank()) noteRepo.observeNotes() else noteRepo.search(query)
-            flow.collect { notes -> _uiState.update { s -> s.copy(notes = sortNotes(notes)) } }
-        }
+        observeNotesStream()
     }
 }
 
@@ -689,6 +723,8 @@ data class NoteEditorUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val isDirty: Boolean = false,
+    val isPinned: Boolean = false,
+    val isFavorite: Boolean = false,
     val lastSavedAt: Long? = null,
     val canDelete: Boolean = false,
 )
@@ -723,6 +759,8 @@ class NoteEditorViewModel @Inject constructor(
                     it.copy(
                         title = note?.title.orEmpty(),
                         content = note?.content.orEmpty(),
+                        isPinned = note?.isPinned ?: false,
+                        isFavorite = note?.isFavorite ?: false,
                         isLoading = false,
                         canDelete = note != null,
                     )
@@ -738,6 +776,16 @@ class NoteEditorViewModel @Inject constructor(
 
     fun onContentChange(content: String) {
         _uiState.update { it.copy(content = content, isDirty = true) }
+        scheduleAutoSave()
+    }
+
+    fun togglePin() {
+        _uiState.update { it.copy(isPinned = !it.isPinned, isDirty = true) }
+        scheduleAutoSave()
+    }
+
+    fun toggleFavorite() {
+        _uiState.update { it.copy(isFavorite = !it.isFavorite, isDirty = true) }
         scheduleAutoSave()
     }
 
@@ -792,8 +840,8 @@ class NoteEditorViewModel @Inject constructor(
             tags = existing?.tags ?: emptyList(),
             createdAt = existing?.createdAt ?: now,
             updatedAt = now,
-            isPinned = existing?.isPinned ?: false,
-            isFavorite = existing?.isFavorite ?: false,
+            isPinned = state.isPinned,
+            isFavorite = state.isFavorite,
         )
         saveNoteUseCase.execute(note)
         originalNote = note
@@ -3916,6 +3964,15 @@ class FlashcardStudyViewModel @Inject constructor(
                 }
                 state.copy(currentIndex = nextIndex.coerceAtMost(state.studyCards.size))
             }
+        }
+    }
+
+    fun retryCards(cards: List<Flashcard>) {
+        _uiState.update {
+            it.copy(
+                studyCards = cards,
+                currentIndex = 0,
+            )
         }
     }
 }

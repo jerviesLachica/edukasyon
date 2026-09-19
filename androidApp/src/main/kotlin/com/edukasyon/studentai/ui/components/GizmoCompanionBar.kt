@@ -414,8 +414,11 @@ fun JeviReasoningSection(
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     )
+                    val thoughtWords = remember(reasoning) {
+                        reasoning.trim().split(Regex("\\s+")).count { it.isNotBlank() }
+                    }
                     Text(
-                        "Reasoning",
+                        if (thoughtWords > 0) "Thinking Process ($thoughtWords words)" else "Thinking Process",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium,

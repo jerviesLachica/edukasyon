@@ -127,7 +127,7 @@ const scanProviderConfig = require('./config/ScanProviderConfig');
 // (503 model_not_found, verified 2026-09-04) — `auto` routes to a working
 // vision channel, so it is the scan default. Explicit slugs are wire-mapped
 // to `auto` in AiProvider regardless of this default.
-const SCAN_VISION_MODEL_DEFAULT = 'MiniMax-M3';
+const SCAN_VISION_MODEL_DEFAULT = 'step-3.7-flash';
 const SCAN_BASE_URL_DEFAULT = 'https://api.hcnsec.cn/v1';
 
 async function resolveScanProvider() {
@@ -439,6 +439,7 @@ ${numbered}`;
       model,
       isVision: hasVisionAttachment,
       thinking,
+      reasoning: thinking ? effort : undefined,
       maxTokens: chatMaxTokens,
       signal,
     });
@@ -752,7 +753,7 @@ ${FLASHCARDS_JSON_SHAPE}
 Notes:\n${wrapUntrustedDocument(section)}`,
         },
       ],
-      { temperature: 0.5, maxTokens: callMaxTokens, model, signal }
+      { temperature: 0.3, maxTokens: callMaxTokens, model, signal, thinking: false }
     );
     const parsed = ai.extractJson(content);
     return Array.isArray(parsed.cards) ? parsed.cards : (Array.isArray(parsed) ? parsed : (Array.isArray(parsed.items) ? parsed.items : []));
@@ -773,7 +774,7 @@ Notes:\n${wrapUntrustedDocument(section)}`,
     const batch = chunks.slice(i, i + FLASHCARDS_CONCURRENCY);
     const results = await Promise.all(
       batch.map((section, offset) =>
-        runCall(section, ` (Part ${i + offset + 1} of ${chunks.length})`, maxTokens)
+        runCall(section, ` (Part ${i + offset + 1} of ${chunks.length})`, Math.max(maxTokens, 2048))
       )
     );
     for (const cards of results) allCards.push(...cards);
@@ -799,7 +800,7 @@ Notes:
 ${wrapUntrustedDocument(text)}`,
       },
     ],
-    { temperature: 0.4, maxTokens, model, signal }
+    { temperature: 0.3, maxTokens: Math.max(maxTokens, 2048), model, signal, thinking: false }
   );
   const parsed = ai.extractJson(content);
   const rawQuestions = Array.isArray(parsed.questions) ? parsed.questions : (Array.isArray(parsed) ? parsed : (Array.isArray(parsed.items) ? parsed.items : []));
@@ -824,7 +825,7 @@ Subjects: ${(subjects || []).join(', ')}
 Topics: ${(topics || []).join(', ')}`,
       },
     ],
-    { temperature: 0.4, maxTokens, model, signal }
+    { temperature: 0.3, maxTokens, model, signal, thinking: false }
   );
   const parsed = ai.extractJson(content);
   return { title: parsed.title || 'Study Plan', items: parsed.items || [] };
