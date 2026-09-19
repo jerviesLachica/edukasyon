@@ -1593,6 +1593,19 @@ if (require.main === module) {
       console.log('AI provider: mock mode (set AI_API_KEY in backend/.env)');
     }
     console.log(`Safety gateway: moderation=${policy.moderationEnabled}, chat rate=${policy.endpoints.chat.rateLimitPerMin}/min`);
+
+    // Keep-alive self-ping every 13 minutes to prevent Render free tier cold starts.
+    // Render sleeps after 15 min inactivity — this keeps the server warm at $0 cost.
+    const RENDER_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || '';
+    if (RENDER_URL) {
+      const KEEP_ALIVE_MS = 13 * 60 * 1000; // 13 minutes
+      setInterval(() => {
+        fetch(`${RENDER_URL}/health`, { signal: AbortSignal.timeout(10000) })
+          .then((r) => console.log(`[keep-alive] ping OK (${r.status})`))
+          .catch((e) => console.warn(`[keep-alive] ping failed: ${e.message}`));
+      }, KEEP_ALIVE_MS);
+      console.log(`[keep-alive] self-ping active every 13min -> ${RENDER_URL}/health`);
+    }
   });
 }
 

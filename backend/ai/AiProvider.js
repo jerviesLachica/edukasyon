@@ -199,15 +199,7 @@ function createAiProvider(config = {}) {
 
   function getAvailableProviders({ isVision = false, isFastText = false } = {}) {
     const list = [];
-    if (hasAiKey) {
-      list.push({
-        name: 'hcnsec',
-        baseUrl: AI_BASE_URL,
-        apiKey: AI_API_KEY,
-        model: isVision ? (process.env.VISION_MODEL || 'step-3.7-flash') : (isFastText ? FAST_TEXT_MODEL : (process.env.TEXT_MODEL || 'glm-4.5-air')),
-        supportsVision: true,
-      });
-    }
+    // Groq first — verified fastest at ~700ms on free tier (30 RPM, 14,400 RPD)
     if (GROQ_API_KEY) {
       list.push({
         name: 'groq',
@@ -217,6 +209,17 @@ function createAiProvider(config = {}) {
         supportsVision: true,
       });
     }
+    // hcnsec second — primary/thinking provider, ~1300ms
+    if (hasAiKey) {
+      list.push({
+        name: 'hcnsec',
+        baseUrl: AI_BASE_URL,
+        apiKey: AI_API_KEY,
+        model: isVision ? (process.env.VISION_MODEL || 'step-3.7-flash') : (isFastText ? FAST_TEXT_MODEL : (process.env.TEXT_MODEL || 'glm-4.5-air')),
+        supportsVision: true,
+      });
+    }
+    // Gemini third — great vision model, ~1000ms when it responds (15 RPM free)
     if (GEMINI_API_KEY) {
       list.push({
         name: 'gemini',
@@ -226,6 +229,7 @@ function createAiProvider(config = {}) {
         supportsVision: true,
       });
     }
+    // OpenRouter fourth — free :free models, ~1700ms
     if (OPENROUTER_API_KEY) {
       list.push({
         name: 'openrouter',
@@ -235,6 +239,7 @@ function createAiProvider(config = {}) {
         supportsVision: isVision,
       });
     }
+    // Cerebras last — text only (no vision), fast but quota issues on free tier
     if (CEREBRAS_API_KEY && !isVision) {
       list.push({
         name: 'cerebras',
@@ -244,6 +249,7 @@ function createAiProvider(config = {}) {
         supportsVision: false,
       });
     }
+    // OrcaRouter — vision only fast fallback
     if (ORCA_API_KEY && isVision) {
       list.push({
         name: 'orca',
