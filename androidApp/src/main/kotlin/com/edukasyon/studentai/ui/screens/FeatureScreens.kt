@@ -33,10 +33,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.adaptive.rememberFlashcardMaxWidth
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import com.edukasyon.studentai.ui.components.BouncyButton
 import com.edukasyon.studentai.ui.components.BouncyOutlinedButton
 import com.edukasyon.studentai.ui.components.EmptyState
 import com.edukasyon.studentai.ui.components.animatedClickable
+import com.edukasyon.studentai.ui.components.mascot.SchedMateMascot
+import com.edukasyon.studentai.ui.components.mascot.MascotMood
 import com.edukasyon.studentai.ui.viewmodel.FlashcardStudyViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,6 +57,7 @@ fun FlashcardStudyScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val horizontalPadding = rememberAdaptiveHorizontalPadding()
     val flashcardMaxWidth = rememberFlashcardMaxWidth()
+    val haptic = LocalHapticFeedback.current
     var flipped by remember { mutableStateOf(false) }
     val card = state.currentCard
     val totalCards = state.studyCards.size
@@ -143,6 +148,15 @@ fun FlashcardStudyScreen(
                                             )
                                         }
                                         else -> {
+                                            SchedMateMascot(
+                                                mood = MascotMood.Motivated,
+                                                size = 140.dp,
+                                                customSpeechText = if (state.studyAll) {
+                                                    "Session complete! You're crushing it! 🚀"
+                                                } else {
+                                                    "All caught up for today! Keep up that streak! ⭐"
+                                                },
+                                            )
                                             EmptyState(
                                                 title = if (state.studyAll) "Session complete" else "All caught up!",
                                                 message = if (state.studyAll) {
@@ -151,6 +165,9 @@ fun FlashcardStudyScreen(
                                                     "No flashcards are due for review right now."
                                                 },
                                             )
+                                            BouncyButton(onClick = onBack) {
+                                                Text("Done")
+                                            }
                                         }
                                     }
                                 }
@@ -175,7 +192,10 @@ fun FlashcardStudyScreen(
                                         answer = card.answer,
                                         topic = card.topic,
                                         isFlipped = flipped,
-                                        onFlip = { flipped = !flipped },
+                                        onFlip = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            flipped = !flipped
+                                        },
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .heightIn(min = 280.dp, max = 360.dp),
@@ -210,10 +230,26 @@ fun FlashcardStudyScreen(
                                 exit = fadeOut(tween(150)),
                             ) {
                                 FlashcardRatingBar(
-                                    onAgain = { flipped = false; viewModel.rate(card, 0) },
-                                    onHard = { flipped = false; viewModel.rate(card, 1) },
-                                    onGood = { flipped = false; viewModel.rate(card, 3) },
-                                    onEasy = { flipped = false; viewModel.rate(card, 5) },
+                                    onAgain = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        flipped = false
+                                        viewModel.rate(card, 0)
+                                    },
+                                    onHard = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        flipped = false
+                                        viewModel.rate(card, 1)
+                                    },
+                                    onGood = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        flipped = false
+                                        viewModel.rate(card, 3)
+                                    },
+                                    onEasy = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        flipped = false
+                                        viewModel.rate(card, 5)
+                                    },
                                 )
                             }
 

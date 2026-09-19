@@ -96,12 +96,26 @@ import com.edukasyon.studentai.ui.viewmodel.DocToStudyViewModel
 fun DocToStudyStudioSheet(
     onDismissRequest: () -> Unit,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    initialUri: Uri? = null,
+    initialText: Pair<String, String>? = null,
     viewModel: DocToStudyViewModel = hiltViewModel(),
     onOpenQuizArena: ((Quiz) -> Unit)? = null,
     onFlashcardsSaved: ((deckId: String, count: Int) -> Unit)? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    LaunchedEffect(initialUri) {
+        if (initialUri != null && state.selectedUris.isEmpty() && state.extractedMarkdown == null) {
+            viewModel.selectDocuments(context, listOf(initialUri))
+        }
+    }
+
+    LaunchedEffect(initialText) {
+        if (initialText != null && state.extractedMarkdown == null) {
+            viewModel.loadDirectText(initialText.first, initialText.second)
+        }
+    }
 
     // Launchers for picking documents
     val pdfPicker = rememberLauncherForActivityResult(

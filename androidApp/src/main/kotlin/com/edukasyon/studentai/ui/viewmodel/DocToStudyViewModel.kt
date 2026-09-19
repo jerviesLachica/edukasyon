@@ -160,6 +160,26 @@ class DocToStudyViewModel @Inject constructor(
         _uiState.update { it.copy(infoMessage = null) }
     }
 
+    fun loadDirectText(title: String, content: String) {
+        val wordCount = content.split("\\s+".toRegex()).count { it.isNotBlank() }
+        _uiState.update {
+            it.copy(
+                selectedUris = emptyList(),
+                fileNames = listOf(title.ifBlank { "Note" }),
+                isExtracting = false,
+                extractionProgressText = null,
+                extractedMarkdown = if (title.isNotBlank()) "# $title\n\n$content" else content,
+                extractedPageCount = 1,
+                extractedWordCount = wordCount,
+                generatedCards = emptyList(),
+                generatedQuiz = null,
+                cardsSaved = false,
+                quizSaved = false,
+                error = null,
+            )
+        }
+    }
+
     fun selectDocuments(context: Context, uris: List<Uri>) {
         if (uris.isEmpty()) return
         val names = uris.map { uri ->

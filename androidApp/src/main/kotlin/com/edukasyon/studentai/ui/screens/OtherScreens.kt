@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -42,6 +43,10 @@ import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveWidth
 import com.edukasyon.studentai.ui.adaptive.AdaptiveWidth
 import com.edukasyon.studentai.ui.components.*
 import com.edukasyon.studentai.ui.theme.StudentAiShapes
+import com.edukasyon.studentai.ui.components.mascot.SchedMateMascot
+import com.edukasyon.studentai.ui.components.mascot.MascotMood
+import com.edukasyon.studentai.ui.components.DocToStudyStudioSheet
+import com.edukasyon.studentai.domain.model.Note
 import com.edukasyon.studentai.ui.viewmodel.CalendarViewModel
 import com.edukasyon.studentai.ui.viewmodel.NotesViewModel
 import com.edukasyon.studentai.ui.viewmodel.ProfileViewModel
@@ -844,10 +849,30 @@ fun NotesScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val dateFormat = remember { java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()) }
+    var noteForStudy by remember { mutableStateOf<Note?>(null) }
+    var noteToDelete by remember { mutableStateOf<Note?>(null) }
+    var menuExpandedForNoteId by remember { mutableStateOf<String?>(null) }
+
+    val totalNotes = state.notes.size
+    val pinnedCount = state.notes.count { it.isPinned }
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Notes") })
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("Notes", fontWeight = FontWeight.Bold)
+                        if (totalNotes > 0) {
+                            Text(
+                                "$totalNotes ${if (totalNotes == 1) "note" else "notes"}" +
+                                    (if (pinnedCount > 0) " · $pinnedCount pinned" else ""),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            )
         },
         floatingActionButton = {
             StudentAiAddFab(
@@ -884,13 +909,26 @@ fun NotesScreen(
                 if (state.isLoading) {
                     LoadingState()
                 } else if (state.notes.isEmpty()) {
-                    ModernEmptyState(
-                        title = "No notes yet",
-                        message = "Create your first note to start organizing your study material.",
-                        actionLabel = "Add Note",
-                        onAction = onCreateNote,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        SchedMateMascot(
+                            mood = MascotMood.Planning,
+                            size = 130.dp,
+                            customSpeechText = "No notes yet! Jot down class notes and I'll generate quizzes from them later.",
+                        )
+                        ModernEmptyState(
+                            title = "No notes yet",
+                            message = "Create your first note to start organizing your study material.",
+                            actionLabel = "Add Note",
+                            onAction = onCreateNote,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 } else {
                     LazyColumn(
                         modifier = Modifier.weight(1f),
@@ -898,7 +936,16 @@ fun NotesScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         items(state.notes, key = { it.id }) { note ->
-                            ModernCard(onClick = { onOpenEditor(note.id) }) {
+                            ModernCard(
+                                onClick = { onOpenEditor(note.id) },
+                                modifier = if (note.isPinned) {
+                                    Modifier.border(
+                                        width = 1.dp,
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                        shape = RoundedCornerShape(16.dp),
+                                    )
+                                } else Modifier,
+                            ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.Top,
@@ -915,13 +962,29 @@ fun NotesScreen(
                                         modifier = Modifier.weight(1f),
                                         verticalArrangement = Arrangement.spacedBy(4.dp),
                                     ) {
-                                        Text(
-                                            note.title,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(
+                                                note.title,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false),
+                                            )
+                                            if (note.isFavorite) {
+                                                Spacer(Modifier.width(4.dp))
+                                                Icon(
+                                                    Icons.Default.Favorite,
+                                                    contentDescription = "Favorite",
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier.size(16.dp),
+                                                )
+                                            }
+                                        }
                                         if (note.content.isNotBlank()) {
                                             Text(
                                                 note.content,
@@ -958,12 +1021,73 @@ fun NotesScreen(
                                             }
                                         }
                                     }
-                                    IconButton(onClick = { viewModel.deleteNote(note.id) }) {
-                                        Icon(
-                                            Icons.Default.Delete,
-                                            contentDescription = "Delete note",
-                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                                        )
+                                    Box {
+                                        IconButton(onClick = { menuExpandedForNoteId = note.id }) {
+                                            Icon(
+                                                Icons.Default.MoreVert,
+                                                contentDescription = "Note options",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = menuExpandedForNoteId == note.id,
+                                            onDismissRequest = { menuExpandedForNoteId = null },
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text(if (note.isPinned) "Unpin note" else "Pin to top") },
+                                                leadingIcon = {
+                                                    Icon(Icons.Default.PushPin, contentDescription = null)
+                                                },
+                                                onClick = {
+                                                    menuExpandedForNoteId = null
+                                                    viewModel.togglePin(note)
+                                                },
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(if (note.isFavorite) "Remove favorite" else "Add to favorites") },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        if (note.isFavorite) Icons.Default.FavoriteBorder else Icons.Default.Favorite,
+                                                        contentDescription = null,
+                                                    )
+                                                },
+                                                onClick = {
+                                                    menuExpandedForNoteId = null
+                                                    viewModel.toggleFavorite(note)
+                                                },
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("AI Study Tools") },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        Icons.Default.AutoAwesome,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                    )
+                                                },
+                                                onClick = {
+                                                    menuExpandedForNoteId = null
+                                                    noteForStudy = note
+                                                },
+                                            )
+                                            HorizontalDivider()
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text("Delete note", color = MaterialTheme.colorScheme.error)
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        Icons.Default.Delete,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.error,
+                                                    )
+                                                },
+                                                onClick = {
+                                                    menuExpandedForNoteId = null
+                                                    noteToDelete = note
+                                                },
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -972,6 +1096,36 @@ fun NotesScreen(
                 }
             }
         }
+    }
+
+    noteForStudy?.let { note ->
+        DocToStudyStudioSheet(
+            initialText = Pair(note.title, note.content),
+            onDismissRequest = { noteForStudy = null },
+        )
+    }
+
+    noteToDelete?.let { note ->
+        AlertDialog(
+            onDismissRequest = { noteToDelete = null },
+            title = { Text("Delete note?") },
+            text = { Text("Are you sure you want to delete \"${note.title}\"? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteNote(note.id)
+                        noteToDelete = null
+                    },
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { noteToDelete = null }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 }
 

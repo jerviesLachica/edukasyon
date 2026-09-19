@@ -25,6 +25,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edukasyon.studentai.domain.model.LectureFile
 import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
 import com.edukasyon.studentai.ui.components.*
+import com.edukasyon.studentai.ui.components.mascot.SchedMateMascot
+import com.edukasyon.studentai.ui.components.mascot.MascotMood
 import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import com.edukasyon.studentai.ui.viewmodel.LectureFilesViewModel
 import java.text.SimpleDateFormat
@@ -47,6 +49,7 @@ fun LectureFilesScreen(
     var pendingMime by remember { mutableStateOf<String?>(null) }
     var fileTitle by remember { mutableStateOf("") }
     var selectedSubjectId by remember { mutableStateOf<String?>(null) }
+    var selectedFileForStudy by remember { mutableStateOf<LectureFile?>(null) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -152,7 +155,8 @@ fun LectureFilesScreen(
                                     }
                                     runCatching { context.startActivity(intent) }
                                 },
-                                onDelete = { viewModel.deleteFile(file.id) }
+                                onDelete = { viewModel.deleteFile(file.id) },
+                                onStudyWithAi = { selectedFileForStudy = file },
                             )
                         }
                     }
@@ -160,6 +164,13 @@ fun LectureFilesScreen(
             }
         }
         }
+    }
+
+    selectedFileForStudy?.let { file ->
+        DocToStudyStudioSheet(
+            initialUri = android.net.Uri.parse(file.fileUri),
+            onDismissRequest = { selectedFileForStudy = null },
+        )
     }
 
     if (showAddDialog && pendingUri != null) {
@@ -252,13 +263,26 @@ fun LocalStorageWarningBanner(modifier: Modifier = Modifier) {
 
 @Composable
 private fun LectureFilesEmptyState(onAddFile: () -> Unit) {
-    ModernEmptyState(
-        title = "No lecture files yet",
-        message = "Add a PDF, slide deck, or photo to get started.",
-        actionLabel = "Add File",
-        onAction = onAddFile,
-modifier = Modifier.fillMaxWidth(),
-    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        SchedMateMascot(
+            mood = MascotMood.Learning,
+            size = 130.dp,
+            customSpeechText = "Drop your syllabus, slides, or textbook photos here to get started!",
+        )
+        ModernEmptyState(
+            title = "No lecture files yet",
+            message = "Add a PDF, slide deck, or photo to generate flashcards and quizzes with AI.",
+            actionLabel = "Add File",
+            onAction = onAddFile,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
 
 @Composable
@@ -266,7 +290,8 @@ private fun LectureFileCard(
     file: LectureFile,
     subjectLabel: String,
     onOpen: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onStudyWithAi: () -> Unit = {},
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
     val icon = when {
@@ -311,6 +336,9 @@ private fun LectureFileCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+            IconButton(onClick = onStudyWithAi) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = "AI Study Tools", tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)

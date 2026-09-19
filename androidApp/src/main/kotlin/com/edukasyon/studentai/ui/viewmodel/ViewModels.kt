@@ -657,19 +657,28 @@ class NotesViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(NotesUiState())
     val uiState: StateFlow<NotesUiState> = _uiState.asStateFlow()
 
+    private fun sortNotes(notes: List<Note>): List<Note> =
+        notes.sortedWith(compareByDescending<Note> { it.isPinned }.thenByDescending { it.updatedAt })
+
     init {
         viewModelScope.launch {
-            noteRepo.observeNotes().collect { notes -> _uiState.update { it.copy(notes = notes, isLoading = false) } }
+            noteRepo.observeNotes().collect { notes -> _uiState.update { it.copy(notes = sortNotes(notes), isLoading = false) } }
         }
     }
 
     fun saveNote(note: Note) { viewModelScope.launch { saveNoteUseCase.execute(note) } }
     fun deleteNote(id: String) { viewModelScope.launch { deleteNoteUseCase.execute(id) } }
+    fun togglePin(note: Note) {
+        saveNote(note.copy(isPinned = !note.isPinned, updatedAt = System.currentTimeMillis()))
+    }
+    fun toggleFavorite(note: Note) {
+        saveNote(note.copy(isFavorite = !note.isFavorite, updatedAt = System.currentTimeMillis()))
+    }
     fun search(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
         viewModelScope.launch {
             val flow = if (query.isBlank()) noteRepo.observeNotes() else noteRepo.search(query)
-            flow.collect { _uiState.update { s -> s.copy(notes = it) } }
+            flow.collect { notes -> _uiState.update { s -> s.copy(notes = sortNotes(notes)) } }
         }
     }
 }
