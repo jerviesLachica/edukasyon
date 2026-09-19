@@ -244,6 +244,9 @@ fun MainNavigation(
                     onOpenCreate = { navController.navigate(Routes.JEVI_CREATE) },
                     onOpenTutor = { navController.navigate(Routes.JEVI_TUTOR) },
                     onOpenQuiz = { navController.navigate(Routes.JEVI_QUIZ) },
+                    onOpenDeckDetail = { deckId -> navController.navigate(Routes.jeviDeckDetail(deckId)) },
+                    onOpenHistory = { filter -> navController.navigate(Routes.aiConversationHistory(filter)) },
+                    onChatInputActive = { active -> forceHideBottomBar = active },
                 )
             }
             mainTabComposable(MainTab.PROFILE) {
@@ -286,6 +289,8 @@ fun MainNavigation(
                 NotesScreen(
                     onOpenEditor = { noteId -> navController.navigate(Routes.noteEditor(noteId)) },
                     onCreateNote = { navController.navigate(Routes.noteEditor(Routes.NEW_NOTE_ID)) },
+                    onNavigateToFiles = { navController.navigate(Routes.LECTURE_FILES) },
+                    onNavigateToPlanner = { navController.navigateToTab(MainTab.PLANNER) },
                 )
             }
             composable(Routes.NOTE_EDITOR) {

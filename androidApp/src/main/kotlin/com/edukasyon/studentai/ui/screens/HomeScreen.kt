@@ -1,5 +1,6 @@
 package com.edukasyon.studentai.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -42,6 +43,8 @@ import com.edukasyon.studentai.ui.adaptive.columnCount
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveWidth
 import com.edukasyon.studentai.ui.components.*
+import com.edukasyon.studentai.ui.components.DocToStudyStudioSheet
+import com.edukasyon.studentai.ui.components.mascot.*
 import com.edukasyon.studentai.ui.features.FeatureDestination
 import com.edukasyon.studentai.ui.features.FeaturesCatalog
 import com.edukasyon.studentai.ui.navigation.MainTab
@@ -72,6 +75,7 @@ fun HomeScreen(
     val gridColumns = adaptiveWidth.columnCount(default = 2, medium = 3, expanded = 4)
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     var showWidgetCard by rememberSaveable { mutableStateOf(true) }
+    var showDocStudySheet by rememberSaveable { mutableStateOf(false) }
 
     if (state.isLoading) {
         LoadingState(message = "Loading dashboard…")
@@ -94,8 +98,12 @@ fun HomeScreen(
                 )
             }
 
-            
-
+            item {
+                HomeMascotHeroCard(
+                    horizontalPadding = horizontalPadding,
+                    isDark = isDark,
+                )
+            }
             item {
                 Row(
                     modifier = Modifier
@@ -127,6 +135,7 @@ fun HomeScreen(
                     onAskAi = onAskAi,
                     onAddTask = onAddTask,
                     onFocus = onNavigateFocus,
+                    onDocStudy = { showDocStudySheet = true },
                     modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 12.dp),
                 )
             }
@@ -278,6 +287,19 @@ fun HomeScreen(
             }
         }
     }
+
+    if (showDocStudySheet) {
+        DocToStudyStudioSheet(
+            onDismissRequest = { showDocStudySheet = false },
+            onOpenQuizArena = { quiz ->
+                showDocStudySheet = false
+                onNavigateToRoute(Routes.JEVI_QUIZ)
+            },
+            onFlashcardsSaved = { _, _ ->
+                showDocStudySheet = false
+            },
+        )
+    }
 }
 
 @Composable
@@ -399,6 +421,7 @@ private fun HomeCompactQuickActions(
     onAskAi: () -> Unit,
     onAddTask: () -> Unit,
     onFocus: () -> Unit,
+    onDocStudy: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -415,6 +438,12 @@ private fun HomeCompactQuickActions(
             label = "Jevi",
             icon = Icons.Default.Psychology,
             onClick = onAskAi,
+            modifier = Modifier.weight(1f),
+        )
+        HomeQuickActionChip(
+            label = "Doc Study",
+            icon = Icons.Default.AutoAwesome,
+            onClick = onDocStudy,
             modifier = Modifier.weight(1f),
         )
         HomeQuickActionChip(
@@ -877,5 +906,44 @@ private fun homePastelOrangeContent(isDark: Boolean): Color = if (isDark) {
     Color(0xFFFFB74D)
 } else {
     Color(0xFFE65100)
+}
+
+@Composable
+private fun HomeMascotHeroCard(
+    horizontalPadding: androidx.compose.ui.unit.Dp,
+    isDark: Boolean,
+) {
+    val mood = rememberDashboardMascotMood()
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = horizontalPadding, vertical = 6.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = if (isDark) Color(0xFF1E242E).copy(alpha = 0.75f) else Color(0xFFFFF8F0),
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp,
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isDark) Color(0xFF2D3545) else Color(0xFFFFE8D6)
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            SchedMateMascot(
+                modifier = Modifier.fillMaxWidth(),
+                mood = mood,
+                size = 105.dp,
+                bubblePosition = MascotBubblePosition.Right,
+                interactive = true,
+                showSpeechBubble = true,
+                startBubbleVisible = true,
+                containerModifier = Modifier,
+            )
+        }
+    }
 }
 

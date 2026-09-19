@@ -11,10 +11,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.LibraryBooks
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.NoteAdd
+import androidx.compose.material.icons.automirrored.outlined.NoteAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -49,6 +52,7 @@ fun AiScreen(
     viewModel: AiViewModel = sharedAiViewModel(),
     deckId: String? = null,
     onCloseDeck: () -> Unit = {},
+    showTopBar: Boolean = true,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var inputText by remember { mutableStateOf("") }
@@ -73,131 +77,165 @@ fun AiScreen(
 
     LaunchedEffect(state.error) {
         state.error?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearError()
+            if (showTopBar) {
+                snackbarHostState.showSnackbar(message)
+            }
         }
     }
 
     var headerExpanded by remember { mutableStateOf(true) }
     var showSourcesSheet by remember { mutableStateOf(false) }
 
-    Scaffold(
-        snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text("Jevi AI") },
-                actions = {
-                    IconButton(onClick = { onOpenHistory("tutor") }) {
-                        Icon(Icons.Outlined.History, contentDescription = "Conversation history")
-                    }
-                    IconButton(onClick = {
-                        viewModel.startNewConversation(AiConversationType.TUTOR)
-                        inputText = ""
-                    }) {
-                        Icon(Icons.Outlined.NoteAdd, contentDescription = "New conversation")
-                    }
+    val mainChatContent: @Composable (Modifier) -> Unit = { contentModifier ->
+        Column(
+            contentModifier
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .imePadding(),
+        ) {
+            GizmoCompanionHeader(
+                gizmo = state.gizmo,
+                isOnline = state.isOnline,
+                expanded = headerExpanded,
+                onToggleExpanded = { headerExpanded = !headerExpanded },
+                thinkingLevel = state.thinkingLevel,
+                onThinkingLevelSelected = { viewModel.setThinkingLevel(it) },
+            )
+            if (state.activeDeckId != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     AssistChip(
-                        onClick = { showSourcesSheet = true },
-                        label = {
-                            Text(
-                                if (state.sources.isEmpty()) "Add sources"
-                                else "Sources (${state.sources.size})",
+                        onClick = {},
+                        label = { Text("Deck: ${state.activeDeckTitle ?: "Deck"}") },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Filled.School,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
                             )
                         },
-                        leadingIcon = {
-                            Icon(Icons.Default.Add, contentDescription = null, Modifier.size(16.dp))
-                        },
-                    )
-                },
-            )
-        },
-    ) { padding ->
-        AdaptiveContentContainer(Modifier.padding(padding)) { contentModifier ->
-            Column(
-                contentModifier
-                    .fillMaxSize()
-                    .navigationBarsPadding()
-                    .imePadding(),
-            ) {
-                GizmoCompanionHeader(
-                    gizmo = state.gizmo,
-                    isOnline = state.isOnline,
-                    expanded = headerExpanded,
-                    onToggleExpanded = { headerExpanded = !headerExpanded },
-                    thinkingLevel = state.thinkingLevel,
-                    onThinkingLevelSelected = { viewModel.setThinkingLevel(it) },
-                )
-                if (state.activeDeckId != null) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        AssistChip(
-                            onClick = {},
-                            label = { Text("Deck: ${state.activeDeckTitle ?: "Deck"}") },
-                            leadingIcon = {
+                        trailingIcon = {
+                            IconButton(
+                                onClick = {
+                                    viewModel.closeDeckTutor()
+                                    onCloseDeck()
+                                },
+                                modifier = Modifier.size(20.dp),
+                            ) {
                                 Icon(
-                                    Icons.Filled.School,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
+                                    Icons.Filled.Close,
+                                    contentDescription = "Leave deck chat",
+                                    modifier = Modifier.size(14.dp),
                                 )
-                            },
-                            trailingIcon = {
-                                IconButton(
-                                    onClick = {
-                                        viewModel.closeDeckTutor()
-                                        onCloseDeck()
-                                    },
-                                    modifier = Modifier.size(20.dp),
-                                ) {
-                                    Icon(
-                                        Icons.Filled.Close,
-                                        contentDescription = "Leave deck chat",
-                                        modifier = Modifier.size(14.dp),
-                                    )
-                                }
-                            },
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                        Text(
-                            "Answers from deck cards only",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                            }
+                        },
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Text(
+                        "Answers from deck cards only",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-                AiTutorTab(
-                    state = state,
-                    input = inputText,
-                    onInputChange = { inputText = it },
-                    onSend = { attachment ->
-                        viewModel.sendMessage(inputText, attachment = attachment, deckId = state.activeDeckId)
-                        inputText = ""
-                    },
-                    onAcceptStudyBlocks = viewModel::acceptStudyBlocks,
-                    onDismissStudyProposals = viewModel::dismissStudyProposals,
-                    onSpeakMessage = { text -> ttsController.speak(text) },
-                    ttsReady = ttsReady,
-                    onQuickPrompt = { viewModel.sendQuickPrompt(it) },
-                    onCopied = {
-                        snackbarHostState.showSnackbar("Copied to clipboard")
-                    },
-                    onChatInputActive = onChatInputActive,
-                    onHeaderExpandedChange = { headerExpanded = it },
-                    onModelSelected = { viewModel.setChatModel(it) },
-                    onThinkingLevelSelected = { viewModel.setThinkingLevel(it) },
-                    onCitationClick = { viewModel.openCitation(it) },
-                    onToggleSource = { viewModel.toggleSource(it) },
-                    onAddSource = { name, text -> viewModel.addSource(name, text) },
-                    onDeleteSource = { viewModel.deleteSource(it) },
-                    onViewerStep = { viewModel.stepViewer(it) },
-                    onViewerClose = { viewModel.closeViewer() },
-                    modifier = Modifier.weight(1f),
+            }
+            NotebookLmSourcesBar(
+                sourcesCount = state.sources.size,
+                selectedCount = state.selectedSourceIds?.size ?: state.sources.size,
+                strictGrounding = state.strictGroundingMode,
+                onOpenSources = { showSourcesSheet = true },
+                onToggleStrictGrounding = { viewModel.toggleStrictGrounding() },
+            )
+            NotebookLmStudioBar(
+                onAudioOverview = { viewModel.generateAudioOverviewFromSources() },
+                onStudyGuide = { viewModel.generateStudyGuideFromSources() },
+                onFlashcards = { viewModel.generateFlashcardsFromSources() },
+                onQuiz = { viewModel.generateQuizFromSources() },
+                onBriefingDoc = { viewModel.generateBriefingDocFromSources() },
+            )
+            if (state.audioOverviewState !is com.edukasyon.studentai.ui.viewmodel.AudioOverviewUiState.Idle) {
+                NotebookLmAudioBanner(
+                    audioState = state.audioOverviewState,
+                    onPlayPause = { viewModel.playOrPauseAudioOverview() },
+                    onSeek = { viewModel.seekAudioOverview(it) },
+                    onDismiss = { viewModel.dismissAudioOverview() },
                 )
             }
+            AiTutorTab(
+                state = state,
+                input = inputText,
+                onInputChange = { inputText = it },
+                onSend = { attachment ->
+                    viewModel.sendMessage(inputText, attachment = attachment, deckId = state.activeDeckId)
+                    inputText = ""
+                },
+                onAcceptStudyBlocks = viewModel::acceptStudyBlocks,
+                onDismissStudyProposals = viewModel::dismissStudyProposals,
+                onSpeakMessage = { text -> ttsController.speak(text) },
+                ttsReady = ttsReady,
+                onQuickPrompt = { viewModel.sendQuickPrompt(it) },
+                onCopied = {
+                    snackbarHostState.showSnackbar("Copied to clipboard")
+                },
+                onChatInputActive = onChatInputActive,
+                onHeaderExpandedChange = { headerExpanded = it },
+                onModelSelected = { viewModel.setChatModel(it) },
+                onThinkingLevelSelected = { viewModel.setThinkingLevel(it) },
+                onCitationClick = { viewModel.openCitation(it) },
+                onToggleSource = { viewModel.toggleSource(it) },
+                onAddSource = { name, text -> viewModel.addSource(name, text) },
+                onDeleteSource = { viewModel.deleteSource(it) },
+                onViewerStep = { viewModel.stepViewer(it) },
+                onViewerClose = { viewModel.closeViewer() },
+                onRetryLastMessage = { viewModel.retryLastMessage() },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+
+    if (showTopBar) {
+        Scaffold(
+            snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    title = { Text("Jevi AI") },
+                    actions = {
+                        IconButton(onClick = { onOpenHistory("tutor") }) {
+                            Icon(Icons.Outlined.History, contentDescription = "Conversation history")
+                        }
+                        IconButton(onClick = {
+                            viewModel.startNewConversation(AiConversationType.TUTOR)
+                            inputText = ""
+                        }) {
+                            Icon(Icons.AutoMirrored.Outlined.NoteAdd, contentDescription = "New conversation")
+                        }
+                        AssistChip(
+                            onClick = { showSourcesSheet = true },
+                            label = {
+                                Text(
+                                    if (state.sources.isEmpty()) "Add sources"
+                                    else "Sources (${state.sources.size})",
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Add, contentDescription = null, Modifier.size(16.dp))
+                            },
+                        )
+                    },
+                )
+            },
+        ) { padding ->
+            AdaptiveContentContainer(Modifier.padding(padding)) { contentModifier ->
+                mainChatContent(contentModifier)
+            }
+        }
+    } else {
+        AdaptiveContentContainer(Modifier.fillMaxSize()) { contentModifier ->
+            mainChatContent(contentModifier)
         }
     }
 
@@ -244,6 +282,7 @@ private fun AiTutorTab(
     onSend: (ChatAttachmentPayload?) -> Unit,
     onAcceptStudyBlocks: (List<com.edukasyon.studentai.core.ai.StudyBlockPayload>) -> Unit = {},
     onDismissStudyProposals: () -> Unit = {},
+    onRetryLastMessage: () -> Unit = {},
     onSpeakMessage: (String) -> Unit = {},
     ttsReady: Boolean = false,
     onQuickPrompt: (String) -> Unit,
@@ -344,6 +383,57 @@ private fun AiTutorTab(
                                         scope.launch { onCopied() }
                                     },
                                 )
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.12f),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    ),
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Column(
+                                        Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            Icon(
+                                                Icons.Default.AutoAwesome,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                                tint = MaterialTheme.colorScheme.primary,
+                                            )
+                                            Text(
+                                                "NotebookLM Studio",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                            )
+                                        }
+                                        Text(
+                                            "Add notes, PDFs, or web links to Sources. Jevi grounds answers with [1] clickable citations. Use Studio to generate:",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            listOf(
+                                                "🎙️  Audio Overviews — two-host podcast deep dives",
+                                                "📑  Study Guides — structured chapter summaries",
+                                                "🃏  Flashcards — key concept cards from sources",
+                                                "📝  Practice Quizzes — test your knowledge",
+                                            ).forEach { line ->
+                                                Text(
+                                                    line,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                                 if (!showPromptSidePanel) {
                                     Text(
                                         "Quick prompts",
@@ -400,6 +490,54 @@ private fun AiTutorTab(
                             JeviThinkingIndicator(
                                 reasoning = state.streamingReasoning,
                             )
+                        }
+                    }
+                    if (!state.isLoading && state.error != null) {
+                        item {
+                            Card(
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Jevi couldn't respond",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                        )
+                                        Text(
+                                            text = state.error!!,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
+                                        )
+                                    }
+                                    FilledTonalButton(
+                                        onClick = onRetryLastMessage,
+                                        colors = ButtonDefaults.filledTonalButtonColors(
+                                            containerColor = MaterialTheme.colorScheme.error,
+                                            contentColor = MaterialTheme.colorScheme.onError,
+                                        ),
+                                    ) {
+                                        Text("Retry")
+                                    }
+                                }
+                            }
                         }
                     }
                     if (!state.isLoading && state.studyProposals.isNotEmpty()) {
@@ -563,4 +701,335 @@ private fun readChatAttachment(context: Context, uri: Uri): ChatAttachmentPayloa
         bytes = bytes,
         textContent = textContent,
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NotebookLmSourcesBar(
+    sourcesCount: Int,
+    selectedCount: Int,
+    strictGrounding: Boolean,
+    onOpenSources: () -> Unit,
+    onToggleStrictGrounding: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val surfaceColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+    val borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = surfaceColor,
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f, fill = false),
+            ) {
+                FilledTonalButton(
+                    onClick = onOpenSources,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.height(32.dp),
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.MenuBook,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        if (sourcesCount == 0) "Sources · Add"
+                        else "Sources",
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    if (sourcesCount > 0) {
+                        Spacer(Modifier.width(4.dp))
+                        Badge(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        ) {
+                            Text("$selectedCount/$sourcesCount")
+                        }
+                    }
+                }
+                if (sourcesCount > 0) {
+                    FilterChip(
+                        selected = strictGrounding,
+                        onClick = onToggleStrictGrounding,
+                        leadingIcon = {
+                            Icon(
+                                if (strictGrounding) Icons.Default.GpsFixed else Icons.Default.GpsNotFixed,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        },
+                        label = {
+                            Text(
+                                "Strict Grounding",
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                    )
+                }
+            }
+            FilledTonalIconButton(
+                onClick = onOpenSources,
+                modifier = Modifier.size(32.dp),
+                shape = RoundedCornerShape(10.dp),
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Add source",
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotebookLmStudioBar(
+    onAudioOverview: () -> Unit,
+    onStudyGuide: () -> Unit,
+    onFlashcards: () -> Unit,
+    onQuiz: () -> Unit,
+    onBriefingDoc: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(start = 4.dp),
+        ) {
+            Icon(
+                Icons.Default.AutoAwesome,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                "Studio",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            StudioActionCard(
+                icon = Icons.Default.Podcasts,
+                label = "Audio Overview",
+                onClick = onAudioOverview,
+            )
+            StudioActionCard(
+                icon = Icons.AutoMirrored.Filled.LibraryBooks,
+                label = "Study Guide",
+                onClick = onStudyGuide,
+            )
+            StudioActionCard(
+                icon = Icons.Default.Style,
+                label = "Flashcards",
+                onClick = onFlashcards,
+            )
+            StudioActionCard(
+                icon = Icons.Default.Quiz,
+                label = "Practice Quiz",
+                onClick = onQuiz,
+            )
+            StudioActionCard(
+                icon = Icons.Default.Summarize,
+                label = "Briefing Doc",
+                onClick = onBriefingDoc,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StudioActionCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.height(38.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
+        border = androidx.compose.foundation.BorderStroke(
+            0.5.dp,
+            MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.secondary,
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun NotebookLmAudioBanner(
+    audioState: com.edukasyon.studentai.ui.viewmodel.AudioOverviewUiState,
+    onPlayPause: () -> Unit,
+    onSeek: (Float) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+        shadowElevation = 3.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        Icons.Default.Podcasts,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Column {
+                        Text(
+                            "Audio Overview Deep Dive",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        )
+                        Text(
+                            "Two-host deep dive dialogue (NotebookLM style)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Dismiss audio",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            when (audioState) {
+                is com.edukasyon.studentai.ui.viewmodel.AudioOverviewUiState.Generating -> {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.padding(vertical = 6.dp),
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            audioState.progressNote ?: "Generating two-voice podcast episode…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                is com.edukasyon.studentai.ui.viewmodel.AudioOverviewUiState.Ready -> {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        IconButton(
+                            onClick = onPlayPause,
+                            modifier = Modifier.size(40.dp),
+                        ) {
+                            Icon(
+                                if (audioState.playable) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (audioState.playable) "Pause" else "Play",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp),
+                            )
+                        }
+                        val progress = if (audioState.durationMs > 0)
+                            audioState.positionMs.toFloat() / audioState.durationMs else 0f
+                        Slider(
+                            value = progress,
+                            onValueChange = onSeek,
+                            modifier = Modifier.weight(1f),
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            ),
+                        )
+                        Text(
+                            "${audioState.positionMs / 60000}:${"%02d".format(audioState.positionMs / 1000 % 60)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                is com.edukasyon.studentai.ui.viewmodel.AudioOverviewUiState.Failed -> {
+                    Text(
+                        "Generation failed: ${audioState.message}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                else -> Unit
+            }
+        }
+    }
 }

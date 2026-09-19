@@ -2,9 +2,11 @@
 <!-- V2 widget root. RemoteViews-safe views only. Background is painted at
      runtime (design bitmap); text colors are set at runtime per theme. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/v2_root"
+    android:id="@android:id/background"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_v2_shell_bg"
+    android:clipToOutline="true">
 
     <ImageView
         android:id="@+id/v2_bg"

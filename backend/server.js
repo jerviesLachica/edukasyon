@@ -31,6 +31,7 @@ const {
   wrapUntrustedDocument,
   normalizeHistoryMessages,
 } = require('./ai/PromptBuilder');
+const { generateSmartStudyFallback } = require('./ai/SmartStudyFallback');
 const { loadSafetyPolicy } = require('./safety/SafetyPolicy');
 const { AuthenticationService } = require('./auth/AuthenticationService');
 const { RateLimiter } = require('./abuse/RateLimiter');
@@ -63,6 +64,10 @@ const {
   FLASHCARDS_SYSTEM_PROMPT,
   FLASHCARDS_JSON_SHAPE,
 } = require('./prompts/flashcards-system-prompt');
+const {
+  QUIZ_SYSTEM_PROMPT,
+  QUIZ_JSON_SHAPE,
+} = require('./prompts/quiz-system-prompt');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -428,13 +433,21 @@ ${numbered}`;
     { role: 'user', content: userContent },
   ];
 
-  const { reply, reasoning, replyHeuristic, model: usedModel } = await ai.chatCompletion(messages, {
-    model,
-    isVision: hasVisionAttachment,
-    thinking,
-    maxTokens: chatMaxTokens,
-    signal,
-  });
+  let completionResult;
+  try {
+    completionResult = await ai.chatCompletion(messages, {
+      model,
+      isVision: hasVisionAttachment,
+      thinking,
+      maxTokens: chatMaxTokens,
+      signal,
+    });
+  } catch (err) {
+    console.warn(`[ai] Upstream chat completion failed: ${err.message}. Falling back to Smart Study engine.`);
+    completionResult = generateSmartStudyFallback(body, err);
+  }
+
+  const { reply, reasoning, replyHeuristic, model: usedModel } = completionResult;
 
   const citedFromReply = Array.from(
     new Set(Array.from(String(reply || '').matchAll(/\[(\d+)\]/g)).map((m) => m[1]))
@@ -742,7 +755,7 @@ Notes:\n${wrapUntrustedDocument(section)}`,
       { temperature: 0.5, maxTokens: callMaxTokens, model, signal }
     );
     const parsed = ai.extractJson(content);
-    return Array.isArray(parsed.cards) ? parsed.cards : [];
+    return Array.isArray(parsed.cards) ? parsed.cards : (Array.isArray(parsed) ? parsed : (Array.isArray(parsed.items) ? parsed.items : []));
   };
 
   // Single whole-document pass: the model sees all sections at once, so
@@ -770,22 +783,28 @@ Notes:\n${wrapUntrustedDocument(section)}`,
 
 async function handleQuiz({ body, provider: ai, maxTokens, signal }) {
   const text = body.text || '';
+  const count = Number(body.count) || 5;
+  const targetCount = Math.min(Math.max(count, 3), 15);
+  const difficulty = body.difficulty ? ` Difficulty target: ${String(body.difficulty).trim()}.` : '';
   const model = ai.resolveTextModel(body.model);
   const content = await ai.chatCompletionText(
     [
-      { role: 'system', content: 'Generate quizzes from study material. Respond with JSON only.' },
+      { role: 'system', content: QUIZ_SYSTEM_PROMPT },
       {
         role: 'user',
-        content: `Create a quiz (5-8 questions) from this material. JSON shape:
-{"title":"Quiz title","questions":[{"type":"MULTIPLE_CHOICE|TRUE_FALSE","question":"...","options":["..."],"correctAnswer":"..."}]}
-Use MULTIPLE_CHOICE with 3-4 options, or TRUE_FALSE with options ["True","False"].
-Notes:\n${wrapUntrustedDocument(text)}`,
+        content: `Create an exam-grade practice quiz with exactly ${targetCount} questions based on this study material.${difficulty}
+Follow this JSON shape:
+${QUIZ_JSON_SHAPE}
+Notes:
+${wrapUntrustedDocument(text)}`,
       },
     ],
-    { temperature: 0.5, maxTokens, model, signal }
+    { temperature: 0.4, maxTokens, model, signal }
   );
   const parsed = ai.extractJson(content);
-  return { title: parsed.title || 'Generated Quiz', questions: parsed.questions || [] };
+  const rawQuestions = Array.isArray(parsed.questions) ? parsed.questions : (Array.isArray(parsed) ? parsed : (Array.isArray(parsed.items) ? parsed.items : []));
+  const questions = rawQuestions.slice(0, targetCount);
+  return { title: parsed.title || 'Generated Quiz', questions };
 }
 
 async function handleStudyPlan({ body, provider: ai, maxTokens, signal }) {
@@ -1375,4 +1394,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, handleChat, handleFlashcards, isLearningTopic };
+module.exports = { app, handleChat, handleFlashcards, handleQuiz, isLearningTopic };

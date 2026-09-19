@@ -57,20 +57,20 @@ class JeviRepositoryImpl @Inject constructor(
         return combine(
             flashcardDao.observeDueCount(now),
             flashcardDao.observeTotalCount(),
-            deckDao.observeAll(),
+            observeDecks(),
             quizDao.observeAll().map { it.size },
             gizmoManager.state,
-        ) { dueCount, totalCards, deckEntities, quizCount, gizmo ->
+        ) { dueCount, totalCards, decks, quizCount, gizmo ->
             JeviDashboard(
                 dueCount = dueCount,
                 totalCards = totalCards,
-                deckCount = deckEntities.size,
+                deckCount = decks.size,
                 quizCount = quizCount,
                 streakDays = gizmo.streakDays,
                 xp = gizmo.xp,
                 level = gizmo.level,
                 xpProgress = gizmo.xpProgress,
-                decks = deckEntities.map { it.toDomain() },
+                decks = decks,
             )
         }
     }

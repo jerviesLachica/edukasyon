@@ -57,6 +57,8 @@ import androidx.lifecycle.lifecycleScope
 import coil.compose.rememberAsyncImagePainter
 import com.edukasyon.studentai.domain.model.ThemeMode
 import com.edukasyon.studentai.ui.theme.StudentAiTheme
+import androidx.compose.ui.res.dimensionResource
+import com.edukasyon.studentai.R
 import com.edukasyon.studentai.ui.theme.parseHexColor
 import com.edukasyon.studentai.widget.WidgetBackgroundGenerator
 import com.edukasyon.studentai.widget.WidgetConfig
@@ -300,7 +302,7 @@ private fun WidgetPreviewCard(
             .wrapContentWidth(Alignment.CenterHorizontally)
             .widthIn(max = 320.dp)
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(dimensionResource(R.dimen.widget_corner_radius)))
             .background(bgColor)
     ) {
         // Design background layer — the same generated bitmap the real

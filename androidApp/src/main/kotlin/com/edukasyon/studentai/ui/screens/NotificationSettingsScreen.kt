@@ -420,12 +420,11 @@ fun NotificationSettingsDetailScreen(
                                 context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                                     if (cursor.moveToFirst()) {
                                         val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                                        if (nameIndex >= 0) cursor.getString(nameIndex) else "Custom"
-                                    } else "Custom"
+                                        if (nameIndex >= 0) cursor.getString(nameIndex) else "Custom Audio"
+                                    } else "Custom Audio"
                                 }
-                            }.getOrNull() ?: "Custom"
-                            viewModel.setAlarmSoundUri(uri.toString())
-                            viewModel.setAlarmSoundName(name)
+                            }.getOrNull() ?: "Custom Audio"
+                            viewModel.selectAlarmSound(name, uri.toString())
                             // Hear what you just picked before it becomes your alarm.
                             previewSound(uri.toString())
                         }
@@ -433,52 +432,122 @@ fun NotificationSettingsDetailScreen(
 
                     val presetSounds = listOf(
                         "System Default" to null,
-                        "Tone 1" to "android.resource://${LocalContext.current.packageName}/raw/tone_1",
-                        "Tone 2" to "android.resource://${LocalContext.current.packageName}/raw/tone_2",
-                        "Tone 3" to "android.resource://${LocalContext.current.packageName}/raw/tone_3"
+                        "Gentle Chime (Tone 1)" to "android.resource://${LocalContext.current.packageName}/raw/tone_1",
+                        "Crystal Bell (Tone 2)" to "android.resource://${LocalContext.current.packageName}/raw/tone_2",
+                        "Digital Pulse (Tone 3)" to "android.resource://${LocalContext.current.packageName}/raw/tone_3",
+                        "Morning Glow (Tone 4)" to "android.resource://${LocalContext.current.packageName}/raw/tone_4",
+                        "Soft Breeze (Tone 5)" to "android.resource://${LocalContext.current.packageName}/raw/tone_5"
                     )
+                    val presetUris = presetSounds.mapNotNull { it.second }.toSet()
+                    val isCustomSelected = state.alarmSoundUri != null && !presetUris.contains(state.alarmSoundUri)
+
                     presetSounds.forEach { (name, uri) ->
                         val previewKey = uri ?: SYSTEM_SOUND_PREVIEW_KEY
+                        val isSelected = if (uri == null) {
+                            state.alarmSoundUri == null || state.alarmSoundName == "System Default"
+                        } else {
+                            state.alarmSoundUri == uri
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    viewModel.setAlarmSoundName(name)
-                                    viewModel.setAlarmSoundUri(uri)
+                                    viewModel.selectAlarmSound(name, uri)
                                     previewSound(uri)
-                                },
+                                }
+                                .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = {
+                                    viewModel.selectAlarmSound(name, uri)
+                                    previewSound(uri)
+                                }
+                            )
+                            Spacer(Modifier.width(8.dp))
                             Text(
                                 name,
                                 style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(vertical = 12.dp)
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                modifier = Modifier.weight(1f)
                             )
-                            Icon(
-                                imageVector = if (playingPreviewKey == previewKey) Icons.Default.Stop else Icons.Default.PlayArrow,
-                                contentDescription = if (playingPreviewKey == previewKey) "Stop preview" else "Preview $name",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clickable { previewSound(uri) }
-                            )
+                            IconButton(onClick = { previewSound(uri) }) {
+                                Icon(
+                                    imageVector = if (playingPreviewKey == previewKey) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                    contentDescription = if (playingPreviewKey == previewKey) "Stop preview" else "Preview $name",
+                                    tint = if (playingPreviewKey == previewKey) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                     }
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    if (isCustomSelected) {
+                        val customUri = state.alarmSoundUri
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { previewSound(customUri) }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = true,
+                                onClick = { previewSound(customUri) }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    state.alarmSoundName.ifBlank { "Custom Audio" },
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    "Custom Audio file",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            IconButton(onClick = { previewSound(customUri) }) {
+                                Icon(
+                                    imageVector = if (playingPreviewKey == customUri) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                    contentDescription = if (playingPreviewKey == customUri) "Stop preview" else "Preview custom audio",
+                                    tint = if (playingPreviewKey == customUri) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { soundPickerLauncher.launch("audio/*") },
-                        verticalAlignment = Alignment.CenterVertically
+                            .clickable { soundPickerLauncher.launch("audio/*") }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            "Pick MP3",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(vertical = 12.dp)
+                        Icon(
+                            Icons.Default.AudioFile,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
                         )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                if (isCustomSelected) "Change Custom Audio (MP3 / WAV)" else "Pick Custom Audio (MP3 / WAV)",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Select any audio file from your device",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }

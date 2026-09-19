@@ -857,7 +857,16 @@ data class AiUiState(
     val scheduleScanRetryCount: Int = 0,
     val scheduleScanRetryAfterMillis: Long? = null,
     val scheduleScanExtractedText: String? = null,
+    val strictGroundingMode: Boolean = false,
+    val audioOverviewState: AudioOverviewUiState = AudioOverviewUiState.Idle,
 )
+
+sealed interface AudioOverviewUiState {
+    data object Idle : AudioOverviewUiState
+    data class Generating(val progressNote: String? = null) : AudioOverviewUiState
+    data class Ready(val file: java.io.File, val playable: Boolean = false, val positionMs: Int = 0, val durationMs: Int = 0) : AudioOverviewUiState
+    data class Failed(val message: String) : AudioOverviewUiState
+}
 
 enum class ScheduleScanStatus {
     IDLE,
@@ -895,6 +904,7 @@ class AiViewModel @Inject constructor(
     private val sourceRepository: com.edukasyon.studentai.domain.repository.SourceRepository,
     private val aiService: AiService,
     private val jeviRepository: com.edukasyon.studentai.domain.repository.JeviRepository,
+    private val audioOverviewManager: com.edukasyon.studentai.core.audio.AudioOverviewManager,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AiUiState())
     val uiState: StateFlow<AiUiState> = _uiState.asStateFlow()
@@ -905,6 +915,8 @@ class AiViewModel @Inject constructor(
     private var lastScannedExtractedText: String? = null
     private var scheduleScanJob: Job? = null
     private var scheduleScanAttemptCounter: Long = 0L
+    private var audioPlayer: android.media.MediaPlayer? = null
+    private var audioProgressTicker: Job? = null
 
     init {
         viewModelScope.launch {
@@ -1130,6 +1142,16 @@ class AiViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+
+    fun retryLastMessage() {
+        val lastUser = _uiState.value.messages.lastOrNull { it.isUser } ?: return
+        clearError()
+        sendMessage(
+            message = lastUser.content,
+            attachment = null,
+            deckId = _uiState.value.activeDeckId,
+        )
     }
 
     fun clearStatusMessage() {
@@ -1498,8 +1520,9 @@ class AiViewModel @Inject constructor(
                         startNewConversation(AiConversationType.TUTOR)
                     }
                     localId = ensureTutorConversation(displayMessage)
+                    val chunkCount = if (_uiState.value.strictGroundingMode) 8 else 5
                     groundedSources = try {
-                        sourceRepository.retrieve(displayMessage, _uiState.value.selectedSourceIds, 5)
+                        sourceRepository.retrieve(displayMessage, _uiState.value.selectedSourceIds, chunkCount)
                     } catch (_: Exception) {
                         emptyList()
                     }
@@ -1559,9 +1582,14 @@ class AiViewModel @Inject constructor(
                 if (selectedModel.isStepModel) {
                     recordStepModelUseIfNeeded(selectedModel)
                 }
+                val effectivePrompt = if (_uiState.value.strictGroundingMode && groundedSources.isNotEmpty()) {
+                    "[STRICT SOURCE GROUNDING: Only use facts explicitly verified in the provided sources. Cite statements with bracket numbers [1], [2]. If the answer cannot be found in the sources, clearly declare that.]\n\n$displayMessage"
+                } else {
+                    displayMessage
+                }
                 val response = aiChat.execute(
                     com.edukasyon.studentai.core.ai.AiChatRequest(
-                        message = displayMessage,
+                        message = effectivePrompt,
                         subject = subject,
                         contextSummary = contextSummary,
                         conversationId = backendConversationId,
@@ -1576,25 +1604,21 @@ class AiViewModel @Inject constructor(
                         deckMode = deckMode,
                     )
                 )
-                val reply = response.reply.trim()
-                val reasoning = response.reasoning?.trim()?.takeIf { it.isNotEmpty() }
+                val reply = response.reply.trim().replace("\\n", "\n").replace("\\r", "\r")
+                val reasoning = response.reasoning?.let {
+                    com.edukasyon.studentai.core.ai.AiActionParser.sanitizeReply(it)
+                }?.takeIf { it.isNotEmpty() }
                 if (reply.isEmpty() && reasoning.isNullOrBlank()) {
                     throw com.edukasyon.studentai.core.ai.AiException(
                         "Jevi returned an empty reply."
                     )
                 }
                 safePersistBackendConversationId(localId, response.conversationId)
-                val parsed = com.edukasyon.studentai.core.ai.AiActionParser.parse(reply)
-                val proposals = parsed.actions.filter { it.type.lowercase() in com.edukasyon.studentai.core.ai.AiActionExecutor.PROPOSAL_TYPES }
-                val studyBlocks = proposals.filter { it.type.lowercase() == "propose_study_blocks" }
-                    .flatMap { it.blocks.orEmpty() }
-                val followUps = proposals.filter { it.type.lowercase() == "suggest_followups" }
-                    .flatMap { it.items.orEmpty() }
-                    .distinct()
-                    .take(3)
-                val directActions = parsed.actions.filterNot { it.type.lowercase() in com.edukasyon.studentai.core.ai.AiActionExecutor.PROPOSAL_TYPES }
+                val parsed = com.edukasyon.studentai.core.ai.AiActionParser.parseAndExtract(response.reply)
+                val studyBlocks = parsed.studyBlocks
+                val followUps = parsed.followUps
                 val appliedActions = runCatching {
-                    if (directActions.isNotEmpty()) aiActionExecutor.execute(directActions) else emptyList()
+                    if (parsed.directActions.isNotEmpty()) aiActionExecutor.execute(parsed.directActions) else emptyList()
                 }.getOrElse { emptyList() }
                 val assistantTimestamp = System.currentTimeMillis()
                 val localCites = groundedSources
@@ -1641,12 +1665,13 @@ class AiViewModel @Inject constructor(
                         }
                     }
                 }
+                val finalContent = parsed.displayText.ifBlank { reply.ifBlank { "I've processed your request." } }
                 safePersistMessage(
                     AiConversationMessage(
                         id = aiMessageId(),
                         conversationId = localId,
                         isUser = false,
-                        content = parsed.displayText,
+                        content = finalContent,
                         sentAt = assistantTimestamp,
                         metadataJson = com.edukasyon.studentai.core.ai.AiConversationMetadata
                             .encodeTutorReasoning(
@@ -1663,9 +1688,10 @@ class AiViewModel @Inject constructor(
                         isLoading = false,
                         loadingTool = null,
                         streamingReasoning = null,
+                        error = null,
                         messages = s.messages + GizmoChatMessage(
                             sender = "Jevi",
-                            content = parsed.displayText,
+                            content = finalContent,
                             isUser = false,
                             timestamp = assistantTimestamp,
                             reasoning = reasoning,
@@ -1695,6 +1721,7 @@ class AiViewModel @Inject constructor(
                     it.copy(
                         isLoading = false,
                         loadingTool = null,
+                        streamingReasoning = null,
                         error = aiErrorMessage(e),
                     )
                 }
@@ -2484,6 +2511,202 @@ class AiViewModel @Inject constructor(
         return "${norm(start)}-${norm(end)}"
     }
 
+    fun toggleStrictGrounding() {
+        _uiState.update { it.copy(strictGroundingMode = !it.strictGroundingMode) }
+    }
+
+    suspend fun getActiveSourcesText(): String {
+        val st = _uiState.value
+        val activeSources = if (st.selectedSourceIds != null) {
+            st.sources.filter { st.selectedSourceIds.contains(it.id) }
+        } else {
+            st.sources
+        }
+        if (activeSources.isEmpty()) return ""
+        val chunks = activeSources.flatMap { s ->
+            runCatching { sourceRepository.chunksForSource(s.id) }.getOrDefault(emptyList())
+        }
+        return chunks.joinToString("\n\n") { "From ${it.sourceName}:\n${it.text}" }
+    }
+
+    fun generateStudyGuideFromSources() {
+        viewModelScope.launch {
+            val text = getActiveSourcesText()
+            if (text.isBlank() && _uiState.value.activeDeckId == null) {
+                _uiState.update { it.copy(statusMessage = "Add at least one source (notes, PDF, web) to generate a Study Guide.") }
+                return@launch
+            }
+            val prompt = "Create a comprehensive, beautifully structured Study Guide from my active sources. Include:\n" +
+                "1. 📌 Core Topics & Key Concepts\n" +
+                "2. 📖 Essential Summaries & Glossary Definitions\n" +
+                "3. 🧠 Key Takeaways & Mind Map Outline\n" +
+                "4. ❓ Review & Self-Check Questions with detailed answers.\n" +
+                "Ground all facts in the active sources and cite them throughout using bracketed numbers [1], [2]."
+            sendMessage(prompt, deckId = _uiState.value.activeDeckId)
+        }
+    }
+
+    fun generateBriefingDocFromSources() {
+        viewModelScope.launch {
+            val text = getActiveSourcesText()
+            if (text.isBlank() && _uiState.value.activeDeckId == null) {
+                _uiState.update { it.copy(statusMessage = "Add at least one source to generate a Briefing Document.") }
+                return@launch
+            }
+            val prompt = "Generate an executive Briefing Document and FAQ from my active sources. Structure it into:\n" +
+                "1. 🎯 Executive Summary\n" +
+                "2. ⚡ Important Facts & Crucial Details\n" +
+                "3. ❓ Frequently Asked Questions (FAQ) with in-depth answers.\n" +
+                "Ground every point strictly in the sources and cite them using [1], [2]."
+            sendMessage(prompt, deckId = _uiState.value.activeDeckId)
+        }
+    }
+
+    fun generateFlashcardsFromSources() {
+        viewModelScope.launch {
+            val text = getActiveSourcesText()
+            if (text.isBlank() && _uiState.value.activeDeckId == null) {
+                _uiState.update { it.copy(statusMessage = "Add at least one source to create flashcards.") }
+                return@launch
+            }
+            val content = if (text.isNotBlank()) text.take(15000) else "Create study flashcards from current deck"
+            generateFlashcards(content)
+        }
+    }
+
+    fun generateQuizFromSources() {
+        viewModelScope.launch {
+            val text = getActiveSourcesText()
+            if (text.isBlank() && _uiState.value.activeDeckId == null) {
+                _uiState.update { it.copy(statusMessage = "Add at least one source to generate a practice quiz.") }
+                return@launch
+            }
+            val content = if (text.isNotBlank()) text.take(15000) else "Create practice quiz from current deck"
+            generateQuiz(content)
+        }
+    }
+
+    fun generateAudioOverviewFromSources() {
+        val st = _uiState.value
+        if (st.audioOverviewState is AudioOverviewUiState.Generating) return
+        viewModelScope.launch {
+            val text = getActiveSourcesText()
+            if (text.isBlank()) {
+                _uiState.update { it.copy(statusMessage = "Add at least one source to generate an Audio Overview episode.") }
+                return@launch
+            }
+            _uiState.update { it.copy(audioOverviewState = AudioOverviewUiState.Generating("Writing podcast script…")) }
+            val title = st.sources.firstOrNull()?.name ?: "Sources Deep Dive"
+            val result = audioOverviewManager.overviewForSources(
+                title = title,
+                sourcesText = text,
+                onProgress = { stage, done, total ->
+                    val note = when (stage) {
+                        com.edukasyon.studentai.core.audio.PodcastStatusEvent.Scripting -> "Drafting dialogue script…"
+                        com.edukasyon.studentai.core.audio.PodcastStatusEvent.Auditing -> "Auditing source coverage…"
+                        com.edukasyon.studentai.core.audio.PodcastStatusEvent.Synthesizing ->
+                            if (total > 0) "Voicing episode ($done/$total lines)…" else "Voicing podcast episode…"
+                    }
+                    _uiState.update { s ->
+                        if (s.audioOverviewState is AudioOverviewUiState.Generating) {
+                            s.copy(audioOverviewState = AudioOverviewUiState.Generating(note))
+                        } else s
+                    }
+                }
+            )
+            when (result) {
+                is com.edukasyon.studentai.core.audio.AudioOverviewManager.Result.Ready -> {
+                    _uiState.update { it.copy(audioOverviewState = AudioOverviewUiState.Ready(file = result.file)) }
+                }
+                is com.edukasyon.studentai.core.audio.AudioOverviewManager.Result.Failed -> {
+                    _uiState.update { it.copy(audioOverviewState = AudioOverviewUiState.Failed(result.message)) }
+                }
+            }
+        }
+    }
+
+    fun playOrPauseAudioOverview() {
+        val ready = _uiState.value.audioOverviewState as? AudioOverviewUiState.Ready ?: return
+        val current = audioPlayer
+        if (current != null && ready.playable) {
+            current.pause()
+            _uiState.update { it.copy(audioOverviewState = ready.copy(playable = false)) }
+            return
+        }
+        if (current != null && current.isPlaying) return
+        runCatching {
+            val mp = current ?: android.media.MediaPlayer().apply {
+                setDataSource(ready.file.absolutePath)
+                prepare()
+                setOnCompletionListener {
+                    _uiState.update { s ->
+                        (s.audioOverviewState as? AudioOverviewUiState.Ready)?.let {
+                            s.copy(audioOverviewState = it.copy(playable = false, positionMs = 0))
+                        } ?: s
+                    }
+                }
+            }
+            mp.seekTo(ready.positionMs)
+            mp.start()
+            audioPlayer = mp
+            _uiState.update { s ->
+                val r = (s.audioOverviewState as? AudioOverviewUiState.Ready)
+                    ?.copy(playable = true, durationMs = mp.duration)
+                    ?: AudioOverviewUiState.Ready(file = ready.file, playable = true, durationMs = mp.duration)
+                s.copy(audioOverviewState = r)
+            }
+            startAudioProgressTicker()
+        }.onFailure { err ->
+            _uiState.update { it.copy(audioOverviewState = AudioOverviewUiState.Failed("Playback error: ${err.message}")) }
+        }
+    }
+
+    fun seekAudioOverview(fraction: Float) {
+        val mp = audioPlayer ?: return
+        runCatching {
+            val target = (mp.duration * fraction.coerceIn(0f, 1f)).toInt()
+            mp.seekTo(target)
+            _uiState.update { s ->
+                (s.audioOverviewState as? AudioOverviewUiState.Ready)?.let {
+                    s.copy(audioOverviewState = it.copy(positionMs = mp.currentPosition))
+                } ?: s
+            }
+        }
+    }
+
+    fun dismissAudioOverview() {
+        audioProgressTicker?.cancel()
+        runCatching {
+            audioPlayer?.stop()
+            audioPlayer?.release()
+        }
+        audioPlayer = null
+        _uiState.update { it.copy(audioOverviewState = AudioOverviewUiState.Idle) }
+    }
+
+    private fun startAudioProgressTicker() {
+        audioProgressTicker?.cancel()
+        audioProgressTicker = viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(500)
+                val mp = audioPlayer ?: break
+                val pos = runCatching { mp.currentPosition }.getOrNull() ?: break
+                _uiState.update { s ->
+                    (s.audioOverviewState as? AudioOverviewUiState.Ready)?.let {
+                        s.copy(audioOverviewState = it.copy(positionMs = pos))
+                    } ?: s
+                }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        audioProgressTicker?.cancel()
+        runCatching { audioPlayer?.release() }
+        audioPlayer = null
+    }
+
     private companion object {
         const val TAG = "AiViewModel"
         // The vision model upstream takes 45-75s on real schedule photos, and
@@ -2968,6 +3191,7 @@ data class NotificationSettingsUiState(
     val classReminder15MinBefore: Boolean = true,
     val notificationSoundEnabled: Boolean = true,
     val alarmSoundName: String = "System Default",
+    val alarmSoundUri: String? = null,
     val notificationPermissionGranted: Boolean = true,
     val dndAccessGranted: Boolean = false,
     val batteryOptimizationDisabled: Boolean = false
@@ -2999,7 +3223,8 @@ class NotificationSettingsViewModel @Inject constructor(
                     preferences.notificationSoundEnabled,
                 ) { a, b -> listOf(a, b) },
                 preferences.alarmSoundName,
-            ) { flags, extra, soundName ->
+                preferences.alarmSoundUri,
+            ) { flags, extra, soundName, soundUri ->
                 NotificationSettingsUiState(
                     notificationsEnabled = flags[0],
                     classReminders = flags[1],
@@ -3009,6 +3234,7 @@ class NotificationSettingsViewModel @Inject constructor(
                     classReminder15MinBefore = extra[0],
                     notificationSoundEnabled = extra[1],
                     alarmSoundName = soundName,
+                    alarmSoundUri = soundUri,
                     notificationPermissionGranted = _uiState.value.notificationPermissionGranted,
                     dndAccessGranted = _uiState.value.dndAccessGranted,
                     batteryOptimizationDisabled = _uiState.value.batteryOptimizationDisabled
@@ -3051,7 +3277,26 @@ class NotificationSettingsViewModel @Inject constructor(
     fun setClassReminder15MinBefore(enabled: Boolean) { viewModelScope.launch { preferences.setClassReminder15MinBefore(enabled) } }
     fun setNotificationSoundEnabled(enabled: Boolean) { viewModelScope.launch { preferences.setNotificationSoundEnabled(enabled) } }
     fun setAlarmSoundName(name: String) { viewModelScope.launch { preferences.setAlarmSoundName(name) } }
-    fun setAlarmSoundUri(uri: String?) { viewModelScope.launch { preferences.setAlarmSoundUri(uri) } }
+    fun setAlarmSoundUri(uri: String?) {
+        viewModelScope.launch {
+            preferences.setAlarmSoundUri(uri)
+            // Re-create channels with updated sound URI and name
+            runCatching {
+                com.edukasyon.studentai.core.notifications.NotificationHelper(appContext)
+                    .createChannels(uri, _uiState.value.alarmSoundName)
+            }
+        }
+    }
+    fun selectAlarmSound(name: String, uri: String?) {
+        viewModelScope.launch {
+            preferences.setAlarmSoundName(name)
+            preferences.setAlarmSoundUri(uri)
+            runCatching {
+                com.edukasyon.studentai.core.notifications.NotificationHelper(appContext)
+                    .createChannels(uri, name)
+            }
+        }
+    }
 }
 
 data class LectureFilesUiState(
@@ -3493,10 +3738,13 @@ class MainViewModel @Inject constructor(
             val tokenResult = googleSignInHelper.getIdTokenFromResult(data)
             val idToken = tokenResult.getOrNull()
             if (idToken.isNullOrBlank()) {
-                val friendly = tokenResult.exceptionOrNull()
-                    ?.let { googleSignInHelper.describeSignInError(it) }
-                    ?: "Could not read Google sign-in result. Please try again."
-                if (friendly != null) onFailure(friendly) else onCancelled()
+                val exception = tokenResult.exceptionOrNull()
+                if (exception != null) {
+                    val friendly = googleSignInHelper.describeSignInError(exception)
+                    if (friendly != null) onFailure(friendly) else onCancelled()
+                } else {
+                    onFailure("Could not read Google sign-in result. Please try again.")
+                }
                 return@launch
             }
             val outcome = authManager.signInWithGoogle(idToken)

@@ -335,7 +335,7 @@ object FeaturesCatalog {
     val homeDashboardTiles: List<FeatureItem> = listOf(
         "schedule_scanner",
         "lecture_files",
-        "ai_tutor",
+        "jevi_quiz_arena",
         "calendar",
         "grades",
         "flashcard_study",

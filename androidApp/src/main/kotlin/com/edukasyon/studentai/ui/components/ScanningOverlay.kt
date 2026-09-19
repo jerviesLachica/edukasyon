@@ -42,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import com.edukasyon.studentai.ui.components.mascot.MascotMood
+import com.edukasyon.studentai.ui.components.mascot.SchedMateMascot
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -217,7 +219,12 @@ fun ScanningOverlay(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    PencilPreloader(containerSize = 56.dp)
+                    SchedMateMascot(
+                        mood = MascotMood.Planning,
+                        size = 110.dp,
+                        showSpeechBubble = false,
+                        interactive = false,
+                    )
                     Spacer(Modifier.height(20.dp))
                     Text(
                         text = primaryMessage,
@@ -322,6 +329,12 @@ fun ScheduleScanFailureOverlay(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
+            SchedMateMascot(
+                mood = MascotMood.Resting,
+                size = 110.dp,
+                showSpeechBubble = false,
+                containerModifier = Modifier.padding(bottom = 14.dp)
+            )
             Text(
                 text = when (status) {
                     ScheduleScanStatus.UNREADABLE -> "Schedule unreadable"

@@ -63,6 +63,8 @@ data class DocumentResult(
     val wasFullyCached: Boolean,
     /** Pages read from the PDF text layer for free (zero vision calls). */
     val textLayerPageCount: Int = 0,
+    /** Pages read via on-device ML Kit OCR (fast, free, offline). */
+    val ocrPageCount: Int = 0,
     /** Pages that needed a rendered image + vision API call. */
     val visionPageCount: Int = 0,
     /** Pages beyond the per-import vision cap that were NOT read (0 = full coverage). */
@@ -76,8 +78,10 @@ data class PageNote(
 )
 
 /**
- * Parallel document pipeline: renders PDF pages → fan-out vision API calls
- * (Semaphore(3) concurrency, jittered backoff on 429/5xx) → per-page SHA256 cache in Room.
+ * Parallel document pipeline: renders PDF/images → 3-tier hybrid resolution:
+ * 1. Embedded PDF text layer (instant, ~10ms)
+ * 2. On-device Google ML Kit OCR (~150-250ms, offline, zero API calls)
+ * 3. Cloud Vision API (Gemini Vision with backoff & Room cache)
  *
  * Progress is emitted via [progressFlow] as each page transitions through states.
  */
@@ -85,6 +89,7 @@ data class PageNote(
 class DocumentPipeline @Inject constructor(
     private val aiApiService: AiApiService,
     private val pageNoteCacheDao: PageNoteCacheDao,
+    private val mlKitTextRecognizer: com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer,
 ) {
     companion object {
         private const val TAG = "DocumentPipeline"
@@ -114,19 +119,51 @@ class DocumentPipeline @Inject constructor(
     val progressFlow: SharedFlow<PageProgress> = _progressFlow.asSharedFlow()
 
     /**
-     * Process a document (PDF or image) through the vision-first pipeline.
-     *
-     * @param context Android context for content resolver access
-     * @param uri URI of the PDF or image file
-     * @param fileName Original file name for logging
-     * @return DocumentResult with page notes, merged markdown, and cache status
+     * Process a single document (PDF or image).
      */
     suspend fun processDocument(
         context: Context,
         uri: Uri,
         fileName: String,
+        forceVision: Boolean = false,
+    ): DocumentResult = processDocuments(
+        context = context,
+        uris = listOf(uri),
+        fileNames = listOf(fileName),
+        forceVision = forceVision,
+    )
+
+    /**
+     * Process one or more documents (multiple images or a PDF) through the hybrid pipeline.
+     */
+    suspend fun processDocuments(
+        context: Context,
+        uris: List<Uri>,
+        fileNames: List<String> = emptyList(),
+        forceVision: Boolean = false,
     ): DocumentResult = withContext(Dispatchers.IO) {
-        val pages = renderPages(context, uri, fileName)
+        if (uris.isEmpty()) {
+            return@withContext DocumentResult(
+                pageNotes = emptyList(),
+                mergedMarkdown = "",
+                totalChars = 0,
+                wasFullyCached = false,
+            )
+        }
+
+        val renderedPages = mutableListOf<RenderedPage>()
+        for ((idx, uri) in uris.withIndex()) {
+            val name = fileNames.getOrNull(idx) ?: "file_$idx"
+            val p = renderPages(context, uri, name)
+            renderedPages.addAll(p)
+            if (renderedPages.size >= HARD_MAX_PAGES) break
+        }
+
+        // Re-number sequentially across all input files
+        val pages = renderedPages.take(HARD_MAX_PAGES).mapIndexed { i, p ->
+            p.copy(num = i + 1)
+        }
+
         if (pages.isEmpty()) {
             return@withContext DocumentResult(
                 pageNotes = emptyList(),
@@ -137,83 +174,99 @@ class DocumentPipeline @Inject constructor(
         }
 
         val pageLimit = minOf(pages.size, MAX_VISION_PAGES)
-        if (pages.size > MAX_VISION_PAGES) {
-            Log.w(TAG, "Document has ${pages.size} pages, processing first $MAX_VISION_PAGES (cap)")
-        }
-        if (pages.size > HARD_MAX_PAGES) {
-            Log.w(TAG, "Document has ${pages.size} pages, hard cap is $HARD_MAX_PAGES — some pages will be silently dropped")
-        }
-
-        // Hybrid gate: decode the PDF text layer once (free). Pages whose text
-        // layer has >= MIN_TEXTLAYER_WORDS words are used as-is — no Room lookup,
-        // no vision call. Page order here assumes /Type /Page object order
-        // matches PdfRenderer order (true for virtually all PDFs); on mismatch
-        // a page falls back to the vision path, so quality never regresses.
-        val textLayerPages: List<String?> = runCatching {
-            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            if (bytes != null && bytes.size >= 5 && String(bytes, 0, 5, Charsets.ISO_8859_1) == "%PDF-") {
-                ChatAttachmentUtils.extractEmbeddedPdfTextPerPage(bytes)
-            } else {
-                emptyList()
-            }
-        }.getOrDefault(emptyList())
         var textLayerPageCount = 0
+        var ocrPageCount = 0
 
-        // Check cache for all pages — zero AI calls on cache hit
         val cachedResults = mutableListOf<PageNote?>()
-        var allCached = true
+        var allResolvedWithoutVision = true
+
         for (i in 0 until pageLimit) {
-            val textLayer = textLayerPages.getOrNull(i)?.takeIf { pageUsesTextLayer(it) }
+            val page = pages[i]
+
+            // Tier 1: Embedded text layer
+            val textLayer = page.textLayer?.takeIf { pageUsesTextLayer(it) }
             if (textLayer != null) {
+                val sha = "text:" + DocumentPageCache.sha256(page.jpegBytes)
                 cachedResults.add(
                     PageNote(
-                        pageNum = pages[i].num,
+                        pageNum = page.num,
                         markdown = textLayer.trim(),
-                        sha256 = "text:" + DocumentPageCache.sha256(pages[i].jpegBytes),
+                        sha256 = sha,
                     )
                 )
                 textLayerPageCount++
                 _progressFlow.emit(
-                    PageProgress(pages[i].num, pageLimit, PageStatus.DONE, textLayer.trim())
+                    PageProgress(page.num, pageLimit, PageStatus.DONE, textLayer.trim())
                 )
                 continue
             }
-            val sha256 = DocumentPageCache.sha256(pages[i].jpegBytes)
+
+            // Tier 2: Check persistent Room cache
+            val sha256 = DocumentPageCache.sha256(page.jpegBytes)
             val cached = pageNoteCacheDao.getBySha256(sha256)
             if (cached != null) {
                 cachedResults.add(
                     PageNote(
-                        pageNum = pages[i].num,
+                        pageNum = page.num,
                         markdown = cached.markdown,
                         sha256 = sha256,
                     )
                 )
                 _progressFlow.emit(
-                    PageProgress(pages[i].num, pageLimit, PageStatus.DONE, cached.markdown)
+                    PageProgress(page.num, pageLimit, PageStatus.DONE, cached.markdown)
                 )
-            } else {
-                cachedResults.add(null)
-                allCached = false
+                continue
             }
+
+            // Tier 3: On-device ML Kit OCR (fast, local, offline)
+            if (!forceVision) {
+                _progressFlow.emit(PageProgress(page.num, pageLimit, PageStatus.READING))
+                val ocrResult = mlKitTextRecognizer.recognizeFromBytes(page.jpegBytes)
+                if (ocrResult.success && pageUsesTextLayer(ocrResult.text)) {
+                    val markdown = ocrResult.text.trim()
+                    runCatching {
+                        pageNoteCacheDao.upsert(
+                            PageNoteCacheEntity(
+                                sha256 = sha256,
+                                markdown = markdown,
+                                pageNum = page.num,
+                                createdAt = System.currentTimeMillis(),
+                            )
+                        )
+                    }
+                    cachedResults.add(
+                        PageNote(pageNum = page.num, markdown = markdown, sha256 = sha256)
+                    )
+                    ocrPageCount++
+                    _progressFlow.emit(
+                        PageProgress(page.num, pageLimit, PageStatus.DONE, markdown)
+                    )
+                    continue
+                }
+            }
+
+            // Needs cloud vision
+            cachedResults.add(null)
+            allResolvedWithoutVision = false
         }
 
-        if (allCached) {
-            Log.i(TAG, "All $pageLimit pages resolved without vision (text layer or cache) — zero AI calls")
+        if (allResolvedWithoutVision) {
+            Log.i(TAG, "All $pageLimit pages resolved without cloud vision ($textLayerPageCount text layer, $ocrPageCount ML Kit OCR, ${pageLimit - textLayerPageCount - ocrPageCount} cache hits)")
             val merged = buildMergedMarkdown(cachedResults.filterNotNull())
             return@withContext DocumentResult(
                 pageNotes = cachedResults.filterNotNull(),
                 mergedMarkdown = merged,
                 totalChars = merged.length,
-                wasFullyCached = textLayerPageCount == 0,
+                wasFullyCached = textLayerPageCount == 0 && ocrPageCount == 0,
                 textLayerPageCount = textLayerPageCount,
+                ocrPageCount = ocrPageCount,
                 visionPageCount = 0,
                 skippedPageCount = (pages.size - pageLimit).coerceAtLeast(0),
             )
         }
 
-        // Fan-out uncached pages with semaphore-limited concurrency
+        // Fan-out remaining pages that need cloud vision
         val results = arrayOfNulls<PageNote>(pageLimit)
-        // Copy cached results into the array
         for (i in 0 until pageLimit) {
             cachedResults[i]?.let { results[i] = it }
         }
@@ -228,9 +281,9 @@ class DocumentPipeline @Inject constructor(
             )
         }
 
-        // Launch all uncached pages concurrently with semaphore
+        // Launch uncached pages concurrently with semaphore
         val jobs = uncachedIndices.map { index ->
-            kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+            CoroutineScope(Dispatchers.IO).launch {
                 semaphore.withPermit {
                     processPageWithRetry(
                         pageInfo = pages[index],
@@ -249,11 +302,10 @@ class DocumentPipeline @Inject constructor(
         val skipped = (pages.size - pageLimit).coerceAtLeast(0)
         Log.i(
             TAG,
-            "Hybrid read: $textLayerPageCount text-layer pages (free), $visionPageCount vision pages, " +
-                "cache hits ${pageLimit - textLayerPageCount - visionPageCount}, skipped beyond cap $skipped",
+            "Document read finished: $textLayerPageCount text layer, $ocrPageCount local OCR, " +
+                "$visionPageCount cloud vision, skipped $skipped",
         )
 
-        // Warn if exceeding 60k chars
         if (merged.length > MAX_PAYLOAD_CHARS) {
             Log.w(TAG, "Merged markdown is ${merged.length} chars, exceeding $MAX_PAYLOAD_CHARS cap")
         }
@@ -264,7 +316,9 @@ class DocumentPipeline @Inject constructor(
             totalChars = merged.length,
             wasFullyCached = false,
             textLayerPageCount = textLayerPageCount,
+            ocrPageCount = ocrPageCount,
             visionPageCount = visionPageCount,
+            skippedPageCount = skipped,
         )
     }
 
@@ -342,8 +396,9 @@ class DocumentPipeline @Inject constructor(
     }
 
     /**
-     * Render PDF pages to JPEG byte arrays. Plain images (jpg/png URIs from
+     * Render PDF pages or images to JPEG byte arrays. Plain images (jpg/png URIs from
      * camera/gallery) decode to a single page, downsampled to MAX_IMAGE_DIMENSION.
+     * PDFs also extract their embedded text layer per page if available.
      */
     private suspend fun renderPages(
         context: Context,
@@ -365,7 +420,7 @@ class DocumentPipeline @Inject constructor(
                 ) ?: return@use null
                 val jpeg = encodeJpeg(bmp)
                 bmp.recycle()
-                listOf(RenderedPage(num = 1, jpegBytes = jpeg))
+                listOf(RenderedPage(num = 1, jpegBytes = jpeg, textLayer = null))
             }
         }.getOrNull()?.let { return@withContext it }
 
@@ -374,6 +429,15 @@ class DocumentPipeline @Inject constructor(
 
         pfd.use { fd ->
             runCatching {
+                val textLayerPages: List<String?> = runCatching {
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    if (bytes != null && bytes.size >= 5 && String(bytes, 0, 5, Charsets.ISO_8859_1) == "%PDF-") {
+                        ChatAttachmentUtils.extractEmbeddedPdfTextPerPage(bytes)
+                    } else {
+                        emptyList()
+                    }
+                }.getOrDefault(emptyList())
+
                 PdfRenderer(fd).use { renderer ->
                     if (renderer.pageCount == 0) return@runCatching emptyList()
                     val pageLimit = minOf(renderer.pageCount, HARD_MAX_PAGES)
@@ -400,6 +464,7 @@ class DocumentPipeline @Inject constructor(
                                     RenderedPage(
                                         num = pageIndex + 1,
                                         jpegBytes = jpegBytes,
+                                        textLayer = textLayerPages.getOrNull(pageIndex),
                                     )
                                 )
                             }
@@ -420,4 +485,5 @@ class DocumentPipeline @Inject constructor(
 data class RenderedPage(
     val num: Int,
     val jpegBytes: ByteArray,
+    val textLayer: String? = null,
 )

@@ -1,0 +1,63 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run SchedMate (Build, Install & Launch)",
+            "type": "shell",
+            "command": ".\\gradlew.bat :androidApp:installDebug && & 'C:\\Users\\HP\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe' shell am start -n com.edukasyon.studentai/.MainActivity",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
+            "label": "Mirror Device (60 FPS scrcpy - Always On Top)",
+            "type": "shell",
+            "command": "& 'C:\\Users\\HP\\AppData\Local\\Microsoft\\WinGet\\Packages\\Genymobile.scrcpy_Microsoft.Winget.Source_8wekyb3d8bbwe\\scrcpy-win64-v4.1\\scrcpy.exe' --always-on-top --window-title 'SchedMate 60FPS' --window-width 380 --window-x 1500 --window-y 100",
+            "isBackground": true,
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Start Pixel 7 Emulator",
+            "type": "shell",
+            "command": "& 'C:\\Users\\HP\\AppData\\Local\\Android\\Sdk\\emulator\\emulator.exe' -avd Pixel_7_API_34 -gpu host",
+            "isBackground": true,
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "never",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Launch SchedMate (Fast Start)",
+            "type": "shell",
+            "command": "& 'C:\\Users\\HP\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe' shell am start -n com.edukasyon.studentai/.MainActivity",
+            "problemMatcher": []
+        },
+        {
+            "label": "Restart SchedMate",
+            "type": "shell",
+            "command": "& 'C:\\Users\\HP\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe' shell am force-stop com.edukasyon.studentai && & 'C:\\Users\\HP\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe' shell am start -n com.edukasyon.studentai/.MainActivity",
+            "problemMatcher": []
+        },
+        {
+            "label": "Stream Logcat (SchedMate)",
+            "type": "shell",
+            "command": "& 'C:\\Users\\HP\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe' logcat -s SchedMate:V AndroidRuntime:E",
+            "problemMatcher": []
+        }
+    ]
+}

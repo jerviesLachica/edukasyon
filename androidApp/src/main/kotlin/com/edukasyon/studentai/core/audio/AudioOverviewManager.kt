@@ -148,6 +148,77 @@ class AudioOverviewManager @Inject constructor(
     }
 
     /**
+     * Generates a NotebookLM-style two-host deep dive audio overview from arbitrary
+     * source text (documents, notes, web pages).
+     */
+    suspend fun overviewForSources(
+        title: String,
+        sourcesText: String,
+        theme: PodcastTheme = PodcastThemes.default.first(),
+        onProgress: ((PodcastStatusEvent, Int, Int) -> Unit)? = null,
+    ): Result {
+        if (sourcesText.isBlank()) return Result.Failed("No source content to narrate yet.")
+        val safeTitle = title.ifBlank { "Sources Deep Dive" }
+
+        val dir = File(appContext.filesDir, OVERVIEW_DIR)
+        val hash = MessageDigest.getInstance("SHA-256")
+            .digest((safeTitle + sourcesText.take(500) + theme.id).toByteArray())
+            .joinToString("") { "%02x".format(it) }.take(16)
+        val cached = File(dir, "sources_${safeTitle.sanitize()}_$hash.mp3")
+        if (cached.exists() && cached.length() > 0) return Result.Ready(cached)
+
+        val scriptPrompt = "You are two friendly, insightful podcast hosts, A and B (like NotebookLM's Deep Dive). " +
+            "Produce an engaging, lively 2-person dialogue breaking down the following source material:\n\n" +
+            sourcesText.take(6000) + "\n\n" +
+            DIALOGUE_CONTRACT
+
+        val script = runCatching {
+            onProgress?.invoke(PodcastStatusEvent.Scripting, -1, -1)
+            aiService.chat(
+                AiChatRequest(
+                    message = scriptPrompt,
+                    subject = safeTitle,
+                )
+            ).reply.trim()
+        }.getOrElse { return Result.Failed("Could not generate script: ${it.message ?: "offline?"}") }
+
+        if (script.isBlank()) return Result.Failed("The tutor returned an empty script.")
+
+        val lines = DialogueParser.parse(script)
+        return runCatching {
+            val out = withContext(Dispatchers.IO) {
+                val dir = File(appContext.filesDir, OVERVIEW_DIR)
+                dir.mkdirs()
+                val hash = MessageDigest.getInstance("SHA-256")
+                    .digest((safeTitle + sourcesText.take(500) + theme.id).toByteArray())
+                    .joinToString("") { "%02x".format(it) }.take(16)
+                val file = File(dir, "sources_${safeTitle.sanitize()}_$hash.mp3")
+                if (file.exists() && file.length() > 0) return@withContext file
+
+                val tmp = File(dir, file.name + ".part")
+                if (lines.isNotEmpty()) {
+                    synthesizeDialogueOrdered(lines, theme, tmp, onProgress)
+                } else {
+                    FileOutputStream(tmp).use { fos ->
+                        for (chunk in splitForSpeech(script)) {
+                            api.synthesizeSpeech(
+                                TtsRequest(text = chunk, voice = theme.voiceA, rate = theme.prosodyA.rate, pitch = theme.prosodyA.pitch)
+                            ).byteStream().use { input -> input.copyTo(fos) }
+                        }
+                    }
+                }
+                if (!tmp.renameTo(file)) tmp.delete()
+                file
+            }
+            if (out.exists() && out.length() > 0) Result.Ready(out)
+            else Result.Failed("Speech synthesis produced no audio.")
+        }.getOrElse {
+            Result.Failed("Speech synthesis failed: " + (it.message ?: "check connection"))
+        }
+    }
+
+
+    /**
      * Naturalness v2 dialogue path: synthesis requests run with bounded
      * parallelism (SYNTH_CONCURRENCY workers), each line's bytes landing in its
      * own per-line temp file; a second, strictly ordered pass concatenates the

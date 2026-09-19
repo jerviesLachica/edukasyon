@@ -48,6 +48,7 @@ android {
 
     buildTypes {
         release {
+            buildConfigField("String", "AI_BACKEND_URL", "\"https://studentai-backend-ha0z.onrender.com/\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -59,6 +60,7 @@ android {
             }
         }
         debug {
+            buildConfigField("String", "AI_BACKEND_URL", "\"http://10.0.2.2:8080/\"")
             isMinifyEnabled = false
             // No applicationIdSuffix / versionNameSuffix so debug builds replace
             // release builds 1:1 on device and report the real version (1.2.6).
@@ -137,6 +139,7 @@ dependencies {
     implementation(libs.mlkit.barcode.scanning)
     implementation(libs.zxing.core)
     implementation(libs.coil.compose)
+    implementation(libs.coil.gif)
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)
     implementation(libs.okhttp)

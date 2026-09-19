@@ -13,9 +13,11 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -41,6 +43,7 @@ import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveWidth
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveWidth
 import com.edukasyon.studentai.ui.components.*
+import com.edukasyon.studentai.ui.components.mascot.*
 import com.edukasyon.studentai.ui.viewmodel.PlannerViewModel
 import java.util.UUID
 
@@ -135,6 +138,17 @@ fun PlannerScreen(
                                 modifier = Modifier.size(22.dp),
                             )
                         }
+                        Spacer(Modifier.width(4.dp))
+                        SchedMateMascot(
+                            mood = MascotMood.Motivated,
+                            size = 40.dp,
+                            showSpeechBubble = false,
+                            interactive = true,
+                            containerModifier = Modifier
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f))
+                                .padding(3.dp)
+                        )
                     }
                 },
             )

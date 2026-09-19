@@ -838,62 +838,143 @@ fun SettingsScreen(
 fun NotesScreen(
     onOpenEditor: (noteId: String) -> Unit = {},
     onCreateNote: () -> Unit = {},
+    onNavigateToFiles: () -> Unit = {},
+    onNavigateToPlanner: () -> Unit = {},
     viewModel: NotesViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dateFormat = remember { java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()) }
 
-    AdaptiveContentContainer {
-    Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text("Notes") })
-        OutlinedTextField(
-            value = state.searchQuery,
-            onValueChange = { viewModel.search(it) },
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            placeholder = { Text("Search notes...") },
-            leadingIcon = { Icon(Icons.Default.Search, null) },
-        )
-        if (state.isLoading) {
-            LoadingState()
-        } else if (state.notes.isEmpty()) {
-            EmptyState(
-                "No notes",
-                "Create your first note.",
-                actionLabel = "Add Note",
-                onAction = onCreateNote,
+    Scaffold(
+        topBar = {
+            TopAppBar(title = { Text("Notes") })
+        },
+        floatingActionButton = {
+            StudentAiAddFab(
+                onClick = onCreateNote,
+                contentDescription = "Add note",
             )
-        } else {
-            LazyColumn(Modifier.weight(1f)) {
-                items(state.notes, key = { it.id }) { note ->
-                    StudentAiCard(onClick = { onOpenEditor(note.id) }) {
-                        Text(note.title, style = MaterialTheme.typography.titleSmall)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            note.content,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            IconButton(onClick = { viewModel.deleteNote(note.id) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete note")
+        },
+        bottomBar = {
+            StudyMaterialsPillNav(
+                selectedIndex = 0,
+                onNotes = {},
+                onFiles = onNavigateToFiles,
+                onTasks = onNavigateToPlanner
+            )
+        }
+    ) { padding ->
+        AdaptiveContentContainer {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                OutlinedTextField(
+                    value = state.searchQuery,
+                    onValueChange = { viewModel.search(it) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    placeholder = { Text("Search notes...") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    shape = StudentAiShapes.chip,
+                    singleLine = true,
+                )
+                if (state.isLoading) {
+                    LoadingState()
+                } else if (state.notes.isEmpty()) {
+                    ModernEmptyState(
+                        title = "No notes yet",
+                        message = "Create your first note to start organizing your study material.",
+                        actionLabel = "Add Note",
+                        onAction = onCreateNote,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        items(state.notes, key = { it.id }) { note ->
+                            ModernCard(onClick = { onOpenEditor(note.id) }) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    Icon(
+                                        if (note.isPinned) Icons.Default.PushPin else Icons.Default.Note,
+                                        contentDescription = null,
+                                        tint = if (note.isPinned) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 2.dp),
+                                    )
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
+                                        Text(
+                                            note.title,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        if (note.content.isNotBlank()) {
+                                            Text(
+                                                note.content,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(
+                                                dateFormat.format(java.util.Date(note.updatedAt)),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            )
+                                            if (note.tags.isNotEmpty()) {
+                                                note.tags.take(2).forEach { tag ->
+                                                    Surface(
+                                                        shape = StudentAiShapes.chip,
+                                                        color = MaterialTheme.colorScheme.secondaryContainer,
+                                                    ) {
+                                                        Text(
+                                                            tag,
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    IconButton(onClick = { viewModel.deleteNote(note.id) }) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "Delete note",
+                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        StudentAiAddFab(
-            onClick = onCreateNote,
-            contentDescription = "Add note",
-            modifier = Modifier.padding(16.dp),
-        )
-    }
     }
 }
+
 
 @Composable
 fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {

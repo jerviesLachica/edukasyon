@@ -18,6 +18,7 @@ import dagger.hilt.components.SingletonComponent
 interface DocumentEntryPoint {
     fun aiApiService(): AiApiService
     fun pageNoteCacheDao(): PageNoteCacheDao
+    fun mlKitTextRecognizer(): com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer
 }
 
 /** Convenience accessors used by JeviScreens' DocumentPipeline wiring. */
@@ -31,4 +32,9 @@ object HiltEntryPoint {
         EntryPointAccessors.fromApplication(
             context.applicationContext, DocumentEntryPoint::class.java
         ).pageNoteCacheDao()
+
+    fun mlKitTextRecognizer(context: Context): com.edukasyon.studentai.core.mlkit.MlKitTextRecognizer =
+        EntryPointAccessors.fromApplication(
+            context.applicationContext, DocumentEntryPoint::class.java
+        ).mlKitTextRecognizer()
 }

@@ -45,6 +45,25 @@ try {
                     val lang = block.lang ?: ""
                     append("""<pre class="code-block"><code class="language-${lang}">${escapeHtml(block.code)}</code></pre>""")
                 }
+                block.isTable -> {
+                    append("""<div class="table-container"><table>""")
+                    if (block.tableHeaders.isNotEmpty()) {
+                        append("<thead><tr>")
+                        block.tableHeaders.forEach { h ->
+                            append("<th>").append(renderInlineMath(h, "th_$blockIndex")).append("</th>")
+                        }
+                        append("</tr></thead>")
+                    }
+                    append("<tbody>")
+                    block.tableRows.forEachIndexed { rIdx, row ->
+                        append("<tr>")
+                        row.forEach { cell ->
+                            append("<td>").append(renderInlineMath(cell, "td_${blockIndex}_$rIdx")).append("</td>")
+                        }
+                        append("</tr>")
+                    }
+                    append("</tbody></table></div>")
+                }
                 else -> {
                     val withMath = renderInlineMath(block.text, "b$blockIndex")
                     append("""<p class="msg-text">$withMath</p>""")
@@ -73,6 +92,11 @@ body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;font-size:15px;line-
 .katex-display{margin:8px 0;overflow-x:auto}
 .katex{font-size:1.05em}
 .mermaid{background:$bgColor;border-radius:12px;padding:12px;margin:8px 0;text-align:center}
+.table-container{overflow-x:auto;margin:8px 0;border-radius:8px;border:1px solid rgba(128,128,128,0.25);background:$codeBg}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{background:rgba(128,128,128,0.2);font-weight:600;padding:8px 12px;text-align:left;border-bottom:2px solid rgba(128,128,128,0.3)}
+td{padding:8px 12px;border-bottom:1px solid rgba(128,128,128,0.15)}
+tr:nth-child(even) td{background:rgba(128,128,128,0.06)}
 </style>
 </head>
 <body>
@@ -87,6 +111,8 @@ mermaid.initialize({
 document.addEventListener('DOMContentLoaded',function(){
     renderMathInElement(document.body,{
         delimiters:[
+            {left:'$$',right:'$$',display:true},
+            {left:'$',right:'$',display:false},
             {left:'\\(',right:'\\)',display:false},
             {left:'\\[',right:'\\]',display:true},
         ],
@@ -112,6 +138,9 @@ internal data class ContentBlock(
     val isCodeFence: Boolean = false,
     val lang: String? = null,
     val code: String = "",
+    val isTable: Boolean = false,
+    val tableHeaders: List<String> = emptyList(),
+    val tableRows: List<List<String>> = emptyList(),
 )
 
 /** Split content into code fences and paragraph text. */
@@ -134,11 +163,22 @@ internal fun splitContentBlocks(content: String): List<ContentBlock> {
             }
             blocks.add(ContentBlock(isCodeFence = true, lang = lang, code = codeLines.joinToString("\n")))
             if (i < lines.size) i++ // skip closing ```
+        } else if (isRichContentTableStart(lines, i)) {
+            val headers = splitTableRow(lines[i])
+            i += 2
+            val rows = mutableListOf<List<String>>()
+            while (i < lines.size) {
+                val l = lines[i].trim()
+                if (l.isBlank() || !l.contains('|') || l.startsWith("```")) break
+                rows.add(splitTableRow(l))
+                i++
+            }
+            blocks.add(ContentBlock(isTable = true, tableHeaders = headers, tableRows = rows))
         } else if (line.isBlank()) {
             i++
         } else {
             val paraLines = mutableListOf<String>()
-            while (i < lines.size && lines[i].trim().isNotEmpty() && !lines[i].trimStart().startsWith("```")) {
+            while (i < lines.size && lines[i].trim().isNotEmpty() && !lines[i].trimStart().startsWith("```") && !isRichContentTableStart(lines, i)) {
                 paraLines.add(lines[i].trim())
                 i++
             }
@@ -148,6 +188,23 @@ internal fun splitContentBlocks(content: String): List<ContentBlock> {
         }
     }
     return blocks
+}
+
+private val HTML_TABLE_SEPARATOR_REGEX = Regex("""^\s*\|?\s*(:?-{2,}:?\s*\|)+\s*(:?-{2,}:?\s*)?\|?\s*$""")
+
+private fun isRichContentTableStart(lines: List<String>, index: Int): Boolean {
+    if (index + 1 >= lines.size) return false
+    val header = lines[index].trim()
+    val separator = lines[index + 1].trim()
+    if (!header.contains('|') || header.startsWith("```")) return false
+    return HTML_TABLE_SEPARATOR_REGEX.matches(separator)
+}
+
+private fun splitTableRow(line: String): List<String> {
+    var trimmed = line.trim()
+    if (trimmed.startsWith('|')) trimmed = trimmed.substring(1)
+    if (trimmed.endsWith('|')) trimmed = trimmed.substring(0, trimmed.length - 1)
+    return trimmed.split('|').map { it.trim() }
 }
 
 /**

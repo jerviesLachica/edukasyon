@@ -10,6 +10,7 @@ import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.util.LruCache
+import com.edukasyon.studentai.R
 import com.edukasyon.studentai.ui.theme.parseHexColor
 import kotlin.math.cos
 import kotlin.math.min
@@ -71,9 +72,13 @@ object WidgetBackgroundGenerator {
         val density = context.resources.displayMetrics.density
         val widthPx = (widthDp * density).toInt().coerceAtMost(cap).coerceAtLeast(1)
         val heightPx = (heightDp * density).toInt().coerceAtMost(cap).coerceAtLeast(1)
-        // Radius in BITMAP px: 20dp of widget width, scaled to the capped bitmap.
-        // (Using device px here overshoots ~2x because the bitmap is downscaled.)
-        val cornerPx = 20f * widthPx / widthDp.toFloat()
+        // Radius in BITMAP px: dynamically matches system/widget corner radius, scaled to the capped bitmap.
+        val cornerRadiusDp = try {
+            context.resources.getDimension(R.dimen.widget_corner_radius) / density
+        } catch (_: Exception) {
+            24f
+        }
+        val cornerPx = cornerRadiusDp * widthPx / widthDp.toFloat()
         val key = "${preset.name}|${colors.cacheKey()}|${widthDp}x${heightDp}|${density}|r${cornerPx.toInt()}|p${cap}"
         memoryCache.get(key)?.let { return it }
 
@@ -148,7 +153,12 @@ object WidgetBackgroundGenerator {
         val solid = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888).apply {
             Canvas(this).drawColor(color)
         }
-        return roundedCorners(solid, 20f * widthPx / widthDp.toFloat())
+        val cornerRadiusDp = try {
+            context.resources.getDimension(R.dimen.widget_corner_radius) / density
+        } catch (_: Exception) {
+            24f
+        }
+        return roundedCorners(solid, cornerRadiusDp * widthPx / widthDp.toFloat())
     }
 
     // ── Reusable paint set ─────────────────────────────────────────

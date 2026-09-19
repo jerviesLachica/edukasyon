@@ -125,6 +125,7 @@ fun LectureFilesScreen(
                 )
             } else {
                 LazyColumn(
+                    modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -341,7 +342,7 @@ private fun FlowRowSubjectChips(
                 )
             },
         )
-        subjects.take(4).forEach { subject ->
+        subjects.forEach { subject ->
             FilterChip(
                 selected = selectedId == subject.id,
                 onClick = { onSelected(subject.id) },

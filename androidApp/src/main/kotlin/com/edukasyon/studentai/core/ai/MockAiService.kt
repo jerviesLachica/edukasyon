@@ -59,57 +59,326 @@ class MockAiService @Inject constructor() : AiService {
             )
         }
 
-        val reply = when {
-            lower.contains("add") && lower.contains("task") -> {
-                """Sure! I'll add that task to your planner.
+        // 1. Math: Quadratic Formula and Quadratic Equations
+        if (lower.contains("quadr")) {
+            val reply = latex("""### The Quadratic Formula & How It Works
+
+The **Quadratic Formula** is used to find the solutions (roots or x-intercepts) of any quadratic equation in standard form:
+§§ax^2 + bx + c = 0§§
+where §a \ne 0§.
+
+#### The Formula:
+§§x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}§§
+
+#### The Discriminant (§D = b^2 - 4ac§):
+The expression under the square root determines the number and nature of solutions:
+
+| Discriminant (§b^2 - 4ac§) | Nature of Solutions | Parabola Graph (§y = ax^2 + bx + c§) |
+| :--- | :--- | :--- |
+| **§D > 0§** (Positive) | **2 distinct real roots** | Crosses the x-axis at two points |
+| **§D = 0§** (Zero) | **1 repeated real root** | Touches the x-axis at its vertex |
+| **§D < 0§** (Negative) | **2 complex / imaginary roots** | Does not touch or cross the x-axis |
+
+#### Step-by-Step Example:
+Solve §x^2 - 5x + 6 = 0§ using the quadratic formula:
+
+1. **Identify the coefficients**:
+   - §a = 1§, §b = -5§, §c = 6§
+
+2. **Compute the Discriminant**:
+   §§D = (-5)^2 - 4(1)(6) = 25 - 24 = 1§§
+   *(Since §D > 0§, there are two real roots)*
+
+3. **Substitute into the Formula**:
+   §§x = \frac{-(-5) \pm \sqrt{1}}{2(1)} = \frac{5 \pm 1}{2}§§
+
+4. **Calculate Both Roots**:
+   §§x_1 = \frac{5 + 1}{2} = \frac{6}{2} = 3§§
+   §§x_2 = \frac{5 - 1}{2} = \frac{4}{2} = 2§§
+
+#### Summary Table:
+| Step | Operation | Result |
+| :--- | :--- | :--- |
+| **1. Identify Coefficients** | Standard form §ax^2 + bx + c = 0§ | §a = 1, b = -5, c = 6§ |
+| **2. Calculate Discriminant** | §D = b^2 - 4ac§ | §D = 1§ |
+| **3. Final Roots** | §x = \frac{5 \pm 1}{2}§ | **§x = 2§ or §x = 3§** |
+
+**Final Answer:**
+§§x = 2 \quad \text{or} \quad x = 3§§""")
+
+            val reasoning = "The student asked to explain the quadratic formula. I broke down standard form ax² + bx + c = 0, provided the KaTeX formula, explained the discriminant with a table, and provided a step-by-step worked example (x² - 5x + 6 = 0)."
+
+            return AiChatResponse(
+                reply = reply,
+                conversationId = conversationId,
+                reasoning = reasoning,
+                model = "mock-math",
+            )
+        }
+
+        // 2. Math: Pythagorean Theorem
+        if (lower.contains("pythagor")) {
+            val reply = latex("""### The Pythagorean Theorem
+
+In any right-angled triangle, the square of the hypotenuse (longest side opposite the right angle) is equal to the sum of the squares of the other two sides:
+§§a^2 + b^2 = c^2§§
+
+where §c§ is the hypotenuse, and §a§ and §b§ are the perpendicular legs.
+
+#### Solving for Sides:
+- **Hypotenuse**: §§c = \sqrt{a^2 + b^2}§§
+- **Leg §a§**: §§a = \sqrt{c^2 - b^2}§§
+- **Leg §b§**: §§b = \sqrt{c^2 - a^2}§§
+
+#### Common Pythagorean Triples:
+| Side §a§ | Side §b§ | Hypotenuse §c§ | Formula Verification |
+| :--- | :--- | :--- | :--- |
+| **3** | **4** | **5** | §3^2 + 4^2 = 9 + 16 = 25 = 5^2§ |
+| **5** | **12** | **13** | §5^2 + 12^2 = 25 + 144 = 169 = 13^2§ |
+| **8** | **15** | **17** | §8^2 + 15^2 = 64 + 225 = 289 = 17^2§ |
+
+Would you like help calculating a specific triangle problem?""")
+
+            return AiChatResponse(
+                reply = reply,
+                conversationId = conversationId,
+                reasoning = "Student asked about the Pythagorean theorem. Explained the fundamental equation a² + b² = c², side formulas, and standard Pythagorean triples table.",
+                model = "mock-math",
+            )
+        }
+
+        // 3. Biology: Mitosis vs Meiosis
+        if (lower.contains("mitosis") || lower.contains("meiosis")) {
+            val reply = latex("""### Comparison: Mitosis vs. Meiosis
+
+Here is a structured comparison of the two forms of cellular division:
+
+| Feature | Mitosis | Meiosis |
+| :--- | :--- | :--- |
+| **Purpose** | Growth, tissue repair, asexual reproduction | Production of gametes (sperm & egg) for sexual reproduction |
+| **Location** | Somatic (body) cells | Germ cells in gonads (testes & ovaries) |
+| **Number of Divisions** | 1 nuclear division | 2 successive divisions (Meiosis I & II) |
+| **Daughter Cells** | 2 genetically identical diploid (§2n§) cells | 4 genetically diverse haploid (§n§) cells |
+| **Genetic Variation** | No crossing over (clones) | Crossing over and independent assortment create variation |
+| **Chromosome Count** | Stays the same (§2n \to 2n§) | Halved (§2n \to n§) |
+
+Would you like to review the specific stages (Prophase, Metaphase, Anaphase, Telophase)?""")
+
+            return AiChatResponse(
+                reply = reply,
+                conversationId = conversationId,
+                reasoning = "Compared mitosis and meiosis with a structured table covering location, division count, ploidy, and genetic variation.",
+                model = "mock-science",
+            )
+        }
+
+        // 4. Biology: DNA vs RNA
+        if (lower.contains("dna") && lower.contains("rna")) {
+            val reply = """### Comparison: DNA vs. RNA
+
+| Feature | DNA (Deoxyribonucleic Acid) | RNA (Ribonucleic Acid) |
+| :--- | :--- | :--- |
+| **Sugar Molecule** | Deoxyribose (lacks 2'-OH) | Ribose (has 2'-OH) |
+| **Nitrogenous Bases** | Adenine, Thymine, Cytosine, Guanine | Adenine, Uracil, Cytosine, Guanine |
+| **Strand Structure** | Double helix | Single-stranded |
+| **Location** | Nucleus, mitochondria, chloroplasts | Nucleolus, cytoplasm, ribosomes |
+| **Primary Function** | Long-term genetic information storage | Protein synthesis (mRNA, tRNA, rRNA) & regulation |"""
+
+            return AiChatResponse(
+                reply = reply,
+                conversationId = conversationId,
+                reasoning = "Structured DNA vs RNA comparison highlighting sugar, bases, structure, and cellular function.",
+                model = "mock-science",
+            )
+        }
+
+        // 5. Physics: Newton's Laws
+        if (lower.contains("newton") || lower.contains("laws of motion")) {
+            val reply = latex("""### Newton's Three Laws of Motion
+
+| Law | Principle | Formula | Real-World Example |
+| :--- | :--- | :--- | :--- |
+| **1st Law: Law of Inertia** | An object at rest stays at rest, and an object in motion stays in motion at constant velocity unless acted upon by an external net force. | §\sum \vec{F} = 0 \implies \vec{a} = 0§ | Wearing a seatbelt stops your body from flying forward when a car brakes. |
+| **2nd Law: Fundamental Law of Dynamics** | Acceleration is directly proportional to net force and inversely proportional to mass. | §\vec{F}_{\text{net}} = m\vec{a}§ | Pushing a shopping cart: heavier cart requires more force to accelerate. |
+| **3rd Law: Action & Reaction** | For every action, there is an equal and opposite reaction. | §\vec{F}_{A \to B} = -\vec{F}_{B \to A}§ | Rocket propulsion: exhausting gas backward propels rocket forward. |""")
+
+            return AiChatResponse(
+                reply = reply,
+                conversationId = conversationId,
+                reasoning = "Structured overview of Newton's 3 laws with formulas and real-world examples in a table.",
+                model = "mock-science",
+            )
+        }
+
+        // 6. Action handlers: add task or schedule
+        if (lower.contains("add") && lower.contains("task")) {
+            val title = message.replace(Regex("(?i)^.*(?:add|create)\\s+(?:a\\s+)?task\\s*(?:to|for|called|named)?\\s*"), "")
+                .ifBlank { message.take(50) }
+            val reply = """Sure! I've created that task for your planner.
 
 ```actions
-{"actions":[{"type":"add_task","title":"${message.take(60)}","priority":"MEDIUM"}]}
+{"actions":[{"type":"add_task","title":"${title.take(60)}","priority":"MEDIUM"}]}
 ```"""
-            }
-            lower.contains("add") &&
-                (lower.contains("class") || lower.contains("schedule")) -> {
-                """I'll add that class to your schedule.
+            return AiChatResponse(
+                reply = reply,
+                conversationId = conversationId,
+                reasoning = "Detected student intent to add a task. Generating structured add_task action block.",
+                model = "mock-action",
+            )
+        }
+
+        if (lower.contains("add") && (lower.contains("class") || lower.contains("schedule"))) {
+            val reply = """I'll add that class to your schedule.
 
 ```actions
 {"actions":[{"type":"add_schedule","subject":"New Class","day":"MONDAY","startTime":"08:00","endTime":"09:00"}]}
 ```"""
-            }
-            lower.contains("recursion") -> {
-                "Recursion is when a function calls itself to solve a problem by breaking it into smaller subproblems. " +
-                    "Each call works on a simpler version until you reach a base case. " +
-                    "For a gentle walkthrough, see Khan Academy's recursion lessons: https://www.khanacademy.org/computing/computer-science/algorithms"
-            }
-            lower.contains("photosynthesis") ->
-                "Photosynthesis converts light energy into chemical energy (glucose) using CO₂ and water, releasing oxygen. " +
-                    "It happens mainly in chloroplasts. I'm confident in the basics; for diagrams and quizzes, try Wikipedia: https://en.wikipedia.org/wiki/Photosynthesis"
-            lower.contains("link") || lower.contains("website") || lower.contains("resource") ->
-                "When I suggest links, I only share well-known trusted sites (https) — never made-up URLs. " +
-                    "Good starting points: Khan Academy (https://www.khanacademy.org), Wikipedia (https://en.wikipedia.org), or your school's official LMS. " +
-                    "What topic are you studying?"
-            lower.contains("exam") ->
-                "Based on your upcoming exams, I recommend focused review sessions and practice questions. " +
-                    "Would you like help planning what to study each day?"
-            else ->
-                buildDefaultGizmoReply(request)
+            return AiChatResponse(
+                reply = reply,
+                conversationId = conversationId,
+                reasoning = "Detected student intent to add a class to schedule. Generating add_schedule action block.",
+                model = "mock-action",
+            )
         }
 
-        val reasoning = when {
-            lower.contains("recursion") ->
-                "The student asked about recursion. I'll define it as self-calling functions, mention base cases, and link to Khan Academy for practice."
-            lower.contains("photosynthesis") ->
-                "This is a biology concept. I'll cover inputs (light, CO₂, water), outputs (glucose, O₂), and where it happens (chloroplasts)."
-            lower.contains("explain") || lower.contains("how") || lower.contains("why") ->
-                "The student wants a conceptual explanation. I'll start with a plain definition, add one simple example, then keep the answer concise."
-            else -> null
+        // 7. CS: Recursion
+        if (lower.contains("recursion")) {
+            val reply = latex("""### Understanding Recursion
+
+**Recursion** is a programming concept where a function solves a problem by calling itself with smaller or simpler inputs until it reaches a termination condition known as the **base case**.
+
+#### Two Fundamental Components:
+1. **Base Case**: The stopping condition that returns directly without making further recursive calls (prevents infinite loops and stack overflow).
+2. **Recursive Step**: The part where the function calls itself on a reduced subproblem.
+
+#### Example: Factorial (§n!§)
+§§n! = n \\times (n - 1)! \\quad \\text{with} \\quad 0! = 1§§
+
+| Step | Call | Value Computed | Action |
+| :--- | :--- | :--- | :--- |
+| **1** | `fact(3)` | §3 \\times \\text{fact}(2)§ | Push to call stack |
+| **2** | `fact(2)` | §2 \\times \\text{fact}(1)§ | Push to call stack |
+| **3** | `fact(1)` | §1 \\times \\text{fact}(0)§ | Push to call stack |
+| **4** | `fact(0)` | **1** | **Base case reached!** |
+| **5** | Resolution | §1 \\times 1 \\times 2 \\times 3 = \\mathbf{6}§ | Unwind call stack |
+
+For visual walk-throughs and exercises, Khan Academy has interactive lessons:
+https://www.khanacademy.org/computing/computer-science/algorithms""")
+
+            return AiChatResponse(
+                reply = reply,
+                conversationId = conversationId,
+                reasoning = "Explained recursion with base case and recursive step, call stack table, and factorial example.",
+                model = "mock-cs",
+            )
         }
+
+        // 8. Biology: Photosynthesis
+        if (lower.contains("photosynthesis")) {
+            val reply = latex("""### Photosynthesis
+
+**Photosynthesis** is the biological process by which plants, algae, and some bacteria convert light energy into chemical energy stored in glucose (§\\text{C}_6\\text{H}_{12}\\text{O}_6§).
+
+#### Chemical Equation:
+§§6\\text{CO}_2 + 6\\text{H}_2\\text{O} + \\text{Light} \\longrightarrow \\text{C}_6\\text{H}_{12}\\text{O}_6 + 6\\text{O}_2§§
+
+#### The Two Main Stages:
+| Stage | Location | Inputs | Key Products |
+| :--- | :--- | :--- | :--- |
+| **Light-Dependent Reactions** | Thylakoid membranes | Sunlight, §\\text{H}_2\\text{O}§ | §\\text{ATP}§, §\\text{NADPH}§, §\\text{O}_2§ (released) |
+| **Calvin Cycle (Light-Independent)** | Stroma of chloroplast | §\\text{CO}_2§, §\\text{ATP}§, §\\text{NADPH}§ | Glucose (§\\text{C}_6\\text{H}_{12}\\text{O}_6§) |""")
+
+            return AiChatResponse(
+                reply = reply,
+                conversationId = conversationId,
+                reasoning = "Detailed explanation of photosynthesis with chemical equation, thylakoid vs stroma stages table.",
+                model = "mock-science",
+            )
+        }
+
+        // 9. Study methods / Exam prep
+        if (lower.contains("exam") || (lower.contains("study") && (lower.contains("how") || lower.contains("tip") || lower.contains("plan")))) {
+            val reply = latex("""### High-Impact Study Strategies for Exams
+
+Here are the most effective, research-backed study techniques:
+
+| Technique | How It Works | Best Used For |
+| :--- | :--- | :--- |
+| **Active Recall** | Testing yourself from memory without looking at notes | Flashcards, practice quizzes, Feynman technique |
+| **Spaced Repetition** | Reviewing material at increasing intervals (§1, 3, 7, 14§ days) | Long-term memory retention before exams |
+| **Pomodoro Method** | 25 minutes of intense focus followed by a 5-minute break | Maintaining energy and eliminating burnout |
+| **Feynman Technique** | Explaining the concept in simple terms as if teaching someone else | Identifying knowledge gaps in complex topics |
+
+Would you like to build a study schedule or generate flashcards for a specific subject?""")
+
+            return AiChatResponse(
+                reply = reply,
+                conversationId = conversationId,
+                reasoning = "Provided evidence-based study techniques (active recall, spaced repetition, Pomodoro, Feynman) in a structured table.",
+                model = "mock-study",
+            )
+        }
+
+        // 10. General "explain [topic]" or question inquiries
+        val isExplanationRequest = lower.startsWith("explain") || lower.startsWith("what is") ||
+            lower.startsWith("how to") || lower.startsWith("how does") || lower.contains("tell me about")
+        if (isExplanationRequest) {
+            val topic = message
+                .replace(Regex("(?i)^(?:explain|what is|what's|how does|how to|tell me about)\\s+"), "")
+                .replace(Regex("(?i)\\s+(?:to me|please|works?|mean)$"), "")
+                .trim()
+                .ifBlank { message }
+
+            val reply = """### Study Guide: ${topic.replaceFirstChar { it.uppercase() }}
+
+Here is a structured overview of **$topic**:
+
+#### Core Principles:
+- **Definition**: Understanding the fundamentals and key terminology of $topic$ is the first step toward mastery.
+- **Application**: Focus on how $topic$ applies in practical problem-solving and typical exam questions.
+- **Review Strategy**: Use active recall and spaced review to consolidate your understanding.
+
+#### Topic Breakdown:
+| Component | Focus Area | Recommended Study Action |
+| :--- | :--- | :--- |
+| **Key Concepts** | Core rules & definitions | Create 3–5 review flashcards |
+| **Practical Drill** | Worked examples & problems | Work through 2 practice exercises |
+| **Mastery Check** | Active testing | Quiz yourself in Quiz Arena |
+
+How would you like to continue?
+1. **Walk through a sample problem step-by-step**
+2. **Generate practice quiz questions on this topic**
+3. **Add a study session to your planner**"""
+
+            return AiChatResponse(
+                reply = reply,
+                conversationId = conversationId,
+                reasoning = "Generated a structured study overview for '$topic' with core principles, table breakdown, and actionable next steps.",
+                model = "mock-tutor",
+            )
+        }
+
+        // 11. Greeting / Default fallback (without leaking raw internal contextSummary!)
+        val studentName = extractStudentName(request.contextSummary)
+        val greetingPrefix = if (studentName != null) "Hi $studentName! 👋 " else "Hi! 👋 "
+        val reply = greetingPrefix +
+            "I'm Jevi, your study companion in SchedMate.\n\n" +
+            "Ask me to explain any concept (like the quadratic formula, photosynthesis, or recursion), solve a problem step-by-step, or help you schedule tasks and review for exams. What would you like to study today?"
 
         return AiChatResponse(
             reply = reply,
             conversationId = conversationId,
-            reasoning = reasoning,
+            reasoning = "Student sent a greeting or general message. Welcomed them warmly and offered specific study assistance options.",
             model = "mock",
         )
+    }
+
+    private fun latex(raw: String): String = raw.replace('§', '$')
+
+    private fun extractStudentName(contextSummary: String?): String? {
+        if (contextSummary.isNullOrBlank()) return null
+        val match = Regex("(?i)Name:\\s*([A-Za-z0-9_]+)").find(contextSummary)
+        return match?.groupValues?.get(1)?.trim()
     }
 
     private fun isJailbreakAttempt(lower: String): Boolean {
@@ -142,19 +411,6 @@ class MockAiService @Inject constructor() : AiService {
         return (lower.contains("where") && (lower.contains("answer") || lower.contains("essay") || lower.contains("response"))) ||
             lower.contains("where's the answer") ||
             lower.contains("wheres the answer")
-    }
-
-    private fun buildDefaultGizmoReply(request: AiChatRequest): String {
-        val subjectPart = request.subject?.let { " Subject focus: $it." } ?: ""
-        val contextPart = request.contextSummary?.let { " From your app: $it" } ?: ""
-        val historyPart = if (request.historyMessages.isNotEmpty()) {
-            " Continuing our chat (${request.historyMessages.size} prior messages)."
-        } else {
-            ""
-        }
-        return "Hi! I'm Jevi, your study tutor in SchedMate.$subjectPart$contextPart$historyPart " +
-            "Ask me to explain a concept, plan study time, or add tasks to your planner. " +
-            "I'll be honest when I'm unsure and won't make up facts or links."
     }
 
     override suspend fun analyzeSchedule(input: ScheduleScanInput): ScheduleAnalysisResult {
@@ -197,7 +453,7 @@ class MockAiService @Inject constructor() : AiService {
         ),
     )
 
-    override suspend fun generateQuiz(text: String): Quiz {
+    override suspend fun generateQuiz(text: String, count: Int?, difficulty: String?): Quiz {
         val quizId = UUID.randomUUID().toString()
         return Quiz(
             id = quizId,

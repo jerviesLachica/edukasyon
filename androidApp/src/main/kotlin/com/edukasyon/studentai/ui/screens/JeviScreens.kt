@@ -7,8 +7,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import com.edukasyon.studentai.ui.components.mascot.SchedMateMascot
+import com.edukasyon.studentai.ui.components.mascot.MascotMood
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -34,6 +37,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import com.edukasyon.studentai.domain.model.Flashcard
 import com.edukasyon.studentai.domain.model.JeviConstants
+import com.edukasyon.studentai.domain.model.JeviDashboard
 import com.edukasyon.studentai.domain.model.JeviDeck
 import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
@@ -54,6 +58,13 @@ import com.edukasyon.studentai.ui.viewmodel.JeviQuizSource
 import com.edukasyon.studentai.ui.viewmodel.JeviQuizViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
+enum class JeviTab(val label: String, val icon: ImageVector) {
+    TUTOR("AI Tutor", Icons.Outlined.Psychology),
+    FLASHCARDS("Flashcards", Icons.Outlined.Style),
+    QUIZ("Quiz Arena", Icons.Outlined.Quiz),
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JeviHubScreen(
     onOpenDecks: () -> Unit,
@@ -61,158 +72,546 @@ fun JeviHubScreen(
     onOpenCreate: () -> Unit,
     onOpenTutor: () -> Unit,
     onOpenQuiz: () -> Unit,
+    onOpenDeckDetail: (String) -> Unit = {},
+    onOpenHistory: (String) -> Unit = {},
+    onChatInputActive: (Boolean) -> Unit = {},
     viewModel: JeviHomeViewModel = hiltViewModel(),
+    decksViewModel: JeviDecksViewModel = hiltViewModel(),
+    quizViewModel: JeviQuizViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val quizState by quizViewModel.uiState.collectAsStateWithLifecycle()
     val dashboard = state.dashboard
     val horizontalPadding = rememberAdaptiveHorizontalPadding()
+
+    var selectedTab by remember { mutableStateOf(JeviTab.TUTOR) }
+    var showCreateSheet by remember { mutableStateOf(false) }
+    var showDocStudio by remember { mutableStateOf(false) }
+    var showNewDeckDialog by remember { mutableStateOf(false) }
+    var newDeckTitle by remember { mutableStateOf("") }
+
+    if (showNewDeckDialog) {
+        AlertDialog(
+            onDismissRequest = { showNewDeckDialog = false },
+            title = { Text("New Deck") },
+            text = {
+                OutlinedTextField(
+                    value = newDeckTitle,
+                    onValueChange = { newDeckTitle = it },
+                    label = { Text("Deck Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newDeckTitle.isNotBlank()) {
+                            decksViewModel.createDeck(newDeckTitle.trim())
+                            newDeckTitle = ""
+                            showNewDeckDialog = false
+                            selectedTab = JeviTab.FLASHCARDS
+                        }
+                    }
+                ) { Text("Create") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewDeckDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showCreateSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showCreateSheet = false },
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .navigationBarsPadding(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = "Create Study Material",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = "Transform notes, slides, or prompts into flashcards & quizzes",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(4.dp))
+                JeviCreateOptionCard(
+                    icon = Icons.Outlined.AutoAwesome,
+                    title = "Smart Doc-to-Study Studio",
+                    subtitle = "Turn PDFs, slides, or handwritten notes into flashcards & quizzes",
+                    onClick = {
+                        showCreateSheet = false
+                        showDocStudio = true
+                    }
+                )
+                JeviCreateOptionCard(
+                    icon = Icons.Outlined.Style,
+                    title = "AI Topic Flashcards",
+                    subtitle = "Type any topic or subject to generate cards",
+                    onClick = {
+                        showCreateSheet = false
+                        onOpenCreate()
+                    }
+                )
+                JeviCreateOptionCard(
+                    icon = Icons.Outlined.Quiz,
+                    title = "Generate Practice Quiz",
+                    subtitle = "Build an interactive diagnostic test",
+                    onClick = {
+                        showCreateSheet = false
+                        onOpenQuiz()
+                    }
+                )
+                JeviCreateOptionCard(
+                    icon = Icons.Outlined.CreateNewFolder,
+                    title = "Create Blank Deck",
+                    subtitle = "Create a new deck to add cards manually",
+                    onClick = {
+                        showCreateSheet = false
+                        showNewDeckDialog = true
+                    }
+                )
+                Spacer(Modifier.height(16.dp))
+            }
+        }
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("JEVI", maxLines = 1)
-                        Text(
-                            "Intelligent Revision & Virtual Instruction",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .statusBarsPadding()
+            ) {
+                TopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            SchedMateMascot(
+                                mood = when (selectedTab) {
+                                    JeviTab.TUTOR -> MascotMood.Planning
+                                    JeviTab.FLASHCARDS -> MascotMood.Learning
+                                    JeviTab.QUIZ -> MascotMood.Motivated
+                                },
+                                size = 42.dp,
+                                showSpeechBubble = false,
+                                interactive = true,
+                                containerModifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                    .padding(2.dp)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "JEVI",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                )
+                                Text(
+                                    text = when (selectedTab) {
+                                        JeviTab.TUTOR -> "Intelligent Study Companion"
+                                        JeviTab.FLASHCARDS -> "${dashboard?.dueCount ?: 0} cards due today"
+                                        JeviTab.QUIZ -> "${quizState.savedQuizzes.size} practice quizzes"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    },
+                    actions = {
+                        if (selectedTab == JeviTab.TUTOR) {
+                            IconButton(onClick = { onOpenHistory("tutor") }) {
+                                Icon(Icons.Outlined.History, contentDescription = "History")
+                            }
+                        }
+                        IconButton(onClick = { showCreateSheet = true }) {
+                            Icon(Icons.Default.AddCircleOutline, contentDescription = "Create", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    },
+                )
+                SecondaryTabRow(
+                    selectedTabIndex = selectedTab.ordinal,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                ) {
+                    JeviTab.entries.forEach { tab ->
+                        Tab(
+                            selected = selectedTab == tab,
+                            onClick = { selectedTab = tab },
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(tab.icon, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = tab.label,
+                                        fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Medium,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                    if (tab == JeviTab.FLASHCARDS && (dashboard?.dueCount ?: 0) > 0) {
+                                        Spacer(Modifier.width(4.dp))
+                                        Badge(containerColor = MaterialTheme.colorScheme.error) {
+                                            Text("${dashboard?.dueCount}")
+                                        }
+                                    }
+                                }
+                            }
                         )
                     }
-                },
-            )
+                }
+            }
         },
     ) { padding ->
-        AdaptiveContentContainer(Modifier.padding(padding)) { contentModifier ->
-            if (state.isLoading && dashboard == null) {
-                Box(contentModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    StudentAiLoader(
-                        label = "Loading",
-                        style = StudentAiLoaderStyle.Full,
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            when (selectedTab) {
+                JeviTab.TUTOR -> {
+                    AiScreen(
+                        onOpenHistory = onOpenHistory,
+                        onChatInputActive = onChatInputActive,
+                        showTopBar = false,
                     )
                 }
-            } else {
-                LazyColumn(
-                    contentModifier
-                        .fillMaxSize()
-                        .padding(horizontal = horizontalPadding),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(vertical = 16.dp),
+
+                JeviTab.FLASHCARDS -> {
+                    JeviFlashcardsTab(
+                        dashboard = dashboard,
+                        horizontalPadding = horizontalPadding,
+                        onOpenReview = onOpenReview,
+                        onOpenDecks = onOpenDecks,
+                        onOpenDeckDetail = onOpenDeckDetail,
+                        onOpenCreate = onOpenCreate,
+                        onNewDeckClick = { showNewDeckDialog = true },
+                    )
+                }
+
+                JeviTab.QUIZ -> {
+                    JeviQuizArenaTab(
+                        dashboard = dashboard,
+                        savedQuizzes = quizState.savedQuizzes,
+                        horizontalPadding = horizontalPadding,
+                        onOpenQuiz = onOpenQuiz,
+                        onOpenCreate = onOpenCreate,
+                    )
+                }
+            }
+        }
+    }
+
+    if (showDocStudio) {
+        DocToStudyStudioSheet(
+            onDismissRequest = { showDocStudio = false },
+            onOpenQuizArena = { quiz ->
+                showDocStudio = false
+                onOpenQuiz()
+            },
+            onFlashcardsSaved = { _, _ ->
+                showDocStudio = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun JeviFlashcardsTab(
+    dashboard: JeviDashboard?,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
+    onOpenReview: () -> Unit,
+    onOpenDecks: () -> Unit,
+    onOpenDeckDetail: (String) -> Unit,
+    onOpenCreate: () -> Unit,
+    onNewDeckClick: () -> Unit,
+) {
+    val dueCount = dashboard?.dueCount ?: 0
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = horizontalPadding),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(vertical = 16.dp),
+    ) {
+        // 1. Spaced Repetition Due Banner
+        item {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (dueCount > 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animatedClickable(onClick = {
+                        if (dueCount > 0) onOpenReview() else onOpenDecks()
+                    }),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    item {
-                        JeviStatsRow(
-                            dueCount = dashboard?.dueCount ?: 0,
-                            streakDays = dashboard?.streakDays ?: 0,
-                            level = dashboard?.level ?: 1,
-                            xp = dashboard?.xp ?: 0,
-                            xpProgress = dashboard?.xpProgress ?: 0f,
-                        )
-                    }
-
-                    item {
-                        val dueCount = dashboard?.dueCount ?: 0
-                        BouncyButton(
-                            onClick = onOpenReview,
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = dueCount > 0,
-                        ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                if (dueCount > 0) "Continue Studying ($dueCount due)" else "All caught up!",
-                            )
-                        }
-                    }
-
-                    item {
+                    SchedMateMascot(
+                        mood = if (dueCount > 0) MascotMood.Learning else MascotMood.Idle,
+                        size = 56.dp,
+                        showSpeechBubble = false,
+                        interactive = false,
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
                         Text(
-                            "Study Tools",
+                            text = if (dueCount > 0) "Daily Review Ready" else "All Caught Up!",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = if (dueCount > 0) "$dueCount cards scheduled for spaced review" else "${dashboard?.totalCards ?: 0} cards across ${dashboard?.deckCount ?: 0} decks",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-
-                    item {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            JeviQuickAction(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Outlined.Style,
-                                label = "Decks",
-                                subtitle = "${dashboard?.deckCount ?: 0} ${if ((dashboard?.deckCount ?: 0) == 1) "deck" else "decks"}",
-                                onClick = onOpenDecks,
-                            )
-                            JeviQuickAction(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Outlined.AutoAwesome,
-                                label = "Create",
-                                subtitle = "AI flashcards",
-                                onClick = onOpenCreate,
-                            )
+                    if (dueCount > 0) {
+                        Button(onClick = onOpenReview) {
+                            Text("Review")
                         }
-                    }
-
-                    item {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            JeviQuickAction(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Outlined.Psychology,
-                                label = "AI Tutor",
-                                subtitle = "Ask JEVI",
-                                onClick = onOpenTutor,
-                            )
-                            JeviQuickAction(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Outlined.Replay,
-                                label = "Review",
-                                subtitle = when (val due = dashboard?.dueCount ?: 0) {
-                                    0 -> {
-                                        val total = dashboard?.totalCards ?: 0
-                                        if (total > 0) "0 due · $total cards" else "No cards yet"
-                                    }
-                                    else -> "$due due"
-                                },
-                                onClick = onOpenReview,
-                            )
-                        }
-                    }
-
-                    item {
-                        JeviQuickAction(
-                            modifier = Modifier.fillMaxWidth(),
-                            icon = Icons.Outlined.Quiz,
-                            label = "Quiz",
-                            subtitle = when (val count = dashboard?.quizCount ?: 0) {
-                                0 -> "AI quiz arena"
-                                1 -> "1 saved quiz"
-                                else -> "$count saved quizzes"
-                            },
-                            onClick = onOpenQuiz,
-                        )
-                    }
-
-                    if (!dashboard?.decks.isNullOrEmpty()) {
-                        item {
-                            Text(
-                                "Your Decks",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                        items(dashboard!!.decks.take(5), key = { it.id }) { deck ->
-                            JeviDeckCard(deck = deck, onClick = onOpenDecks)
+                    } else {
+                        OutlinedButton(onClick = onOpenDecks) {
+                            Text("Browse")
                         }
                     }
                 }
             }
+        }
+
+        // 2. Gamified Stats Row
+        item {
+            JeviStatsRow(
+                dueCount = dueCount,
+                streakDays = dashboard?.streakDays ?: 0,
+                level = dashboard?.level ?: 1,
+                xp = dashboard?.xp ?: 0,
+                xpProgress = dashboard?.xpProgress ?: 0f,
+            )
+        }
+
+        // 3. Decks Section Header
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Your Decks (${dashboard?.deckCount ?: 0})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                TextButton(onClick = onNewDeckClick) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("New Deck")
+                }
+            }
+        }
+
+        // 4. Deck Cards
+        val decks = dashboard?.decks.orEmpty()
+        if (decks.isEmpty()) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animatedClickable(onClick = onOpenCreate),
+                ) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                        Text("No Decks Yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Import a document, scan notes, or create your first flashcard deck with AI.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Button(onClick = onOpenCreate) {
+                            Text("Create Flashcards")
+                        }
+                    }
+                }
+            }
+        } else {
+            items(decks, key = { it.id }) { deck ->
+                JeviDeckCard(
+                    deck = deck,
+                    onClick = { onOpenDeckDetail(deck.id) },
+                    onStudy = { onOpenDeckDetail(deck.id) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun JeviQuizArenaTab(
+    dashboard: JeviDashboard?,
+    savedQuizzes: List<Quiz>,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
+    onOpenQuiz: () -> Unit,
+    onOpenCreate: () -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = horizontalPadding),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(vertical = 16.dp),
+    ) {
+        // 1. Quiz Arena Hero
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animatedClickable(onClick = onOpenQuiz),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SchedMateMascot(
+                        mood = MascotMood.Motivated,
+                        size = 56.dp,
+                        showSpeechBubble = false,
+                        interactive = false,
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "AI Practice Quiz Arena",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = "Generate practice quizzes from lecture notes or flashcards to test your exam readiness",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Button(onClick = onOpenQuiz) {
+                        Text("Start")
+                    }
+                }
+            }
+        }
+
+        // 2. Saved Quizzes Header
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Saved Quizzes (${savedQuizzes.size})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                TextButton(onClick = onOpenQuiz) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("New Quiz")
+                }
+            }
+        }
+
+        if (savedQuizzes.isEmpty()) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animatedClickable(onClick = onOpenQuiz),
+                ) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(Icons.Outlined.Quiz, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                        Text("No Quizzes Yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Generate your first quiz from any lecture or flashcard deck to test your knowledge.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Button(onClick = onOpenQuiz) {
+                            Text("Launch Quiz Arena")
+                        }
+                    }
+                }
+            }
+        } else {
+            items(savedQuizzes, key = { it.id }) { quiz ->
+                JeviSavedQuizCard(quiz = quiz, onClick = onOpenQuiz)
+            }
+        }
+    }
+}
+
+@Composable
+private fun JeviCreateOptionCard(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -225,7 +624,11 @@ private fun JeviStatsRow(
     xp: Int,
     xpProgress: Float,
 ) {
-    StudentAiCard {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
@@ -257,56 +660,71 @@ private fun JeviStatItem(icon: ImageVector, value: String, label: String) {
 }
 
 @Composable
-private fun JeviQuickAction(
-    icon: ImageVector,
-    label: String,
-    subtitle: String,
+private fun JeviDeckCard(
+    deck: JeviDeck,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+    onStudy: (() -> Unit)? = null,
 ) {
-    StudentAiCard(
-        modifier = modifier.animatedClickable(onClick = onClick),
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun JeviDeckCard(deck: JeviDeck, onClick: () -> Unit) {
     val deckColor = runCatching { Color(android.graphics.Color.parseColor(deck.colorHex)) }
         .getOrDefault(MaterialTheme.colorScheme.primary)
 
-    StudentAiCard(modifier = Modifier.animatedClickable(onClick = onClick)) {
-        Row(
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animatedClickable(onClick = onClick),
+    ) {
+        Column(
             Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(deckColor.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center,
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Default.Style, contentDescription = null, tint = deckColor)
+                Box(
+                    Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(deckColor.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.Style, contentDescription = null, tint = deckColor)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(deck.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "${deck.cardCount} cards · ${deck.dueCount} due",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (deck.dueCount > 0) {
+                    Badge(containerColor = MaterialTheme.colorScheme.error) {
+                        Text("${deck.dueCount} due")
+                    }
+                }
             }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f).padding(end = 8.dp)) {
-                Text(deck.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "${deck.cardCount} cards · ${deck.dueCount} due",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (deck.dueCount > 0) {
-                Badge { Text("${deck.dueCount}") }
+            if (onStudy != null) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = onClick) {
+                        Text("Details")
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = onStudy) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(if (deck.dueCount > 0) "Review Due" else "Study All")
+                    }
+                }
             }
         }
     }
@@ -612,10 +1030,12 @@ fun JeviCreateScreen(
     val scope = rememberCoroutineScope()
     val horizontalPadding = rememberAdaptiveHorizontalPadding()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showDocStudio by remember { mutableStateOf(false) }
     val documentPipeline = remember {
         com.edukasyon.studentai.core.document.DocumentPipeline(
             aiApiService = com.edukasyon.studentai.di.HiltEntryPoint.aiApiService(context),
             pageNoteCacheDao = com.edukasyon.studentai.di.HiltEntryPoint.pageNoteCacheDao(context),
+            mlKitTextRecognizer = com.edukasyon.studentai.di.HiltEntryPoint.mlKitTextRecognizer(context),
         )
     }
 
@@ -708,27 +1128,57 @@ fun JeviCreateScreen(
                     )
                 }
                 item {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        BouncyOutlinedButton(
-                            onClick = { pdfPicker.launch(arrayOf("application/pdf")) },
-                            modifier = Modifier.weight(1f),
-                            enabled = !state.isGenerating && !state.isExtracting,
-                        ) {
-                            Icon(Icons.Default.Description, contentDescription = null)
-                            Spacer(Modifier.width(4.dp))
-                            Text("Pick PDF")
-                        }
-                        BouncyOutlinedButton(
-                            onClick = { imagePicker.launch("image/*") },
-                            modifier = Modifier.weight(1f),
-                            enabled = !state.isGenerating && !state.isExtracting,
-                        ) {
-                            Icon(Icons.Default.Image, contentDescription = null)
-                            Spacer(Modifier.width(4.dp))
-                            Text("Pick Image")
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                    Text("Smart Document Pipeline", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                }
+                                TextButton(
+                                    onClick = { showDocStudio = true },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                ) {
+                                    Text("Open Studio ⚡")
+                                }
+                            }
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                BouncyOutlinedButton(
+                                    onClick = { pdfPicker.launch(arrayOf("application/pdf")) },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !state.isGenerating && !state.isExtracting,
+                                ) {
+                                    Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Import PDF", style = MaterialTheme.typography.labelMedium)
+                                }
+                                BouncyOutlinedButton(
+                                    onClick = { imagePicker.launch("image/*") },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !state.isGenerating && !state.isExtracting,
+                                ) {
+                                    Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Import Photo", style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
                         }
                     }
                 }
@@ -879,6 +1329,15 @@ fun JeviCreateScreen(
                     }
                 }
             }
+        }
+
+        if (showDocStudio) {
+            DocToStudyStudioSheet(
+                onDismissRequest = { showDocStudio = false },
+                onFlashcardsSaved = { _, _ ->
+                    showDocStudio = false
+                },
+            )
         }
     }
 }
@@ -1275,10 +1734,12 @@ fun JeviQuizArenaScreen(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var showDocStudio by remember { mutableStateOf(false) }
     val documentPipeline = remember {
         com.edukasyon.studentai.core.document.DocumentPipeline(
             aiApiService = com.edukasyon.studentai.di.HiltEntryPoint.aiApiService(context),
             pageNoteCacheDao = com.edukasyon.studentai.di.HiltEntryPoint.pageNoteCacheDao(context),
+            mlKitTextRecognizer = com.edukasyon.studentai.di.HiltEntryPoint.mlKitTextRecognizer(context),
         )
     }
 
@@ -1459,27 +1920,57 @@ fun JeviQuizArenaScreen(
                     contentPadding = PaddingValues(vertical = 16.dp),
                 ) {
                     item {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            ),
+                            shape = RoundedCornerShape(14.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            BouncyOutlinedButton(
-                                onClick = { pdfPicker.launch(arrayOf("application/pdf")) },
-                                modifier = Modifier.weight(1f),
-                                enabled = !state.isGenerating && !state.isExtracting,
-                            ) {
-                                Icon(Icons.Default.Description, contentDescription = null)
-                                Spacer(Modifier.width(4.dp))
-                                Text("Pick PDF")
-                            }
-                            BouncyOutlinedButton(
-                                onClick = { imagePicker.launch("image/*") },
-                                modifier = Modifier.weight(1f),
-                                enabled = !state.isGenerating && !state.isExtracting,
-                            ) {
-                                Icon(Icons.Default.Image, contentDescription = null)
-                                Spacer(Modifier.width(4.dp))
-                                Text("Pick Image")
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    ) {
+                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                        Text("Smart Doc-to-Quiz Pipeline", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                    }
+                                    TextButton(
+                                        onClick = { showDocStudio = true },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                    ) {
+                                        Text("Open Studio ⚡")
+                                    }
+                                }
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    BouncyOutlinedButton(
+                                        onClick = { pdfPicker.launch(arrayOf("application/pdf")) },
+                                        modifier = Modifier.weight(1f),
+                                        enabled = !state.isGenerating && !state.isExtracting,
+                                    ) {
+                                        Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Import PDF", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                    BouncyOutlinedButton(
+                                        onClick = { imagePicker.launch("image/*") },
+                                        modifier = Modifier.weight(1f),
+                                        enabled = !state.isGenerating && !state.isExtracting,
+                                    ) {
+                                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Import Photo", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
                             }
                         }
                     }
@@ -1591,6 +2082,16 @@ fun JeviQuizArenaScreen(
                     }
                 }
             }
+        }
+
+        if (showDocStudio) {
+            DocToStudyStudioSheet(
+                onDismissRequest = { showDocStudio = false },
+                onOpenQuizArena = { quiz ->
+                    showDocStudio = false
+                    viewModel.startSavedQuiz(quiz.id)
+                },
+            )
         }
     }
 }

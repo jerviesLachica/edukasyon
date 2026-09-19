@@ -51,19 +51,66 @@ data class AiActionsEnvelope(val actions: List<AiActionPayload> = emptyList())
 data class ParsedAiReply(
     val displayText: String,
     val actions: List<AiActionPayload>,
+    /** Study block proposals extracted from actions (rendered as accept/dismiss cards). */
+    val studyBlocks: List<StudyBlockPayload> = emptyList(),
+    /** Follow-up question suggestions (max 3, deduplicated). */
+    val followUps: List<String> = emptyList(),
+    /** Non-proposal actions that should be auto-executed. */
+    val directActions: List<AiActionPayload> = emptyList(),
 )
 
 object AiActionParser {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
+    /**
+     * Normalise escaped newline/carriage-return literals that some backends
+     * return as literal `\n` / `\r` text instead of control characters.
+     */
+    fun sanitizeReply(raw: String): String =
+        raw.trim().replace("\\n", "\n").replace("\\r", "\r")
+
+    /**
+     * Parse a raw AI reply string and extract the display text plus all
+     * structured actions, pre-sorted into proposals (study blocks, follow-ups)
+     * and direct (auto-apply) actions. This is the single entry-point that
+     * replaces the old inline filter chains in the ViewModel.
+     */
+    fun parseAndExtract(rawReply: String): ParsedAiReply {
+        val sanitized = sanitizeReply(rawReply)
+        val base = parse(sanitized)
+
+        val proposals = base.actions.filter {
+            it.type.lowercase() in AiActionExecutor.PROPOSAL_TYPES
+        }
+        val studyBlocks = proposals
+            .filter { it.type.lowercase() == "propose_study_blocks" }
+            .flatMap { it.blocks.orEmpty() }
+        val followUps = proposals
+            .filter { it.type.lowercase() == "suggest_followups" }
+            .flatMap { it.items.orEmpty() }
+            .distinct()
+            .take(3)
+        val directActions = base.actions.filterNot {
+            it.type.lowercase() in AiActionExecutor.PROPOSAL_TYPES
+        }
+
+        return base.copy(
+            studyBlocks = studyBlocks,
+            followUps = followUps,
+            directActions = directActions,
+        )
+    }
+
     fun parse(reply: String): ParsedAiReply = try {
         extractActionsFence(reply)?.let { (display, rawActions) ->
-            ParsedAiReply(display, decodeActions(rawActions).orEmpty())
+            val finalDisplay = display.ifBlank { "I've processed your request and organized the study items." }
+            ParsedAiReply(finalDisplay, decodeActions(rawActions).orEmpty())
         } ?: extractTrailingActions(reply.trim())?.let { (display, actions) ->
-            ParsedAiReply(display, actions)
-        } ?: ParsedAiReply(reply.trim(), emptyList())
+            val finalDisplay = display.ifBlank { "I've processed your request and organized the study items." }
+            ParsedAiReply(finalDisplay, actions)
+        } ?: ParsedAiReply(reply.trim().ifBlank { "Here is what I found for you." }, emptyList())
     } catch (_: Exception) {
-        ParsedAiReply(reply.trim(), emptyList())
+        ParsedAiReply(reply.trim().ifBlank { "Here is what I found for you." }, emptyList())
     }
 
     /** String-based extraction avoids Regex init crashes on some Android/Huawei engines. */

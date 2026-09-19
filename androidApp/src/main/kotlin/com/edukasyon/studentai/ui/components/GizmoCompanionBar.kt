@@ -21,8 +21,8 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.OpenInNew
-import androidx.compose.material.icons.outlined.VolumeUp
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -560,11 +560,11 @@ fun GizmoChatBubble(
                                                     )
                                                     if (isWeb) {
                                                         Icon(
-                                                                                                                Icons.Outlined.OpenInNew,
-                                                                                                                contentDescription = "Open in browser",
-                                                                                                                modifier = Modifier.size(12.dp),
-                                                                                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                                                                                            )
+                                                            Icons.AutoMirrored.Outlined.OpenInNew,
+                                                            contentDescription = "Open in browser",
+                                                            modifier = Modifier.size(12.dp),
+                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                        )
                                                     }
                                                 }
                                             },
@@ -585,7 +585,7 @@ fun GizmoChatBubble(
                                         modifier = Modifier.size(28.dp),
                                     ) {
                                         Icon(
-                                            Icons.Outlined.VolumeUp,
+                                            Icons.AutoMirrored.Outlined.VolumeUp,
                                             contentDescription = "Read aloud",
                                             modifier = Modifier.size(14.dp),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),

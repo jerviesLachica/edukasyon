@@ -137,7 +137,11 @@ interface AiApiService {
 @Serializable data class ScheduleAnalysisResponseDto(val classes: List<ExtractedClassDto>, val uncertainFields: List<String> = emptyList())
 @Serializable data class EmbedRequest(val texts: List<String>, val taskType: String = "RETRIEVAL_DOCUMENT")
 @Serializable data class EmbedResponseDto(val vectors: List<List<Double>>, val model: String, val dims: Int)
-@Serializable data class TextRequest(val text: String)
+@Serializable data class TextRequest(
+    val text: String,
+    val count: Int? = null,
+    val difficulty: String? = null,
+)
 @Serializable data class TextResponseDto(val result: String)
 @Serializable data class FlashcardDto(val question: String, val answer: String, val topic: String? = null)
 @Serializable data class FlashcardsResponseDto(val cards: List<FlashcardDto>)

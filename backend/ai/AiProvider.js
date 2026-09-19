@@ -52,18 +52,22 @@ function normalizeModelSlug(slug) {
 // Vision requests can use OrcaRouter (fast, $0) or fall back to MiniMax-M3 (slow, unlimited).
 function toWireModelSlug(slug, { isVision = false, provider = 'hcnsec' } = {}) {
   const normalized = normalizeModelSlug(slug);
+  const textFallback = process.env.TEXT_MODEL || 'glm-4.5-air';
+  const visionFallback = process.env.VISION_MODEL || 'step-3.7-flash';
+
   // OrcaRouter provider (if explicitly requested or auto-selected)
   if (provider === 'orca') {
     if (isVision && (normalized === 'nemotron-3.5-lightning-free' || normalized === 'auto')) {
       return ORCA_VISION_MODEL;
     }
-    return normalized;
+    return normalized === 'auto' ? textFallback : normalized;
   }
   // Default hcnsec provider
   if (isVision && (normalized === 'nemotron-3.5-lightning-free' || normalized === 'auto')) {
-    return 'MiniMax-M3';
+    return visionFallback;
   }
-  if (normalized === 'nemotron-3.5-lightning-free') return 'MiniMax-M3';
+  if (normalized === 'nemotron-3.5-lightning-free') return textFallback;
+  if (normalized === 'auto') return textFallback;
   return normalized;
 }
 
@@ -306,11 +310,18 @@ function createAiProvider(config = {}) {
   }
 
   function parseChatCompletionResult(data) {
-    const choice = data.choices?.[0];
+    if (data && data.error) {
+      const msg = typeof data.error === 'object' ? (data.error.message || JSON.stringify(data.error)) : data.error;
+      throw new Error(`Upstream AI error: ${msg}`);
+    }
+    const choice = data?.choices?.[0];
     const message = choice?.message;
-    if (!message) throw new Error('AI API returned empty response');
+    if (!message) throw new Error(data?.error?.message ? `AI API error: ${data.error.message}` : 'AI API returned empty response');
     const finishReason = choice?.finish_reason || null;
-    const rawContent = typeof message.content === 'string' ? message.content : '';
+    let rawContent = typeof message.content === 'string' ? message.content : '';
+    if (rawContent.includes('\\n')) {
+      rawContent = rawContent.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+    }
     const providerReasoning = extractProviderReasoning(message);
     const embedded = splitEmbeddedReasoning(rawContent);
     const reasoningParts = [providerReasoning, embedded.reasoning].filter(Boolean);
@@ -490,9 +501,43 @@ function createAiProvider(config = {}) {
     if (typeof text !== 'string') throw new Error('extractJson received non-string input');
     let raw = text.trim();
     // Unwrap all fences, keep inner content (global)
-    raw = raw.replace(/```(?:json)?\s*([\s\S]*?)```/gi, (_, inner) => inner.trim());
-    // Strip everything before the first '{' to handle leading prose
+    raw = raw.replace(/```(?:json)?\s*([\s\S]*?)```/gi, (_, inner) => inner.trim()).trim();
+
+    // If upstream returned escaped quotes, unescape them first
+    if (raw.includes('\\"')) {
+      try {
+        const cleaned = raw.replace(/\\"/g, '"');
+        const p = JSON.parse(cleaned);
+        if (Array.isArray(p)) return { cards: p, questions: p, items: p, rawArray: p };
+        return p;
+      } catch (_) {}
+    }
+
+    // Fast path: try direct parse
+    try {
+      const direct = JSON.parse(raw);
+      if (Array.isArray(direct)) {
+        return { cards: direct, questions: direct, items: direct, rawArray: direct };
+      }
+      return direct;
+    } catch (_) {}
+
+    // Check if output is a JSON array wrapped in prose
+    const firstBracket = raw.indexOf('[');
     const firstBrace = raw.indexOf('{');
+    if (firstBracket >= 0 && (firstBrace < 0 || firstBracket < firstBrace)) {
+      const lastBracket = raw.lastIndexOf(']');
+      if (lastBracket > firstBracket) {
+        try {
+          const arr = JSON.parse(raw.slice(firstBracket, lastBracket + 1));
+          if (Array.isArray(arr)) {
+            return { cards: arr, questions: arr, items: arr, rawArray: arr };
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Strip everything before the first '{' to handle leading prose
     if (firstBrace > 0) {
       raw = raw.slice(firstBrace);
     }

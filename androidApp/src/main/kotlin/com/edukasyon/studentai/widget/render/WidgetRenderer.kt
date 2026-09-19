@@ -185,9 +185,9 @@ object WidgetRenderer {
             )
             views.setImageViewBitmap(R.id.v2_bg, bitmap)
         }.onFailure {
-            // Never white: solid fallback in the design's primary color.
+            // Never white: solid fallback in the design's primary color on v2_bg, preserving root rounded outline.
             views.setInt(
-                R.id.v2_root, "setBackgroundColor",
+                R.id.v2_bg, "setBackgroundColor",
                 ColorInts.parse(config.designColors.color1, 0xFF1F2A44.toInt())
             )
         }

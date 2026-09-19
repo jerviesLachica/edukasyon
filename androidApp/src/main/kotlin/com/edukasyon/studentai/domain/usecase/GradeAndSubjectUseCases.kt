@@ -125,6 +125,9 @@ class AiGenerateQuizUseCase @Inject constructor(
     private val aiService: AiService
 ) : UseCase<String, Quiz> {
     override suspend fun execute(params: String): Quiz = aiService.generateQuiz(params)
+
+    suspend fun execute(params: String, count: Int? = null, difficulty: String? = null): Quiz =
+        aiService.generateQuiz(params, count, difficulty)
 }
 
 class AiGenerateStudyPlanUseCase @Inject constructor(
