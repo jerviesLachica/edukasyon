@@ -61,18 +61,18 @@ function toWireModelSlug(slug, { isVision = false, provider = 'hcnsec' } = {}) {
   }
   if (provider === 'groq') {
     if (isVision) return process.env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview';
-    return process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+    return process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
   }
   if (provider === 'gemini') {
-    if (isVision) return process.env.GEMINI_VISION_MODEL || 'gemini-2.0-flash';
-    return process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+    if (isVision) return process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
+    return process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   }
   if (provider === 'openrouter') {
-    if (isVision) return process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.0-flash-exp:free';
-    return process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
+    if (isVision) return process.env.OPENROUTER_VISION_MODEL || 'inclusionai/ling-3.0-flash-vl:free';
+    return process.env.OPENROUTER_MODEL || 'deepseek/deepseek-v4-flash-0731:free';
   }
   if (provider === 'cerebras') {
-    return process.env.CEREBRAS_MODEL || 'llama-3.3-70b';
+    return process.env.CEREBRAS_MODEL || 'qwen-3.8-27b';
   }
   // Default hcnsec provider
   if (isVision && (normalized === 'nemotron-3.5-lightning-free' || normalized === 'auto')) {
@@ -116,47 +116,47 @@ function createAiProvider(config = {}) {
   ).replace(/\/$/, '');
 
   // Groq free tier provider (30 RPM, 14,400 RPD, ultra-fast 500+ tok/s)
-  const GROQ_API_KEY = config.groqApiKey || process.env.GROQ_API_KEY || '';
+  const GROQ_API_KEY = (config.groqApiKey || process.env.GROQ_API_KEY || '').trim();
   const GROQ_BASE_URL = (
     config.groqBaseUrl ||
     process.env.GROQ_BASE_URL ||
     'https://api.groq.com/openai/v1'
   ).replace(/\/$/, '');
-  const GROQ_TEXT_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
-  const GROQ_FAST_MODEL = process.env.GROQ_FAST_MODEL || 'llama-3.1-8b-instant';
+  const GROQ_TEXT_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+  const GROQ_FAST_MODEL = process.env.GROQ_FAST_MODEL || 'openai/gpt-oss-20b';
   const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview';
 
   // Google Gemini free provider (15 RPM, 1,500 RPD, 1M TPM, 0 cost)
-  const GEMINI_API_KEY = config.geminiApiKey || process.env.GEMINI_API_KEY || process.env.GEMINI_EMBEDDING_API_KEY || '';
+  const GEMINI_API_KEY = (config.geminiApiKey || process.env.GEMINI_API_KEY || process.env.GEMINI_EMBEDDING_API_KEY || '').trim();
   const GEMINI_BASE_URL = (
     config.geminiBaseUrl ||
     process.env.GEMINI_BASE_URL ||
     'https://generativelanguage.googleapis.com/v1beta/openai'
   ).replace(/\/$/, '');
-  const GEMINI_TEXT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-  const GEMINI_FAST_MODEL = process.env.GEMINI_FAST_MODEL || 'gemini-2.0-flash';
+  const GEMINI_TEXT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const GEMINI_FAST_MODEL = process.env.GEMINI_FAST_MODEL || 'gemini-2.5-flash';
   const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
 
   // OpenRouter free provider (20 RPM on :free models)
-  const OPENROUTER_API_KEY = config.openRouterApiKey || process.env.OPENROUTER_API_KEY || '';
+  const OPENROUTER_API_KEY = (config.openRouterApiKey || process.env.OPENROUTER_API_KEY || '').trim();
   const OPENROUTER_BASE_URL = (
     config.openRouterBaseUrl ||
     process.env.OPENROUTER_BASE_URL ||
     'https://openrouter.ai/api/v1'
   ).replace(/\/$/, '');
-  const OPENROUTER_TEXT_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
-  const OPENROUTER_FAST_MODEL = process.env.OPENROUTER_FAST_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
-  const OPENROUTER_VISION_MODEL = process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.0-flash-exp:free';
+  const OPENROUTER_TEXT_MODEL = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-v4-flash-0731:free';
+  const OPENROUTER_FAST_MODEL = process.env.OPENROUTER_FAST_MODEL || 'deepseek/deepseek-v4-flash-0731:free';
+  const OPENROUTER_VISION_MODEL = process.env.OPENROUTER_VISION_MODEL || 'inclusionai/ling-3.0-flash-vl:free';
 
   // Cerebras free provider (30 RPM, 1M TPM)
-  const CEREBRAS_API_KEY = config.cerebrasApiKey || process.env.CEREBRAS_API_KEY || '';
+  const CEREBRAS_API_KEY = (config.cerebrasApiKey || process.env.CEREBRAS_API_KEY || '').trim();
   const CEREBRAS_BASE_URL = (
     config.cerebrasBaseUrl ||
     process.env.CEREBRAS_BASE_URL ||
     'https://api.cerebras.ai/v1'
   ).replace(/\/$/, '');
-  const CEREBRAS_TEXT_MODEL = process.env.CEREBRAS_MODEL || 'llama-3.3-70b';
-  const CEREBRAS_FAST_MODEL = process.env.CEREBRAS_FAST_MODEL || 'llama3.1-8b';
+  const CEREBRAS_TEXT_MODEL = process.env.CEREBRAS_MODEL || 'qwen-3.8-27b';
+  const CEREBRAS_FAST_MODEL = process.env.CEREBRAS_FAST_MODEL || 'gpt-oss-120b';
 
   // OpenCode Zen provider for the text fast lane + vision-first
   const ZEN_API_KEY = config.zenApiKey || process.env.ZEN_API_KEY || process.env.OPENCODE_API_KEY || '';
@@ -302,11 +302,16 @@ function createAiProvider(config = {}) {
     return resolveTextModel(normalizeModelSlug(requestedModel));
   }
 
-  function providerHeaders(apiKey) {
-    return {
-      Authorization: `Bearer ${apiKey}`,
+  function providerHeaders(apiKey, provider = '') {
+    const headers = {
+      Authorization: `Bearer ${(apiKey || '').trim()}`,
       'Content-Type': 'application/json',
     };
+    if (provider === 'openrouter') {
+      headers['HTTP-Referer'] = 'https://edukasyon.app';
+      headers['X-Title'] = 'Edukasyon AI';
+    }
+    return headers;
   }
 
   function isRetryableModelError(message) {
@@ -468,7 +473,7 @@ function createAiProvider(config = {}) {
     };
   }
 
-  async function chatCompletionOnce(messages, { temperature = 0.7, maxTokens = 2048, model, signal, responseFormat, reasoning, tools, toolChoice, baseUrl, apiKey } = {}) {
+  async function chatCompletionOnce(messages, { temperature = 0.7, maxTokens = 2048, model, signal, responseFormat, reasoning, tools, toolChoice, baseUrl, apiKey, provider = '' } = {}) {
     const payload = { model, messages, temperature, max_tokens: maxTokens };
     // Structured-output hint; providers that don't support it are handled by the caller's fallback.
     if (responseFormat) payload.response_format = responseFormat;
@@ -487,7 +492,7 @@ function createAiProvider(config = {}) {
     const key = apiKey || AI_API_KEY;
     const res = await fetch(`${url}/chat/completions`, {
       method: 'POST',
-      headers: providerHeaders(key),
+      headers: providerHeaders(key, provider),
       body: JSON.stringify(payload),
       signal,
     });
@@ -613,12 +618,16 @@ function createAiProvider(config = {}) {
             toolChoice,
             baseUrl,
             apiKey,
+            provider,
           });
           return { ...result, model: result.model || candidate, provider };
         } catch (err) {
           if (err.message && err.message.includes('429')) {
             console.warn(`[ai] Provider ${provider} rate limited (429); marking cooldown and trying next fallback`);
             markProviderCooldown(provider, 60000);
+          } else if (/402|payment_required/i.test(String(err.message || ''))) {
+            console.warn(`[ai] Provider ${provider} requires payment/quota; placing in cooldown for 5m`);
+            markProviderCooldown(provider, 300000);
           } else if (/5\d\d|timeout/i.test(String(err.message || ''))) {
             console.warn(`[ai] Provider ${provider} error (${String(err.message).slice(0, 80)}); marking cooldown`);
             markProviderCooldown(provider, 30000);
@@ -634,6 +643,7 @@ function createAiProvider(config = {}) {
                 signal,
                 baseUrl,
                 apiKey,
+                provider,
               });
               return { ...retry, model: retry.model || candidate, provider };
             } catch (retryErr) {
