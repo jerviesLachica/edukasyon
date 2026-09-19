@@ -55,7 +55,7 @@ if ($gradle -notmatch 'versionName\s*=\s*"([^"]+)"') { throw "versionName not fo
 $currentName = $Matches[1]
 
 if ($VersionCode -eq 0) { $VersionCode = $currentCode + 1 }
-if ($VersionCode -le $currentCode) { throw "VersionCode must be > $currentCode (got $VersionCode)" }
+if ($VersionCode -lt $currentCode) { throw "VersionCode must be >= $currentCode (got $VersionCode)" }
 if ($VersionName -notmatch '^\d+\.\d+\.\d+$') { throw "VersionName must look like 1.2.2 (got '$VersionName')" }
 
 $tag    = "v$VersionName"

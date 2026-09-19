@@ -1,11 +1,11 @@
 {
-    "versionCode": 10,
-    "versionName": "2.0.0",
-    "apkUrl": "https://github.com/jerviesLachica/edukasyon/releases/download/v2.0.0/androidApp-release.apk",
-    "releaseNotes": "SchedMate 2.0: Jevi renders real math, diagrams and charts in chat. Widget photo backgrounds now work on the home screen. Share decks & timetables by code/QR. Podcast-style Audio Overviews. New all-device app icon. If an update ever says signatures do not match, uninstall the old version and install 2.0.0 fresh - your synced data returns after sign-in.",
+    "versionCode": 11,
+    "versionName": "2.1.0",
+    "apkUrl": "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.0/androidApp-release.apk",
+    "releaseNotes": "SchedMate 2.1.0: Doc-to-Study Studio (instant flashcards, quizzes & study guides from PDFs), SchedMate Red Panda Companion, Lecture Files & Decks full list fix, redesigned Notes with seamless navigation, dashboard deck counts, LaTeX math in chat & custom alert sounds.",
     "mandatoryUpdate": false,
     "apkFile": "androidApp-release.apk",
-    "sha256": "8F87DEE9695EAF123C332F1C65E0BAB52A5F35B23D76A123AA4140DCE11FE4E8",
-    "sizeBytes": 71533822,
-    "releaseDate": "2026-09-15"
+    "sha256": "F88C8C330CB73A3482D8ED02A7263EECBF45873524EEC170143D28B91B21CEFB",
+    "sizeBytes": 86593447,
+    "releaseDate": "2026-09-19"
 }

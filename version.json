@@ -1,11 +1,11 @@
 {
-    "versionCode": 9,
-    "versionName": "1.2.6",
-    "apkUrl": "https://github.com/jerviesLachica/edukasyon/releases/download/v1.2.6/androidApp-release.apk",
-    "releaseNotes": "Hotfix: Fixed update download URL allowlist — GitHub releases are now allowed. Widget + scanning performance improvements included.",
+    "versionCode": 11,
+    "versionName": "2.1.0",
+    "apkUrl": "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.0/androidApp-release.apk",
+    "releaseNotes": "SchedMate 2.1.0: Doc-to-Study Studio (instant flashcards, quizzes & study guides from PDFs), SchedMate Red Panda Companion, Lecture Files & Decks full list fix, redesigned Notes with seamless navigation, dashboard deck counts, LaTeX math in chat & custom alert sounds.",
     "mandatoryUpdate": false,
     "apkFile": "androidApp-release.apk",
-    "sha256": "22EA09071B597F32AFA297374F1A825EF7197A4CEFFDD61C7EE97A03D1F6CDAA",
-    "sizeBytes": 50378745,
-    "releaseDate": "2026-08-31"
+    "sha256": "F88C8C330CB73A3482D8ED02A7263EECBF45873524EEC170143D28B91B21CEFB",
+    "sizeBytes": 86593447,
+    "releaseDate": "2026-09-19"
 }

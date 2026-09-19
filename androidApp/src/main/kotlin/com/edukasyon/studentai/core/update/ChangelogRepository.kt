@@ -11,6 +11,21 @@ data class ChangelogEntry(
 object ChangelogRepository {
     val changelog = listOf(
         ChangelogEntry(
+            versionName = "2.1.0",
+            versionCode = 11,
+            releaseDate = "2026-09-19",
+            isMandatory = false,
+            notes = listOf(
+                "Doc-to-Study Studio: Instant flashcards, quizzes, study guides, and mind maps from your PDFs, notes, and photos.",
+                "SchedMate Red Panda Companion: Interactive study mascot with dynamic expressions and timely study motivation.",
+                "Lecture Files & Decks Fix: Resolved list display clipping and subject filter limits so all your files and decks are visible.",
+                "Notes Screen Redesign: Clean, modern card layout with tags, dates, and quick pill navigation between Notes, Files, and Tasks.",
+                "Dashboard Deck Stats: Real-time card, due, and mastered flashcard counts on home screen deck cards.",
+                "SmartStudy Fallback Engine & LaTeX math rendering in chat.",
+                "Audio Overviews & Custom Alert Tones: 5 new notification tones and improved podcast-style deck overviews.",
+            ),
+        ),
+        ChangelogEntry(
             versionName = "2.0.0",
             versionCode = 10,
             releaseDate = "2026-09-15",
