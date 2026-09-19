@@ -59,6 +59,21 @@ function toWireModelSlug(slug, { isVision = false, provider = 'hcnsec' } = {}) {
     }
     return normalized === 'auto' ? textFallback : normalized;
   }
+  if (provider === 'groq') {
+    if (isVision) return process.env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview';
+    return process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  }
+  if (provider === 'gemini') {
+    if (isVision) return process.env.GEMINI_VISION_MODEL || 'gemini-2.0-flash';
+    return process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+  }
+  if (provider === 'openrouter') {
+    if (isVision) return process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.0-flash-exp:free';
+    return process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
+  }
+  if (provider === 'cerebras') {
+    return process.env.CEREBRAS_MODEL || 'llama-3.3-70b';
+  }
   // Default hcnsec provider
   if (isVision && (normalized === 'nemotron-3.5-lightning-free' || normalized === 'auto')) {
     return visionFallback;
@@ -100,28 +115,50 @@ function createAiProvider(config = {}) {
     'https://api.orcarouter.ai/v1'
   ).replace(/\/$/, '');
 
-  // Cerebras legacy provider (OpenAI-compatible /v1). Removed from the routing
-  // chain in favor of the Zen fast lane — config/exports stay so existing
-  // envs and callers keep compiling.
-  // Text-only: vision requests never route here (Cerebras vision, if any,
-  // is unverified — images stay on OrcaRouter -> MiniMax-M3).
+  // Groq free tier provider (30 RPM, 14,400 RPD, ultra-fast 500+ tok/s)
+  const GROQ_API_KEY = config.groqApiKey || process.env.GROQ_API_KEY || '';
+  const GROQ_BASE_URL = (
+    config.groqBaseUrl ||
+    process.env.GROQ_BASE_URL ||
+    'https://api.groq.com/openai/v1'
+  ).replace(/\/$/, '');
+  const GROQ_TEXT_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  const GROQ_FAST_MODEL = process.env.GROQ_FAST_MODEL || 'llama-3.1-8b-instant';
+  const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview';
+
+  // Google Gemini free provider (15 RPM, 1,500 RPD, 1M TPM, 0 cost)
+  const GEMINI_API_KEY = config.geminiApiKey || process.env.GEMINI_API_KEY || process.env.GEMINI_EMBEDDING_API_KEY || '';
+  const GEMINI_BASE_URL = (
+    config.geminiBaseUrl ||
+    process.env.GEMINI_BASE_URL ||
+    'https://generativelanguage.googleapis.com/v1beta/openai'
+  ).replace(/\/$/, '');
+  const GEMINI_TEXT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+  const GEMINI_FAST_MODEL = process.env.GEMINI_FAST_MODEL || 'gemini-2.0-flash';
+  const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
+
+  // OpenRouter free provider (20 RPM on :free models)
+  const OPENROUTER_API_KEY = config.openRouterApiKey || process.env.OPENROUTER_API_KEY || '';
+  const OPENROUTER_BASE_URL = (
+    config.openRouterBaseUrl ||
+    process.env.OPENROUTER_BASE_URL ||
+    'https://openrouter.ai/api/v1'
+  ).replace(/\/$/, '');
+  const OPENROUTER_TEXT_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
+  const OPENROUTER_FAST_MODEL = process.env.OPENROUTER_FAST_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
+  const OPENROUTER_VISION_MODEL = process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.0-flash-exp:free';
+
+  // Cerebras free provider (30 RPM, 1M TPM)
   const CEREBRAS_API_KEY = config.cerebrasApiKey || process.env.CEREBRAS_API_KEY || '';
   const CEREBRAS_BASE_URL = (
     config.cerebrasBaseUrl ||
     process.env.CEREBRAS_BASE_URL ||
     'https://api.cerebras.ai/v1'
   ).replace(/\/$/, '');
-  const CEREBRAS_TEXT_MODEL = process.env.CEREBRAS_MODEL || 'qwen-3.8-27b';
+  const CEREBRAS_TEXT_MODEL = process.env.CEREBRAS_MODEL || 'llama-3.3-70b';
+  const CEREBRAS_FAST_MODEL = process.env.CEREBRAS_FAST_MODEL || 'llama3.1-8b';
 
   // OpenCode Zen provider for the text fast lane + vision-first
-  // (OpenAI-compatible /v1, Authorization Bearer — same sender shape as
-  // orca/cerebras, only base URL and key differ). Free tier models;
-  // 401/402/403/429 advance to the next candidate (see isRetryableModelError).
-  //
-  // OPT-IN since 2026-09: OpenCode policy now rejects server-side use of the
-  // free tier ("MissingSessionID — free tier can only be used in OpenCode"),
-  // so a key alone must NOT put Zen in the chain. Set ZEN_ENABLED=true only
-  // when Zen access is known to work for this deployment.
   const ZEN_API_KEY = config.zenApiKey || process.env.ZEN_API_KEY || process.env.OPENCODE_API_KEY || '';
   const ZEN_ENABLED = String(config.zenEnabled || process.env.ZEN_ENABLED || '').toLowerCase() === 'true';
   const ZEN_BASE_URL = (
@@ -130,7 +167,6 @@ function createAiProvider(config = {}) {
     'https://opencode.ai/zen/v1'
   ).replace(/\/$/, '');
   const ZEN_TEXT_MODEL = process.env.ZEN_TEXT_MODEL || 'nemotron-3.5-lightning-free';
-  // Text fast lane in fixed order, then the existing hcnsec auto fallback.
   const ZEN_TEXT_MODELS = [...new Set([
     ZEN_TEXT_MODEL,
     'deepseek-v4-flash-free',
@@ -140,16 +176,98 @@ function createAiProvider(config = {}) {
   ])];
   const ZEN_VISION_MODEL = process.env.ZEN_VISION_MODEL || 'deepseek-v4-flash-vision-exp';
 
-  // Gemini vision via the OpenAI-compatible endpoint, using the same key as
-  // embeddings (falls back to a dedicated GEMINI_API_KEY when set).
-  // Free AI Studio tier, no card. First in the vision chain when configured.
-  const GEMINI_API_KEY = config.geminiApiKey || process.env.GEMINI_API_KEY || process.env.GEMINI_EMBEDDING_API_KEY || '';
-  const GEMINI_BASE_URL = (
-    config.geminiBaseUrl ||
-    process.env.GEMINI_BASE_URL ||
-    'https://generativelanguage.googleapis.com/v1beta/openai'
-  ).replace(/\/$/, '');
-  const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
+  // Round-robin load balancing configuration
+  const ROUND_ROBIN_ENABLED = String(config.roundRobinEnabled ?? process.env.ROUND_ROBIN_ENABLED ?? 'true').toLowerCase() !== 'false';
+
+  const providerCooldowns = new Map();
+
+  function markProviderCooldown(providerName, durationMs = 60000) {
+    providerCooldowns.set(providerName, Date.now() + durationMs);
+  }
+
+  function isProviderInCooldown(providerName) {
+    const until = providerCooldowns.get(providerName);
+    if (!until) return false;
+    if (Date.now() >= until) {
+      providerCooldowns.delete(providerName);
+      return false;
+    }
+    return true;
+  }
+
+  let roundRobinIndex = 0;
+
+  function getAvailableProviders({ isVision = false, isFastText = false } = {}) {
+    const list = [];
+    if (hasAiKey) {
+      list.push({
+        name: 'hcnsec',
+        baseUrl: AI_BASE_URL,
+        apiKey: AI_API_KEY,
+        model: isVision ? (process.env.VISION_MODEL || 'step-3.7-flash') : (isFastText ? FAST_TEXT_MODEL : (process.env.TEXT_MODEL || 'glm-4.5-air')),
+        supportsVision: true,
+      });
+    }
+    if (GROQ_API_KEY) {
+      list.push({
+        name: 'groq',
+        baseUrl: GROQ_BASE_URL,
+        apiKey: GROQ_API_KEY,
+        model: isVision ? GROQ_VISION_MODEL : (isFastText ? GROQ_FAST_MODEL : GROQ_TEXT_MODEL),
+        supportsVision: true,
+      });
+    }
+    if (GEMINI_API_KEY) {
+      list.push({
+        name: 'gemini',
+        baseUrl: GEMINI_BASE_URL,
+        apiKey: GEMINI_API_KEY,
+        model: isVision ? GEMINI_VISION_MODEL : (isFastText ? GEMINI_FAST_MODEL : GEMINI_TEXT_MODEL),
+        supportsVision: true,
+      });
+    }
+    if (OPENROUTER_API_KEY) {
+      list.push({
+        name: 'openrouter',
+        baseUrl: OPENROUTER_BASE_URL,
+        apiKey: OPENROUTER_API_KEY,
+        model: isVision ? OPENROUTER_VISION_MODEL : (isFastText ? OPENROUTER_FAST_MODEL : OPENROUTER_TEXT_MODEL),
+        supportsVision: isVision,
+      });
+    }
+    if (CEREBRAS_API_KEY && !isVision) {
+      list.push({
+        name: 'cerebras',
+        baseUrl: CEREBRAS_BASE_URL,
+        apiKey: CEREBRAS_API_KEY,
+        model: isFastText ? CEREBRAS_FAST_MODEL : CEREBRAS_TEXT_MODEL,
+        supportsVision: false,
+      });
+    }
+    if (ORCA_API_KEY && isVision) {
+      list.push({
+        name: 'orca',
+        baseUrl: ORCA_BASE_URL,
+        apiKey: ORCA_API_KEY,
+        model: ORCA_VISION_MODEL,
+        supportsVision: true,
+      });
+    }
+    return list;
+  }
+
+  function getRoundRobinOrder({ isVision = false, isFastText = false } = {}) {
+    const list = getAvailableProviders({ isVision, isFastText });
+    if (list.length <= 1 || !ROUND_ROBIN_ENABLED) return list;
+
+    const ready = list.filter((p) => !isProviderInCooldown(p.name));
+    const cooling = list.filter((p) => isProviderInCooldown(p.name));
+
+    const pool = ready.length > 0 ? ready : list;
+    const start = (roundRobinIndex++) % pool.length;
+    const rotated = [...pool.slice(start), ...pool.slice(0, start)];
+    return [...rotated, ...(ready.length > 0 ? cooling : [])];
+  }
 
   const hasAiKey = Boolean(AI_API_KEY);
 
@@ -381,8 +499,9 @@ function createAiProvider(config = {}) {
     return parseChatCompletionResult(data);
   }
 
-  async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, thinking: thinkingOpt, signal, responseFormat, reasoning, tools, toolChoice, wireModelOverride } = {}) {
-    if (!hasAiKey && !ZEN_API_KEY && (!isVision || !ORCA_API_KEY)) throw new Error('AI provider not configured (set AI_API_KEY, OPENCODE_API_KEY or ORCA_API_KEY)');
+  async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, isFastText = false, thinking: thinkingOpt, signal, responseFormat, reasoning, tools, toolChoice, wireModelOverride } = {}) {
+    const hasAnyKey = hasAiKey || Boolean(ZEN_API_KEY) || Boolean(ORCA_API_KEY) || Boolean(GROQ_API_KEY) || Boolean(GEMINI_API_KEY) || Boolean(OPENROUTER_API_KEY) || Boolean(CEREBRAS_API_KEY);
+    if (!hasAnyKey) throw new Error('AI provider not configured (set AI_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY or ORCA_API_KEY)');
     // Thinking requests (explicit flag from effort, else the REASONING
     // model / Zen slug) go to hcnsec `auto` — never Cerebras.
     const thinkingRequested = typeof thinkingOpt === 'boolean'
@@ -395,45 +514,94 @@ function createAiProvider(config = {}) {
       }
       const chain = [];
       const primary = thinking ? 'auto' : (model || (isVision ? VISION_MODEL : TEXT_MODEL));
-      // Zen (OpenCode) fast lane goes FIRST for non-thinking text-only chat.
-      // Thinking (Zen slug / explicit flag) stays on hcnsec auto.
-      if (!isVision && !thinking && ZEN_API_KEY && ZEN_ENABLED) {
+
+      // Thinking always routes to hcnsec textFallback (glm-4.5-air / step-3.7-flash)
+      if (thinking) {
+        const wire = toWireModelSlug('auto', { isVision: false });
+        return [{ model: wire, provider: 'hcnsec' }];
+      }
+
+      // Vision requests follow vision hierarchy: Zen vision -> Gemini -> Orca -> Groq -> hcnsec
+      if (isVision) {
+        if (ZEN_API_KEY && ZEN_ENABLED) {
+          chain.push({ model: ZEN_VISION_MODEL, provider: 'zen' });
+        }
+        for (const candidate of modelFallbackChain(primary, { isVision: true })) {
+          let provider = 'hcnsec';
+          let wire = candidate;
+          if (candidate === GEMINI_VISION_MODEL && GEMINI_API_KEY) {
+            provider = 'gemini';
+            wire = GEMINI_VISION_MODEL;
+          } else if (candidate === ORCA_VISION_MODEL && ORCA_API_KEY) {
+            provider = 'orca';
+            wire = ORCA_VISION_MODEL;
+          } else {
+            wire = toWireModelSlug(candidate, { isVision: true });
+          }
+          if (wire && !chain.find((c) => c.provider === provider && c.model === wire)) {
+            chain.push({ model: wire, provider });
+          }
+        }
+        if (GROQ_API_KEY && !chain.find((c) => c.provider === 'groq')) {
+          chain.push({ model: GROQ_VISION_MODEL, provider: 'groq' });
+        }
+        return chain.length ? chain : [{ model: 'step-3.7-flash', provider: 'hcnsec' }];
+      }
+
+      // Zen (OpenCode) fast lane goes FIRST for non-thinking text-only chat when enabled
+      if (ZEN_API_KEY && ZEN_ENABLED) {
         for (const zenModel of ZEN_TEXT_MODELS) {
           chain.push({ model: zenModel, provider: 'zen' });
         }
       }
-      // Zen vision goes FIRST when configured — Gemini, OrcaRouter and
-      // hcnsec (via modelFallbackChain below) remain as fallbacks.
-      if (isVision && ZEN_API_KEY && ZEN_ENABLED) {
-        chain.push({ model: ZEN_VISION_MODEL, provider: 'zen' });
-      }
-      for (const candidate of modelFallbackChain(primary, { isVision })) {
-        let provider = 'hcnsec';
-        let wire = candidate;
-        if (candidate === GEMINI_VISION_MODEL && GEMINI_API_KEY) {
-          provider = 'gemini';
-          wire = GEMINI_VISION_MODEL;
-        } else if (candidate === ORCA_VISION_MODEL && ORCA_API_KEY) {
-          provider = 'orca';
-          wire = ORCA_VISION_MODEL;
-        } else {
-          wire = toWireModelSlug(candidate, { isVision });
+
+      // Non-thinking text chat: round robin across active configured text providers!
+      const normalizedReq = model ? normalizeModelSlug(model) : null;
+      const isExplicitCustomModel = normalizedReq && normalizedReq !== 'auto' && normalizedReq !== DEFAULT_TEXT_MODEL;
+
+      const roundRobinPool = getRoundRobinOrder({ isVision: false, isFastText });
+      for (const p of roundRobinPool) {
+        let wire = p.model;
+        if (isExplicitCustomModel && p.name === 'hcnsec') {
+          wire = toWireModelSlug(normalizedReq, { isVision: false, provider: p.name });
         }
-        if (wire && !chain.find((c) => c.model === wire)) {
-          chain.push({ model: wire, provider });
+        if (wire && !chain.find((c) => c.provider === p.name && c.model === wire)) {
+          chain.push({ model: wire, provider: p.name });
         }
       }
-      return chain.length ? chain : [{ model: isVision ? 'step-3.7-flash' : 'step-3.7-flash', provider: 'hcnsec' }];
+
+      for (const candidate of modelFallbackChain(primary, { isVision: false })) {
+        const wire = toWireModelSlug(candidate, { isVision: false });
+        if (wire && !chain.find((c) => c.provider === 'hcnsec' && c.model === wire)) {
+          chain.push({ model: wire, provider: 'hcnsec' });
+        }
+      }
+
+      return chain.length ? chain : [{ model: 'step-3.7-flash', provider: 'hcnsec' }];
     }
 
     async function runChain(candidates) {
       let lastError;
       for (let i = 0; i < candidates.length; i += 1) {
         const { model: candidate, provider } = candidates[i];
-        const baseUrl = provider === 'orca' ? ORCA_BASE_URL : provider === 'cerebras' ? CEREBRAS_BASE_URL : provider === 'zen' ? ZEN_BASE_URL : provider === 'gemini' ? GEMINI_BASE_URL : AI_BASE_URL;
-        const apiKey = provider === 'orca' ? ORCA_API_KEY : provider === 'cerebras' ? CEREBRAS_API_KEY : provider === 'zen' ? ZEN_API_KEY : provider === 'gemini' ? GEMINI_API_KEY : AI_API_KEY;
+        const baseUrl = provider === 'orca' ? ORCA_BASE_URL :
+                        provider === 'cerebras' ? CEREBRAS_BASE_URL :
+                        provider === 'zen' ? ZEN_BASE_URL :
+                        provider === 'gemini' ? GEMINI_BASE_URL :
+                        provider === 'groq' ? GROQ_BASE_URL :
+                        provider === 'openrouter' ? OPENROUTER_BASE_URL :
+                        AI_BASE_URL;
+
+        const apiKey = provider === 'orca' ? ORCA_API_KEY :
+                       provider === 'cerebras' ? CEREBRAS_API_KEY :
+                       provider === 'zen' ? ZEN_API_KEY :
+                       provider === 'gemini' ? GEMINI_API_KEY :
+                       provider === 'groq' ? GROQ_API_KEY :
+                       provider === 'openrouter' ? OPENROUTER_API_KEY :
+                       AI_API_KEY;
+
         try {
-          if (i > 0) console.warn(`[ai] Retrying with fallback model=${candidate} (provider=${provider})`);
+          if (i > 0) console.warn(`[ai] Seamless failover: retrying with model=${candidate} (provider=${provider})`);
           const result = await chatCompletionOnce(messages, {
             temperature,
             maxTokens,
@@ -446,14 +614,18 @@ function createAiProvider(config = {}) {
             baseUrl,
             apiKey,
           });
-          return { ...result, model: result.model || candidate };
+          return { ...result, model: result.model || candidate, provider };
         } catch (err) {
           if (err.message && err.message.includes('429')) {
-            console.warn(`[ai] Provider ${provider} rate limited; trying next fallback`);
+            console.warn(`[ai] Provider ${provider} rate limited (429); marking cooldown and trying next fallback`);
+            markProviderCooldown(provider, 60000);
+          } else if (/5\d\d|timeout/i.test(String(err.message || ''))) {
+            console.warn(`[ai] Provider ${provider} error (${String(err.message).slice(0, 80)}); marking cooldown`);
+            markProviderCooldown(provider, 30000);
           }
           // Some providers reject response_format outright — drop it and retry the same model once.
           if (responseFormat && /response_format|unsupported|invalid.*format/i.test(String(err.message || ''))) {
-            console.warn('[ai] response_format rejected; retrying without it');
+            console.warn(`[ai] response_format rejected by ${provider}; retrying without it`);
             try {
               const retry = await chatCompletionOnce(messages, {
                 temperature,
@@ -463,7 +635,7 @@ function createAiProvider(config = {}) {
                 baseUrl,
                 apiKey,
               });
-              return { ...retry, model: retry.model || candidate };
+              return { ...retry, model: retry.model || candidate, provider };
             } catch (retryErr) {
               lastError = retryErr;
               if (i < candidates.length - 1 && isRetryableModelError(retryErr.message)) continue;
@@ -626,19 +798,32 @@ function createAiProvider(config = {}) {
 
   return {
     hasAiKey,
+    hasGroqKey: Boolean(GROQ_API_KEY),
+    hasGeminiKey: Boolean(GEMINI_API_KEY),
+    hasOpenRouterKey: Boolean(OPENROUTER_API_KEY),
     hasCerebrasKey: Boolean(CEREBRAS_API_KEY),
     hasZenKey: Boolean(ZEN_API_KEY),
     zenActive: ZEN_ENABLED && Boolean(ZEN_API_KEY),
-    hasGeminiKey: Boolean(GEMINI_API_KEY),
     AI_BASE_URL,
+    GROQ_BASE_URL,
+    GEMINI_BASE_URL,
+    OPENROUTER_BASE_URL,
     CEREBRAS_BASE_URL,
+    GROQ_TEXT_MODEL,
+    GROQ_FAST_MODEL,
+    GROQ_VISION_MODEL,
+    GEMINI_TEXT_MODEL,
+    GEMINI_FAST_MODEL,
+    GEMINI_VISION_MODEL,
+    OPENROUTER_TEXT_MODEL,
+    OPENROUTER_FAST_MODEL,
+    OPENROUTER_VISION_MODEL,
     CEREBRAS_TEXT_MODEL,
+    CEREBRAS_FAST_MODEL,
     ZEN_BASE_URL,
     ZEN_TEXT_MODEL,
     ZEN_TEXT_MODELS,
     ZEN_VISION_MODEL,
-    GEMINI_BASE_URL,
-    GEMINI_VISION_MODEL,
     DEFAULT_MODEL,
     TEXT_MODEL,
     VISION_MODEL,
@@ -653,6 +838,10 @@ function createAiProvider(config = {}) {
     chatCompletionText,
     extractJson,
     requestHasVisionContent,
+    getAvailableProviders,
+    getRoundRobinOrder,
+    markProviderCooldown,
+    isProviderInCooldown,
   };
 }
 

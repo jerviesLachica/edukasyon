@@ -889,7 +889,7 @@ async function handleSummarize({ body, provider: ai, maxTokens, signal }) {
       { role: 'system', content: 'Summarize study notes concisely. Preserve key facts and terminology. Use plain text, no bullet markdown unless helpful.' },
       { role: 'user', content: `Summarize these notes:\n\n${wrapUntrustedDocument(text)}` },
     ],
-    { temperature: 0.3, maxTokens, model, signal, thinking: false }
+    { temperature: 0.3, maxTokens, model, signal, thinking: false, isFastText: !body.model }
   );
   return { result };
 }
@@ -954,7 +954,7 @@ ${FLASHCARDS_JSON_SHAPE}
 Notes:\n${wrapUntrustedDocument(section)}`,
         },
       ],
-      { temperature: 0.3, maxTokens: callMaxTokens, model, signal, thinking: false }
+      { temperature: 0.3, maxTokens: callMaxTokens, model, signal, thinking: false, isFastText: !body.model }
     );
     const parsed = ai.extractJson(content);
     return Array.isArray(parsed.cards) ? parsed.cards : (Array.isArray(parsed) ? parsed : (Array.isArray(parsed.items) ? parsed.items : []));
@@ -1001,7 +1001,7 @@ Notes:
 ${wrapUntrustedDocument(text)}`,
       },
     ],
-    { temperature: 0.3, maxTokens: Math.max(maxTokens, 2048), model, signal, thinking: false }
+    { temperature: 0.3, maxTokens: Math.max(maxTokens, 2048), model, signal, thinking: false, isFastText: !body.model }
   );
   const parsed = ai.extractJson(content);
   const rawQuestions = Array.isArray(parsed.questions) ? parsed.questions : (Array.isArray(parsed) ? parsed : (Array.isArray(parsed.items) ? parsed.items : []));
@@ -1026,7 +1026,7 @@ Subjects: ${(subjects || []).join(', ')}
 Topics: ${(topics || []).join(', ')}`,
       },
     ],
-    { temperature: 0.3, maxTokens, model, signal, thinking: false }
+    { temperature: 0.3, maxTokens, model, signal, thinking: false, isFastText: !body.model }
   );
   const parsed = ai.extractJson(content);
   return { title: parsed.title || 'Study Plan', items: parsed.items || [] };

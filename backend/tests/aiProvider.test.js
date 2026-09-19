@@ -624,3 +624,131 @@ describe('AiProvider thinking-mode answer collapse', () => {
     assert.strictEqual(result.reasoning, null, 'laundered reasoning stays out of reasoning');
   });
 });
+
+describe('Multi-Provider Round-Robin & Failover', () => {
+  let realFetch;
+  let calls;
+
+  const okReply = (text, model = 'test-model') => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ choices: [{ message: { content: text } }], model }),
+  });
+
+  const errorReply = (status, msg = 'error') => ({
+    ok: false,
+    status,
+    text: async () => JSON.stringify({ error: { message: msg } }),
+  });
+
+  beforeEach(() => {
+    realFetch = globalThis.fetch;
+    calls = [];
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  it('rotates starting provider across multiple configured free providers (Round-Robin)', async () => {
+    const provider = createAiProvider({
+      baseUrl: 'https://api.hcnsec.cn/v1',
+      apiKey: 'k-hcnsec',
+      groqBaseUrl: 'https://api.groq.com/openai/v1',
+      groqApiKey: 'k-groq',
+      openRouterBaseUrl: 'https://openrouter.ai/api/v1',
+      openRouterApiKey: 'k-openrouter',
+    });
+
+    globalThis.fetch = async (url, opts) => {
+      calls.push({ url, body: JSON.parse(opts.body) });
+      return okReply('success');
+    };
+
+    // Call 1
+    await provider.chatCompletion([{ role: 'user', content: 'q1' }]);
+    // Call 2
+    await provider.chatCompletion([{ role: 'user', content: 'q2' }]);
+    // Call 3
+    await provider.chatCompletion([{ role: 'user', content: 'q3' }]);
+
+    assert.strictEqual(calls.length, 3);
+    const urls = calls.map((c) => String(c.url));
+    // Verify that across 3 calls, all 3 providers were hit as primary
+    assert.ok(urls.some((u) => u.includes('hcnsec')), 'hcnsec should be called');
+    assert.ok(urls.some((u) => u.includes('groq')), 'groq should be called');
+    assert.ok(urls.some((u) => u.includes('openrouter')), 'openrouter should be called');
+  });
+
+  it('automatically fails over to next provider when primary returns 429 rate limit', async () => {
+    const provider = createAiProvider({
+      baseUrl: 'https://api.hcnsec.cn/v1',
+      apiKey: 'k-hcnsec',
+      groqBaseUrl: 'https://api.groq.com/openai/v1',
+      groqApiKey: 'k-groq',
+    });
+
+    globalThis.fetch = async (url, opts) => {
+      calls.push({ url, body: JSON.parse(opts.body) });
+      if (String(url).includes('hcnsec')) {
+        return errorReply(429, 'Rate limit exceeded');
+      }
+      return okReply('Groq answer', 'llama-3.3-70b-versatile');
+    };
+
+    const result = await provider.chatCompletion([{ role: 'user', content: 'test question' }]);
+    assert.strictEqual(result.reply, 'Groq answer');
+    assert.strictEqual(result.provider, 'groq');
+    assert.ok(calls.length >= 2, 'should have attempted hcnsec then groq');
+  });
+
+  it('automatically fails over to next provider when primary returns 500 server error', async () => {
+    const provider = createAiProvider({
+      baseUrl: 'https://api.hcnsec.cn/v1',
+      apiKey: 'k-hcnsec',
+      geminiBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+      geminiApiKey: 'k-gemini',
+    });
+
+    globalThis.fetch = async (url, opts) => {
+      calls.push({ url, body: JSON.parse(opts.body) });
+      if (String(url).includes('hcnsec')) {
+        return errorReply(500, 'Internal Server Error');
+      }
+      return okReply('Gemini answer', 'gemini-2.0-flash');
+    };
+
+    const result = await provider.chatCompletion([{ role: 'user', content: 'test question' }]);
+    assert.strictEqual(result.reply, 'Gemini answer');
+    assert.strictEqual(result.provider, 'gemini');
+  });
+
+  it('marks rate-limited provider into cooldown and deprioritizes it', async () => {
+    const provider = createAiProvider({
+      baseUrl: 'https://api.hcnsec.cn/v1',
+      apiKey: 'k-hcnsec',
+      groqBaseUrl: 'https://api.groq.com/openai/v1',
+      groqApiKey: 'k-groq',
+    });
+
+    provider.markProviderCooldown('hcnsec', 60000);
+    assert.strictEqual(provider.isProviderInCooldown('hcnsec'), true);
+
+    const pool = provider.getRoundRobinOrder();
+    // Groq is ready, hcnsec is cooling down, so Groq should be first
+    assert.strictEqual(pool[0].name, 'groq');
+  });
+
+  it('omits text-only providers from vision candidate chain', () => {
+    const provider = createAiProvider({
+      apiKey: 'k-hcnsec',
+      cerebrasApiKey: 'k-cerebras',
+      groqApiKey: 'k-groq',
+    });
+
+    const active = provider.getAvailableProviders({ isVision: true });
+    const cerebrasInVision = active.some((p) => p.name === 'cerebras');
+    assert.strictEqual(cerebrasInVision, false, 'Cerebras must not be in vision pool');
+  });
+});
+
