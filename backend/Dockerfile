@@ -11,7 +11,8 @@ RUN npm ci --only=production
 # Copy source (node_modules excluded via .dockerignore)
 COPY . .
 
-# Koyeb / most hosts use PORT env var, default 8080
+# HF Spaces uses 7860, Koyeb/Render use 8080 — PORT env var handles both
+EXPOSE 7860
 EXPOSE 8080
 
 USER appuser
