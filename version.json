@@ -1,11 +1,11 @@
 {
-    "versionCode":  13,
-    "versionName":  "2.1.2",
-    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.2/schedmate-2.1.2.apk",
-    "releaseNotes":  "SchedMate 2.1.2: Instant AI Cold-Start Migration — Switched core backend to ultra-fast Vercel Serverless with sub-second wakeups, enhanced multi-provider round-robin AI routing, and resilient update verification.",
+    "versionCode":  14,
+    "versionName":  "2.1.3",
+    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.3/schedmate-2.1.3.apk",
+    "releaseNotes":  "SchedMate 2.1.3: Custom MP3 / Audio Alarm Tone Fix — Fixed SecurityException crash when selecting custom MP3 sounds, added local audio persistence across restarts, and resilient notification channel fallbacks.",
     "mandatoryUpdate":  false,
-    "apkFile":  "schedmate-2.1.2.apk",
-    "sha256":  "e050c1f3b8dfe9bcc87b7bdf128b6fd77dbc9980f3f33a06168277d278572a66",
+    "apkFile":  "schedmate-2.1.3.apk",
+    "sha256":  "6d766717721b2728ce9b3b4babbb093e6127d0b40821a8ac2722e1637ce6d7ed",
     "sizeBytes":  82289227,
     "releaseDate":  "2026-09-21"
 }

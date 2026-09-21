@@ -11,6 +11,16 @@ data class ChangelogEntry(
 object ChangelogRepository {
     val changelog = listOf(
         ChangelogEntry(
+            versionName = "2.1.3",
+            versionCode = 14,
+            releaseDate = "2026-09-21",
+            isMandatory = false,
+            notes = listOf(
+                "Custom MP3 / Audio Fix: Resolved crash when selecting custom MP3 alarm tones; custom audio is now safely copied locally to survive restarts.",
+                "Notification Channel Fallback: Hardened custom sound channel registration with resilient fallback to system default alert sounds.",
+            ),
+        ),
+        ChangelogEntry(
             versionName = "2.1.2",
             versionCode = 13,
             releaseDate = "2026-09-21",
