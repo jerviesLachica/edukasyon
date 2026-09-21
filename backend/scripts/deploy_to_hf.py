@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from huggingface_hub import HfApi
 
-REPO_ID = "jerviesLachica/schedmate-backend"
+SPACE_NAME = "schedmate-backend"
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 def load_env_file(filepath):
@@ -35,31 +35,46 @@ def deploy(token):
     print(f"[*] Authenticating with Hugging Face...")
     try:
         user_info = api.whoami()
-        print(f"[✓] Logged in as: {user_info.get('name', 'User')}")
+        username = user_info.get("name")
+        print(f"[✓] Logged in as: {username}")
     except Exception as e:
         print(f"[X] Authentication failed: {e}")
         return False
 
-    print(f"[*] Making Space '{REPO_ID}' Public (required for Android app API access)...")
+    repo_id = f"{username}/{SPACE_NAME}"
+    hf_subdomain = f"{username.lower()}-{SPACE_NAME.lower()}"
+    hf_space_url = f"https://{hf_subdomain}.hf.space"
+
+    print(f"[*] Ensuring Space '{repo_id}' exists (Docker SDK, Public)...")
     try:
-        api.update_repo_settings(repo_id=REPO_ID, private=False, repo_type="space")
-        print(f"[✓] Space is now Public. (Secrets remain 100% private in Space settings).")
+        api.create_repo(
+            repo_id=repo_id,
+            repo_type="space",
+            space_sdk="docker",
+            private=False,
+            exist_ok=True,
+        )
+        print(f"[✓] Space created/verified: https://huggingface.co/spaces/{repo_id}")
     except Exception as e:
-        print(f"[!] Warning updating visibility: {e}")
+        print(f"[!] Warning on create_repo: {e}")
+
+    try:
+        api.update_repo_settings(repo_id=repo_id, private=False, repo_type="space")
+    except Exception as e:
+        pass
 
     # 1. Read secrets from backend/.env
     env_path = BACKEND_DIR / ".env"
     secrets = load_env_file(env_path)
-    # Ensure PORT is 7860 for HF Spaces
     secrets["PORT"] = "7860"
-    secrets["RENDER_EXTERNAL_URL"] = f"https://{REPO_ID.replace('/', '-')}.hf.space"
+    secrets["RENDER_EXTERNAL_URL"] = hf_space_url
 
     print(f"[*] Syncing {len(secrets)} secrets to Space Settings...")
     for key, val in secrets.items():
         if not val:
             continue
         try:
-            api.add_space_secret(repo_id=REPO_ID, key=key, value=val)
+            api.add_space_secret(repo_id=repo_id, key=key, value=val)
             print(f"    + Added secret: {key}")
         except Exception as e:
             print(f"    ! Error setting secret {key}: {e}")
@@ -73,7 +88,6 @@ def deploy(token):
         readme_src = BACKEND_DIR / "hf-space-readme.md"
         if readme_src.exists():
             readme_content = readme_src.read_text(encoding="utf-8")
-            # Ensure app_port is in frontmatter
             if "app_port: 7860" not in readme_content:
                 readme_content = readme_content.replace("sdk: docker", "sdk: docker\napp_port: 7860")
             (staging / "README.md").write_text(readme_content, encoding="utf-8")
@@ -94,7 +108,7 @@ def deploy(token):
 
         print(f"[*] Uploading files to Hugging Face Space...")
         api.upload_folder(
-            repo_id=REPO_ID,
+            repo_id=repo_id,
             folder_path=str(staging),
             repo_type="space",
             commit_message="Deploy SchedMate Backend to HF Spaces",
@@ -102,14 +116,14 @@ def deploy(token):
         print(f"[✓] Backend files uploaded successfully!")
 
     print(f"[*] Space build triggered!")
-    print(f"    Space URL: https://huggingface.co/spaces/{REPO_ID}")
-    print(f"    API URL:   https://{REPO_ID.replace('/', '-')}.hf.space/health")
+    print(f"    Space Web: {hf_space_url}")
+    print(f"    Health:    {hf_space_url}/health")
     return True
 
 if __name__ == "__main__":
     token = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("HF_TOKEN")
     if not token:
-        token = input("Enter your Hugging Face Access Token (with write permissions): ").strip()
+        token = input("Enter your Hugging Face Access Token: ").strip()
     if not token:
         print("Token is required to deploy.")
         sys.exit(1)

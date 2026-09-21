@@ -1609,4 +1609,11 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, handleChat, handleFlashcards, handleQuiz, isLearningTopic };
+app.handleChat = handleChat;
+app.handleFlashcards = handleFlashcards;
+app.handleQuiz = handleQuiz;
+app.isLearningTopic = isLearningTopic;
+app.app = app;
+
+module.exports = app;
+
