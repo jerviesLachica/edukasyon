@@ -34,3 +34,7 @@ secrets/
 .hermes/
 .claude/
 IDEA.md
+
+# Python
+__pycache__/
+*.pyc

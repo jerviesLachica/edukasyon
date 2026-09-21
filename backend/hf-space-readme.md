@@ -1,6 +1,7 @@
 ---
 title: SchedMate Backend
 sdk: docker
+app_port: 7860
 emoji: 🤖
 colorFrom: blue
 colorTo: purple

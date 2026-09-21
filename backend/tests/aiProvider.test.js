@@ -690,16 +690,16 @@ describe('Multi-Provider Round-Robin & Failover', () => {
 
     globalThis.fetch = async (url, opts) => {
       calls.push({ url, body: JSON.parse(opts.body) });
-      if (String(url).includes('hcnsec')) {
+      if (String(url).includes('groq')) {
         return errorReply(429, 'Rate limit exceeded');
       }
-      return okReply('Groq answer', 'llama-3.3-70b-versatile');
+      return okReply('HCN answer', 'step-3.7-flash');
     };
 
     const result = await provider.chatCompletion([{ role: 'user', content: 'test question' }]);
-    assert.strictEqual(result.reply, 'Groq answer');
-    assert.strictEqual(result.provider, 'groq');
-    assert.ok(calls.length >= 2, 'should have attempted hcnsec then groq');
+    assert.strictEqual(result.reply, 'HCN answer');
+    assert.strictEqual(result.provider, 'hcnsec');
+    assert.ok(calls.length >= 2, 'should have attempted groq then hcnsec');
   });
 
   it('automatically fails over to next provider when primary returns 500 server error', async () => {
