@@ -1278,31 +1278,58 @@
       overlay.classList.add('hidden');
     }
 
-    function handleLogin(e) {
+    async function handleLogin(e) {
       e.preventDefault();
       const entered = document.getElementById('passkeyInput').value.trim();
       const stored = getStoredPasskey();
       const errorEl = document.getElementById('authError');
+      const loginBtn = document.getElementById('loginBtn');
 
-      if (entered === stored) {
-        const hours = parseInt(document.getElementById('sessionDuration').value, 10) || 24;
-        const expiresAt = Date.now() + (hours * 3600 * 1000);
-        
-        localStorage.setItem(SESSION_KEY, JSON.stringify({
-          authenticated: true,
-          expiresAt,
-          token: btoa(entered + ':' + expiresAt)
-        }));
+      loginBtn.disabled = true;
+      loginBtn.style.opacity = '0.7';
 
-        errorEl.classList.remove('visible');
-        hideAuthOverlay();
-        addLog('INFO', 'Administrator authenticated. Session unlocked.');
-        initDashboard();
-      } else {
-        errorEl.textContent = 'Invalid Master Passkey. Access Denied.';
-        errorEl.classList.add('visible');
-        addLog('SECURITY', 'Failed passkey authentication attempt detected.');
+      let serverToken = null;
+      let expiresAt = Date.now() + (parseInt(document.getElementById('sessionDuration').value, 10) || 24) * 3600 * 1000;
+
+      // Try server-side verification against /api/admin/auth
+      try {
+        const authRes = await fetch(`${backendUrl}/api/admin/auth`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ passkey: entered }),
+          signal: AbortSignal.timeout(6000)
+        });
+        if (authRes.ok) {
+          const authData = await authRes.json();
+          if (authData.token) serverToken = authData.token;
+          if (authData.expiresAt) expiresAt = authData.expiresAt;
+        } else if (entered !== stored) {
+          throw new Error('Authentication rejected');
+        }
+      } catch (err) {
+        if (entered !== stored) {
+          errorEl.textContent = 'Invalid Master Passkey. Access Denied.';
+          errorEl.classList.add('visible');
+          loginBtn.disabled = false;
+          loginBtn.style.opacity = '1';
+          addLog('SECURITY', 'Failed passkey authentication attempt detected.');
+          return;
+        }
       }
+
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        authenticated: true,
+        expiresAt,
+        token: serverToken || btoa(entered + ':' + expiresAt),
+        key: entered
+      }));
+
+      errorEl.classList.remove('visible');
+      loginBtn.disabled = false;
+      loginBtn.style.opacity = '1';
+      hideAuthOverlay();
+      addLog('INFO', 'Administrator authenticated. Session unlocked.');
+      initDashboard();
     }
 
     function lockDashboard() {
@@ -1336,21 +1363,55 @@
     // -------------------------------------------------------------
     // TELEMETRY & API FETCHING
     // -------------------------------------------------------------
-    async function fetchMetrics() {
+    function getAuthHeaders() {
+      const session = localStorage.getItem(SESSION_KEY);
+      if (!session) return {};
       try {
-        const res = await fetch(`${backendUrl}/health`, { signal: AbortSignal.timeout(8000) });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        updateHealthUI(data);
-        addLog('INFO', 'Health telemetry refreshed: ' + (data.model || 'auto'));
-      } catch (err) {
-        console.warn('Health fetch error:', err);
-        addLog('WARN', 'Telemetry fetch fallback: ' + err.message);
-        document.getElementById('badgeStatus').textContent = 'CHECKING';
-        document.getElementById('badgeStatus').className = 'badge badge-amber';
+        const parsed = JSON.parse(session);
+        const headers = {};
+        if (parsed.token) headers['Authorization'] = `Bearer ${parsed.token}`;
+        if (parsed.key) headers['x-admin-key'] = parsed.key;
+        return headers;
+      } catch (e) {
+        return {};
+      }
+    }
+
+    async function fetchMetrics() {
+      let metricsLoaded = false;
+      // 1. Try deep admin metrics
+      try {
+        const res = await fetch(`${backendUrl}/api/admin/metrics`, {
+          headers: getAuthHeaders(),
+          signal: AbortSignal.timeout(8000)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok) {
+            updateAdminMetricsUI(data);
+            metricsLoaded = true;
+          }
+        }
+      } catch (e) {
+        console.warn('Admin metrics endpoint fallback:', e);
       }
 
-      // Also try fetching detailed safety stats
+      // 2. Fallback / supplement with /health
+      if (!metricsLoaded) {
+        try {
+          const res = await fetch(`${backendUrl}/health`, { signal: AbortSignal.timeout(8000) });
+          if (res.ok) {
+            const data = await res.json();
+            updateHealthUI(data);
+          }
+        } catch (err) {
+          console.warn('Health fetch error:', err);
+          document.getElementById('badgeStatus').textContent = 'CHECKING';
+          document.getElementById('badgeStatus').className = 'badge badge-amber';
+        }
+      }
+
+      // 3. Safety stats
       try {
         const safetyRes = await fetch(`${backendUrl}/health/safety`, { signal: AbortSignal.timeout(8000) });
         if (safetyRes.ok) {
@@ -1358,6 +1419,37 @@
           updateSafetyUI(sData);
         }
       } catch (e) {}
+    }
+
+    function updateAdminMetricsUI(data) {
+      if (data.ai) {
+        document.getElementById('kpiModel').textContent = data.ai.textModel || data.ai.defaultModel || 'step-3.7-flash';
+        document.getElementById('kpiProvider').textContent = `Provider: ${data.ai.baseUrl || 'api.hcnsec.cn'}`;
+      }
+      if (data.system) {
+        const upHours = (data.system.uptime / 3600).toFixed(1);
+        const memMb = Math.round(data.system.memoryUsage.rss / 1024 / 1024);
+        document.getElementById('kpiUptime').textContent = `Node ${data.system.nodeVersion} &bull; RAM: ${memMb}MB &bull; Up: ${upHours}h`;
+      }
+      document.getElementById('kpiStatus').textContent = '100%';
+      document.getElementById('badgeStatus').textContent = 'HEALTHY';
+      document.getElementById('badgeStatus').className = 'badge badge-emerald';
+
+      if (data.version) {
+        document.getElementById('kpiAppVer').textContent = `v${data.version.versionName || '2.1.3'}`;
+        if (data.version.releaseNotes) {
+          document.getElementById('releaseNotesText').textContent = data.version.releaseNotes;
+        }
+        if (data.version.sha256) {
+          document.getElementById('sha256Digest').textContent = data.version.sha256;
+        }
+      }
+
+      if (data.policy && data.policy.endpoints) {
+        updateSafetyUI({ policy: data.policy, abuseEventCounts: data.abuse?.counts, usage: data.usage });
+      }
+
+      addLog('INFO', `Admin telemetry synced &bull; Mem: ${Math.round(data.system?.memoryUsage?.rss / 1024 / 1024 || 0)}MB`);
     }
 
     function updateHealthUI(data) {
