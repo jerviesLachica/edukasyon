@@ -56,7 +56,36 @@ interface AiApiService {
 
         @POST("api/ai/page-notes")
         suspend fun pageNotes(@Body request: PageNotesRequest): PageNotesResponse
-        }
+
+        @POST("api/feedback")
+        suspend fun submitFeedback(@Body request: FeedbackRequestDto): FeedbackResponseDto
+    }
+
+@Serializable
+data class FeedbackDeviceDto(
+    val appVersion: String,
+    val buildNumber: String,
+    val osVersion: String,
+    val deviceModel: String,
+)
+
+@Serializable
+data class FeedbackRequestDto(
+    val category: String,
+    val title: String,
+    val description: String,
+    val device: FeedbackDeviceDto,
+    val contact: String? = null,
+    val hp: String = "",
+)
+
+@Serializable
+data class FeedbackResponseDto(
+    val ok: Boolean,
+    val id: String? = null,
+    val message: String? = null,
+    val error: String? = null,
+)
 
 @Serializable data class PageNotesRequest(val imageBase64: String)
 @Serializable data class PageNotesResponse(val markdown: String)

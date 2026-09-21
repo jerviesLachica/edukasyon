@@ -435,6 +435,7 @@
     .kpi-card.kpi-emerald::before { background: var(--emerald); }
     .kpi-card.kpi-amber::before { background: var(--amber); }
     .kpi-card.kpi-violet::before { background: var(--violet); }
+    .kpi-card.kpi-rose::before { background: var(--rose); }
 
     .kpi-header {
       display: flex;
@@ -739,6 +740,90 @@
       margin-bottom: 16px;
     }
 
+    /* Feedback & Bug Reports Cards */
+    .feedback-card {
+      background: rgba(14, 20, 36, 0.7);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .feedback-card:hover {
+      border-color: rgba(255, 255, 255, 0.16);
+      background: rgba(18, 26, 44, 0.85);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+    .feedback-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .feedback-badges {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .feedback-time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .feedback-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.4;
+    }
+    .feedback-desc {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: rgba(6, 10, 18, 0.4);
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .feedback-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .meta-chip {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 3px 8px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .feedback-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .feedback-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     /* Footer */
     footer {
       border-top: 1px solid var(--border-subtle);
@@ -819,6 +904,7 @@
           <button class="nav-tab active" onclick="switchTab('overview')">Overview</button>
           <button class="nav-tab" onclick="switchTab('ai')">AI Gateway</button>
           <button class="nav-tab" onclick="switchTab('fleet')">App Fleet</button>
+          <button class="nav-tab" onclick="switchTab('feedback')">Reports &amp; Bugs <span id="navFeedbackBadge" class="badge badge-rose" style="display:none; margin-left: 6px; padding: 2px 6px; font-size: 0.7rem;">0</span></button>
           <button class="nav-tab" onclick="switchTab('logs')">Audit Logs</button>
           <button class="nav-tab" onclick="switchTab('settings')">Settings</button>
         </nav>
@@ -886,6 +972,16 @@
         </div>
         <div class="kpi-val mono" id="kpiAppVer">v2.1.3</div>
         <div class="kpi-sub" id="kpiApkHealth">APK Distributed &bull; Release Ready</div>
+      </div>
+
+      <!-- 5. User Feedback & Bug Reports -->
+      <div class="kpi-card kpi-rose" style="cursor: pointer;" onclick="switchTab('feedback')">
+        <div class="kpi-header">
+          <span class="kpi-title">User Reports</span>
+          <span class="badge badge-rose" id="kpiPendingBadge">0 NEW</span>
+        </div>
+        <div class="kpi-val mono" id="kpiTotalReports">0</div>
+        <div class="kpi-sub" id="kpiReportsSub">Bugs &amp; Suggestions Stream</div>
       </div>
     </section>
 
@@ -1109,7 +1205,44 @@
       </div>
     </div>
 
-    <!-- TAB 4: AUDIT & LOGS -->
+    <!-- TAB 4: REPORTS & BUGS -->
+    <div id="tab-feedback" class="tab-panel">
+      <div class="panel-card">
+        <div class="panel-head">
+          <h2 class="panel-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--rose)" stroke-width="2.2">
+              <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12c0 1.821.487 3.53 1.338 5L2 22l5-1.338C8.47 21.513 10.179 22 12 22z"></path>
+            </svg>
+            User Suggestions &amp; Bug Reports
+          </h2>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-primary" onclick="fetchFeedback()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              Refresh
+            </button>
+            <button class="btn" onclick="exportFeedback()">Export JSON</button>
+          </div>
+        </div>
+
+        <div class="log-controls">
+          <div class="log-filter-group" id="feedbackFilterGroup">
+            <button class="btn active" id="fbFilterAll" onclick="filterFeedback('ALL')">All (<span id="fbCountAll">0</span>)</button>
+            <button class="btn" id="fbFilterBugs" onclick="filterFeedback('bug')">🐛 Bugs (<span id="fbCountBugs">0</span>)</button>
+            <button class="btn" id="fbFilterFeatures" onclick="filterFeedback('feature')">💡 Features (<span id="fbCountFeatures">0</span>)</button>
+            <button class="btn" id="fbFilterGeneral" onclick="filterFeedback('general')">💬 General (<span id="fbCountGeneral">0</span>)</button>
+            <button class="btn" id="fbFilterNew" onclick="filterFeedback('new')">⏳ New (<span id="fbCountNew">0</span>)</button>
+            <button class="btn" id="fbFilterResolved" onclick="filterFeedback('resolved')">✅ Resolved (<span id="fbCountResolved">0</span>)</button>
+          </div>
+          <input type="text" id="feedbackSearchInput" class="log-search" placeholder="Search by title, description, device..." oninput="searchFeedback(this.value)">
+        </div>
+
+        <div id="feedbackContainer" style="display: flex; flex-direction: column; gap: 14px; min-height: 200px;">
+          <!-- Feedback cards rendered dynamically here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: AUDIT & LOGS -->
     <div id="tab-logs" class="tab-panel">
       <div class="panel-card">
         <div class="panel-head">
@@ -1235,6 +1368,8 @@
     let probeHistory = [42, 38, 45, 52, 49, 41, 46, 39, 44, 48];
     let allLogs = [];
     let activeLogFilter = 'ALL';
+    let allFeedback = [];
+    let activeFeedbackFilter = 'ALL';
     let refreshTimer = null;
 
     // -------------------------------------------------------------
@@ -1358,6 +1493,7 @@
       if (activeBtn) activeBtn.classList.add('active');
 
       if (tabId === 'overview') drawLatencyCanvas();
+      if (tabId === 'feedback') fetchFeedback();
     }
 
     // -------------------------------------------------------------
@@ -1447,6 +1583,24 @@
 
       if (data.policy && data.policy.endpoints) {
         updateSafetyUI({ policy: data.policy, abuseEventCounts: data.abuse?.counts, usage: data.usage });
+      }
+
+      if (data.feedbackStats) {
+        const total = data.feedbackStats.total || 0;
+        const newCount = data.feedbackStats.newCount || 0;
+        const totalEl = document.getElementById('kpiTotalReports');
+        const pendingBadge = document.getElementById('kpiPendingBadge');
+        if (totalEl) totalEl.textContent = total;
+        if (pendingBadge) pendingBadge.textContent = `${newCount} NEW`;
+        const navBadge = document.getElementById('navFeedbackBadge');
+        if (navBadge) {
+          if (newCount > 0) {
+            navBadge.textContent = newCount;
+            navBadge.style.display = 'inline-flex';
+          } else {
+            navBadge.style.display = 'none';
+          }
+        }
       }
 
       addLog('INFO', `Admin telemetry synced &bull; Mem: ${Math.round(data.system?.memoryUsage?.rss / 1024 / 1024 || 0)}MB`);
@@ -1677,6 +1831,237 @@
     }
 
     // -------------------------------------------------------------
+    // USER FEEDBACK & BUG REPORTS
+    // -------------------------------------------------------------
+    async function fetchFeedback() {
+      try {
+        const res = await fetch(`${backendUrl}/api/admin/feedback`, {
+          headers: getAuthHeaders(),
+          signal: AbortSignal.timeout(8000)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok && Array.isArray(data.feedback)) {
+            allFeedback = data.feedback;
+            updateFeedbackCounters();
+            renderFeedbackList();
+            addLog('INFO', `Feedback stream synced: ${allFeedback.length} reports.`);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch feedback:', err);
+      }
+    }
+
+    function updateFeedbackCounters() {
+      const all = allFeedback.length;
+      const bugs = allFeedback.filter(f => f.category === 'bug').length;
+      const features = allFeedback.filter(f => f.category === 'feature').length;
+      const general = allFeedback.filter(f => f.category === 'general').length;
+      const newItems = allFeedback.filter(f => f.status === 'new').length;
+      const resolved = allFeedback.filter(f => f.status === 'resolved').length;
+
+      const setIfExists = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+      };
+
+      setIfExists('fbCountAll', all);
+      setIfExists('fbCountBugs', bugs);
+      setIfExists('fbCountFeatures', features);
+      setIfExists('fbCountGeneral', general);
+      setIfExists('fbCountNew', newItems);
+      setIfExists('fbCountResolved', resolved);
+
+      setIfExists('kpiTotalReports', all);
+      setIfExists('kpiPendingBadge', `${newItems} NEW`);
+
+      const navBadge = document.getElementById('navFeedbackBadge');
+      if (navBadge) {
+        if (newItems > 0) {
+          navBadge.textContent = newItems;
+          navBadge.style.display = 'inline-flex';
+        } else {
+          navBadge.style.display = 'none';
+        }
+      }
+    }
+
+    function filterFeedback(filter) {
+      activeFeedbackFilter = filter;
+      document.querySelectorAll('#feedbackFilterGroup .btn').forEach(b => b.classList.remove('active'));
+      const activeBtnMap = {
+        'ALL': 'fbFilterAll',
+        'bug': 'fbFilterBugs',
+        'feature': 'fbFilterFeatures',
+        'general': 'fbFilterGeneral',
+        'new': 'fbFilterNew',
+        'resolved': 'fbFilterResolved'
+      };
+      const btnId = activeBtnMap[filter];
+      if (btnId) {
+        const btn = document.getElementById(btnId);
+        if (btn) btn.classList.add('active');
+      }
+      renderFeedbackList();
+    }
+
+    function searchFeedback(query) {
+      renderFeedbackList();
+    }
+
+    function renderFeedbackList() {
+      const container = document.getElementById('feedbackContainer');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const searchVal = (document.getElementById('feedbackSearchInput')?.value || '').toLowerCase();
+
+      const filtered = allFeedback.filter(item => {
+        let matchFilter = true;
+        if (activeFeedbackFilter === 'ALL') {
+          matchFilter = true;
+        } else if (['bug', 'feature', 'general'].includes(activeFeedbackFilter)) {
+          matchFilter = item.category === activeFeedbackFilter;
+        } else {
+          matchFilter = item.status === activeFeedbackFilter;
+        }
+
+        const matchSearch = !searchVal ||
+          item.title?.toLowerCase().includes(searchVal) ||
+          item.description?.toLowerCase().includes(searchVal) ||
+          item.device?.deviceModel?.toLowerCase().includes(searchVal) ||
+          item.device?.appVersion?.toLowerCase().includes(searchVal);
+
+        return matchFilter && matchSearch;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; padding: 48px 20px; color: var(--text-muted); background: rgba(8,12,22,0.4); border-radius: var(--radius-sm); border: 1px dashed var(--border-subtle);">
+            <div style="font-size: 2rem; margin-bottom: 8px;">📭</div>
+            <div style="font-weight: 600; font-size: 0.95rem; color: var(--text-secondary);">No reports matching filter</div>
+            <div style="font-size: 0.8rem; margin-top: 4px;">User suggestions and bug reports will appear here when submitted.</div>
+          </div>
+        `;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'feedback-card';
+
+        // Category Badge
+        let catBadge = `<span class="badge badge-cyan">💬 FEEDBACK</span>`;
+        if (item.category === 'bug') catBadge = `<span class="badge badge-rose">🐛 BUG</span>`;
+        if (item.category === 'feature') catBadge = `<span class="badge badge-amber">💡 FEATURE</span>`;
+
+        // Status Badge
+        let statusBadge = `<span class="badge badge-rose">⏳ NEW</span>`;
+        if (item.status === 'reviewed') statusBadge = `<span class="badge badge-amber">👁️ REVIEWED</span>`;
+        if (item.status === 'resolved') statusBadge = `<span class="badge badge-emerald">✅ RESOLVED</span>`;
+        if (item.status === 'dismissed') statusBadge = `<span class="badge" style="background: rgba(255,255,255,0.08); color: var(--text-muted);">🚫 DISMISSED</span>`;
+
+        const timeStr = item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Recent';
+
+        // Meta devices
+        const dev = item.device || {};
+        const metaChips = [];
+        if (dev.deviceModel) metaChips.push(`<span class="meta-chip">📱 ${escapeHtml(dev.deviceModel)}</span>`);
+        if (dev.osVersion) metaChips.push(`<span class="meta-chip">🤖 Android ${escapeHtml(dev.osVersion)}</span>`);
+        if (dev.appVersion) metaChips.push(`<span class="meta-chip">📦 App v${escapeHtml(dev.appVersion)}${dev.buildNumber ? ` (${escapeHtml(dev.buildNumber)})` : ''}</span>`);
+        if (item.contact) metaChips.push(`<span class="meta-chip" style="color: var(--cyan);">✉️ ${escapeHtml(item.contact)}</span>`);
+
+        card.innerHTML = `
+          <div class="feedback-top">
+            <div class="feedback-badges">
+              ${catBadge}
+              ${statusBadge}
+              <span class="mono" style="font-size: 0.72rem; color: var(--text-muted);">${item.id.slice(0, 8)}</span>
+            </div>
+            <div class="feedback-time">${timeStr}</div>
+          </div>
+          <div class="feedback-title">${escapeHtml(item.title)}</div>
+          <div class="feedback-desc">${escapeHtml(item.description)}</div>
+          ${metaChips.length > 0 ? `<div class="feedback-meta">${metaChips.join(' ')}</div>` : ''}
+          <div class="feedback-bottom">
+            <div style="font-size: 0.76rem; color: var(--text-muted);">
+              Status: <strong style="color: #fff; text-transform: uppercase;">${escapeHtml(item.status)}</strong>
+            </div>
+            <div class="feedback-actions">
+              ${item.status !== 'reviewed' && item.status !== 'resolved' ? `
+                <button class="btn" style="padding: 4px 10px; font-size: 0.78rem;" onclick="changeFeedbackStatus('${item.id}', 'reviewed')">Mark Reviewed</button>
+              ` : ''}
+              ${item.status !== 'resolved' ? `
+                <button class="btn btn-primary" style="padding: 4px 10px; font-size: 0.78rem;" onclick="changeFeedbackStatus('${item.id}', 'resolved')">Resolve</button>
+              ` : `
+                <button class="btn" style="padding: 4px 10px; font-size: 0.78rem;" onclick="changeFeedbackStatus('${item.id}', 'new')">Reopen</button>
+              `}
+              ${item.status !== 'dismissed' ? `
+                <button class="btn" style="padding: 4px 10px; font-size: 0.78rem;" onclick="changeFeedbackStatus('${item.id}', 'dismissed')">Dismiss</button>
+              ` : ''}
+              <button class="btn btn-danger" style="padding: 4px 10px; font-size: 0.78rem;" onclick="deleteFeedback('${item.id}')">Delete</button>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    async function changeFeedbackStatus(id, newStatus) {
+      try {
+        const res = await fetch(`${backendUrl}/api/admin/feedback/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders()
+          },
+          body: JSON.stringify({ status: newStatus })
+        });
+        if (res.ok) {
+          const item = allFeedback.find(i => i.id === id);
+          if (item) item.status = newStatus;
+          updateFeedbackCounters();
+          renderFeedbackList();
+          addLog('INFO', `Report [${id.slice(0, 8)}] status updated to ${newStatus}`);
+        } else {
+          alert('Failed to update status. Please check authentication.');
+        }
+      } catch (err) {
+        alert('Network error while updating feedback: ' + err.message);
+      }
+    }
+
+    async function deleteFeedback(id) {
+      if (!confirm('Permanently delete this user report?')) return;
+      try {
+        const res = await fetch(`${backendUrl}/api/admin/feedback/${id}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          allFeedback = allFeedback.filter(i => i.id !== id);
+          updateFeedbackCounters();
+          renderFeedbackList();
+          addLog('INFO', `Report [${id.slice(0, 8)}] permanently deleted.`);
+        } else {
+          alert('Failed to delete report.');
+        }
+      } catch (err) {
+        alert('Error deleting feedback: ' + err.message);
+      }
+    }
+
+    function exportFeedback() {
+      const blob = new Blob([JSON.stringify(allFeedback, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `schedmate_feedback_reports_${Date.now()}.json`;
+      a.click();
+    }
+
+    // -------------------------------------------------------------
     // SETTINGS & BROADCAST
     // -------------------------------------------------------------
     function changeMasterPasskeyPrompt() {
@@ -1770,6 +2155,7 @@
     function triggerManualRefresh() {
       addLog('INFO', 'Manual telemetry refresh triggered.');
       fetchMetrics();
+      fetchFeedback();
       probeBackend();
     }
 
@@ -1784,12 +2170,14 @@
       addLog('INFO', 'Connected to production host: ' + backendUrl);
 
       fetchMetrics();
+      fetchFeedback();
       updateProbeStats();
       drawLatencyCanvas();
 
       if (refreshTimer) clearInterval(refreshTimer);
       refreshTimer = setInterval(() => {
         fetchMetrics();
+        fetchFeedback();
         probeBackend();
       }, 15000);
     }

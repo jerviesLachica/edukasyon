@@ -19,6 +19,7 @@ captures
 node_modules/
 .env
 backend/.env
+backend/data/
 androidApp/keystore.properties
 androidApp/keystore/*.jks
 *.log

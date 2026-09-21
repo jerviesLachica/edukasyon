@@ -91,6 +91,8 @@ const provider = createAiProvider();
 const embeddings = createEmbeddingClient();
 const webSearch = createWebSearchService();
 const abuseEvents = new AbuseEventRepository();
+const { FeedbackRepository } = require('./feedback/FeedbackRepository');
+const feedbackRepo = new FeedbackRepository();
 const gateway = createGateway({
   auth: new AuthenticationService({
     requireDeviceId: policy.requireDeviceId,
@@ -1600,22 +1602,86 @@ app.post('/api/admin/auth', (req, res) => {
   res.json({ ok: true, token: `${expiresAt}.${token}`, expiresAt });
 });
 
-// Admin metrics API (protected)
-app.get('/api/admin/metrics', (req, res) => {
+function isAuthorizedAdmin(req) {
   const authHeader = req.headers.authorization || '';
   const adminKeyHeader = req.headers['x-admin-key'] || '';
-  let authorized = adminKeyHeader === ADMIN_PASSKEY;
+  if (adminKeyHeader === ADMIN_PASSKEY) return true;
 
-  if (!authorized && authHeader.startsWith('Bearer ')) {
+  if (authHeader.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
     const [expiresStr, hash] = token.split('.');
     if (expiresStr && hash && Date.now() < parseInt(expiresStr, 10)) {
       const expected = crypto.createHmac('sha256', ADMIN_PASSKEY).update(expiresStr).digest('hex');
-      if (expected === hash) authorized = true;
+      if (expected === hash) return true;
     }
   }
+  return false;
+}
 
-  if (!authorized) {
+// Client Feedback & Bug Reports (with Anti-Bot & Anti-Spam Guardrails)
+app.post('/api/feedback', (req, res) => {
+  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const deviceId = req.headers['x-device-id'] || req.body?.device?.deviceId || clientIp;
+
+  // Anti-bot & anti-spam rate limit: max 3 per 10 mins per device/IP
+  if (!feedbackRepo.checkRateLimit(deviceId, 3, 10 * 60 * 1000)) {
+    return res.status(429).json({
+      ok: false,
+      error: 'Submission rate limit reached. Please wait a few minutes before submitting again.'
+    });
+  }
+
+  const { category, title, description, device, contact, hp } = req.body || {};
+
+  // Honeypot trap: bots filling out hidden field
+  if (hp && String(hp).trim().length > 0) {
+    abuseEvents.record({ type: 'feedback_bot_trap', details: { clientIp, deviceId } });
+    return res.json({ ok: true, id: 'filtered', message: 'Feedback received' });
+  }
+
+  const result = feedbackRepo.add({ category, title, description, device, contact, honeypot: hp });
+  if (!result.ok) {
+    return res.status(400).json({ ok: false, error: result.error });
+  }
+
+  res.json({ ok: true, id: result.item.id, message: 'Thank you for your feedback!' });
+});
+
+// Admin Feedback APIs (protected)
+app.get('/api/admin/feedback', (req, res) => {
+  if (!isAuthorizedAdmin(req)) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  }
+  const category = req.query.category || null;
+  res.json({
+    ok: true,
+    feedback: feedbackRepo.getAll(category)
+  });
+});
+
+app.patch('/api/admin/feedback/:id', (req, res) => {
+  if (!isAuthorizedAdmin(req)) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  }
+  const { status } = req.body || {};
+  const updated = feedbackRepo.updateStatus(req.params.id, status);
+  if (!updated) {
+    return res.status(404).json({ ok: false, error: 'Feedback item not found or invalid status' });
+  }
+  res.json({ ok: true, item: updated });
+});
+
+app.delete('/api/admin/feedback/:id', (req, res) => {
+  if (!isAuthorizedAdmin(req)) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  }
+  const deleted = feedbackRepo.delete(req.params.id);
+  res.json({ ok: true, deleted });
+});
+
+// Admin metrics API (protected)
+app.get('/api/admin/metrics', (req, res) => {
+  if (!isAuthorizedAdmin(req)) {
     return res.status(401).json({ ok: false, error: 'Unauthorized' });
   }
 
@@ -1649,6 +1715,10 @@ app.get('/api/admin/metrics', (req, res) => {
     abuse: {
       counts: abuseEvents.countByType(),
       recent: abuseEvents.events.slice(-20)
+    },
+    feedbackStats: {
+      total: feedbackRepo.items.length,
+      newCount: feedbackRepo.items.filter(i => i.status === 'new').length,
     },
     version: versionInfo
   });

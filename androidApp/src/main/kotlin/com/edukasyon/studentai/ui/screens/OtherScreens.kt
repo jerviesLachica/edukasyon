@@ -126,6 +126,13 @@ fun ProfileScreen(
         }
     }
 
+    state.feedbackMessage?.let { msg ->
+        LaunchedEffect(msg) {
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+            viewModel.clearFeedbackMessage()
+        }
+    }
+
     if (showImportConfirm != null) {
         AlertDialog(
             onDismissRequest = { showImportConfirm = null },
@@ -158,6 +165,18 @@ fun ProfileScreen(
             onSchoolChange = viewModel::updateEditSchool,
             onPreferredStatusChange = viewModel::updateEditPreferredStatus,
             onBioChange = viewModel::updateEditBio,
+        )
+    }
+
+    if (state.showFeedbackDialog) {
+        FeedbackDialog(
+            initialCooldownSeconds = viewModel.getFeedbackRemainingCooldown(),
+            isSubmitting = state.isSubmittingFeedback,
+            errorMessage = if (!state.feedbackSuccess) state.feedbackMessage else null,
+            onDismiss = viewModel::dismissFeedbackDialog,
+            onSubmit = { cat, title, desc, contact, hp ->
+                viewModel.submitFeedback(cat, title, desc, contact, hp)
+            }
         )
     }
 
@@ -256,7 +275,7 @@ fun ProfileScreen(
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 QuickActionCard(
                     icon = Icons.Default.Settings,
@@ -275,6 +294,12 @@ fun ProfileScreen(
                     label = "Help",
                     modifier = Modifier.weight(1f),
                     onClick = onNavigateFeaturesGuide,
+                )
+                QuickActionCard(
+                    icon = Icons.Default.Feedback,
+                    label = "Feedback",
+                    modifier = Modifier.weight(1f),
+                    onClick = viewModel::openFeedbackDialog,
                 )
             }
         }
@@ -321,6 +346,24 @@ fun ProfileScreen(
                             contentDescription = null,
                             tint = if (state.isGoogleSignedIn) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                )
+            }
+        }
+
+        // ===== FEEDBACK & SUPPORT SECTION =====
+        item {
+            SettingsGroup(title = "Feedback & Bug Reports") {
+                SettingsRow(
+                    title = "Suggest feature or report bug",
+                    subtitle = "Submit suggestions or issues directly to our admin team",
+                    modifier = Modifier.clickable(onClick = viewModel::openFeedbackDialog),
+                    trailing = {
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 )
@@ -485,6 +528,25 @@ fun SettingsScreen(
         LaunchedEffect(msg) {
             android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
         }
+    }
+
+    state.feedbackMessage?.let { msg ->
+        LaunchedEffect(msg) {
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+            viewModel.clearFeedbackMessage()
+        }
+    }
+
+    if (state.showFeedbackDialog) {
+        FeedbackDialog(
+            initialCooldownSeconds = viewModel.getFeedbackRemainingCooldown(),
+            isSubmitting = state.isSubmittingFeedback,
+            errorMessage = if (!state.feedbackSuccess) state.feedbackMessage else null,
+            onDismiss = viewModel::dismissFeedbackDialog,
+            onSubmit = { cat, title, desc, contact, hp ->
+                viewModel.submitFeedback(cat, title, desc, contact, hp)
+            }
+        )
     }
 
     if (showImportConfirm != null) {
@@ -824,6 +886,20 @@ fun SettingsScreen(
                     text = "Data is stored locally on your device. AI features send only the content you select to the backend. No API keys are stored in the app.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        item {
+            SettingsGroup(title = "Feedback & Bug Reports") {
+                SettingsRow(
+                    title = "Suggest feature or report bug",
+                    subtitle = "Submit suggestions or issues directly to our admin team",
+                    trailing = {
+                        TextButton(onClick = viewModel::openFeedbackDialog) {
+                            Text("Submit")
+                        }
+                    }
                 )
             }
         }

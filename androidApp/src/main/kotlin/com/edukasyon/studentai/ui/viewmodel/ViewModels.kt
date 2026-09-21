@@ -2966,6 +2966,10 @@ data class ProfileUiState(
         val isSyncingCalendar: Boolean = false,
         val calendarSyncMessage: String? = null,
         val calendarSyncedAt: Long? = null,
+        val showFeedbackDialog: Boolean = false,
+        val isSubmittingFeedback: Boolean = false,
+        val feedbackMessage: String? = null,
+        val feedbackSuccess: Boolean = false,
     )
 
     @HiltViewModel
@@ -2981,6 +2985,7 @@ data class ProfileUiState(
     private val googleSignInHelper: com.edukasyon.studentai.core.firebase.GoogleSignInHelper,
     private val syncMetadataDao: com.edukasyon.studentai.data.local.dao.SyncMetadataDao,
     private val scheduleRepository: ScheduleRepository,
+    private val feedbackManager: com.edukasyon.studentai.core.feedback.FeedbackManager,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
@@ -3387,6 +3392,65 @@ data class ProfileUiState(
 
     fun clearProfileSaveMessage() {
         _uiState.update { it.copy(profileSaveMessage = null) }
+    }
+
+    fun openFeedbackDialog() {
+        _uiState.update { it.copy(showFeedbackDialog = true, feedbackMessage = null, feedbackSuccess = false) }
+    }
+
+    fun dismissFeedbackDialog() {
+        _uiState.update { it.copy(showFeedbackDialog = false, feedbackMessage = null, feedbackSuccess = false) }
+    }
+
+    fun clearFeedbackMessage() {
+        _uiState.update { it.copy(feedbackMessage = null) }
+    }
+
+    fun getFeedbackRemainingCooldown(): Long {
+        return feedbackManager.getRemainingCooldownSeconds()
+    }
+
+    fun submitFeedback(
+        category: String,
+        title: String,
+        description: String,
+        contact: String? = null,
+        honeypot: String = "",
+        onCompleted: (Boolean, String) -> Unit = { _, _ -> }
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSubmittingFeedback = true, feedbackMessage = null) }
+            val result = feedbackManager.submitFeedback(
+                category = category,
+                title = title,
+                description = description,
+                contact = contact,
+                honeypot = honeypot,
+            )
+            when (result) {
+                is com.edukasyon.studentai.core.feedback.FeedbackResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isSubmittingFeedback = false,
+                            feedbackMessage = result.message,
+                            feedbackSuccess = true,
+                            showFeedbackDialog = false,
+                        )
+                    }
+                    onCompleted(true, result.message)
+                }
+                is com.edukasyon.studentai.core.feedback.FeedbackResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isSubmittingFeedback = false,
+                            feedbackMessage = result.error,
+                            feedbackSuccess = false,
+                        )
+                    }
+                    onCompleted(false, result.error)
+                }
+            }
+        }
     }
 }
 
