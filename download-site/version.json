@@ -1,11 +1,11 @@
 {
-    "versionCode": 12,
-    "versionName": "2.1.1",
-    "apkUrl": "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.1/androidApp-release.apk",
-    "releaseNotes": "SchedMate 2.1.1: Multi-Provider Free AI Engine (Groq, Google Gemini, OpenRouter & HCNsec round-robin pool with sub-second response times), automatic circuit-breaker failover, and multi-modal vision load balancing.",
-    "mandatoryUpdate": false,
-    "apkFile": "androidApp-release.apk",
-    "sha256": "017BCD2223996A75C4C3C52E9E8D0E2FBDA3B78DA565E3332EC066A940DC4625",
-    "sizeBytes": 82289223,
-    "releaseDate": "2026-09-19"
+    "versionCode":  13,
+    "versionName":  "2.1.2",
+    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.2/schedmate-2.1.2.apk",
+    "releaseNotes":  "SchedMate 2.1.2: Instant AI Cold-Start Migration — Switched core backend to ultra-fast Vercel Serverless with sub-second wakeups, enhanced multi-provider round-robin AI routing, and resilient update verification.",
+    "mandatoryUpdate":  false,
+    "apkFile":  "schedmate-2.1.2.apk",
+    "sha256":  "e050c1f3b8dfe9bcc87b7bdf128b6fd77dbc9980f3f33a06168277d278572a66",
+    "sizeBytes":  82289227,
+    "releaseDate":  "2026-09-21"
 }
