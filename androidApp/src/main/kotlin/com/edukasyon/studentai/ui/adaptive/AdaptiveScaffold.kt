@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import com.edukasyon.studentai.ui.components.AdaptiveNavigationRail
 import com.edukasyon.studentai.ui.components.StudentAiBottomBar
 import com.edukasyon.studentai.ui.navigation.MainTab
@@ -38,6 +39,7 @@ fun AdaptiveScaffold(
 
             Scaffold(
                 modifier = modifier.fillMaxSize(),
+                containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0),
                 bottomBar = {
                     AnimatedVisibility(

@@ -220,3 +220,48 @@ fun SchedMateMascot(
         }
     }
 }
+
+/**
+ * Lightweight animated mascot icon specifically designed for navigation bars, tabs, and avatar badges.
+ * Seamlessly loops the transparent animated WebP for the given mood.
+ */
+@Composable
+fun AnimatedMascotIcon(
+    mood: MascotMood = MascotMood.Idle,
+    size: Dp = 26.dp,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val imageLoader = remember(context) {
+        ImageLoader.Builder(context)
+            .components {
+                if (Build.VERSION.SDK_INT >= 28) {
+                    add(ImageDecoderDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
+                }
+            }
+            .build()
+    }
+    val animResId = remember(mood) {
+        val drawableId = context.resources.getIdentifier(mood.rawResName, "drawable", context.packageName)
+        if (drawableId != 0) drawableId else {
+            val rawId = context.resources.getIdentifier(mood.rawResName, "raw", context.packageName)
+            if (rawId != 0) rawId else null
+        }
+    }
+    val imageRequest = remember(context, animResId) {
+        ImageRequest.Builder(context)
+            .data(animResId ?: R.drawable.wala)
+            .crossfade(false)
+            .build()
+    }
+    AsyncImage(
+        model = imageRequest,
+        imageLoader = imageLoader,
+        contentDescription = mood.description,
+        contentScale = ContentScale.Fit,
+        modifier = modifier.size(size),
+    )
+}
+

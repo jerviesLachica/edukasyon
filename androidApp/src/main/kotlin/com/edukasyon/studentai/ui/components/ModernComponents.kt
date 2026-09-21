@@ -47,6 +47,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.edukasyon.studentai.ui.components.mascot.AnimatedMascotIcon
+import com.edukasyon.studentai.ui.components.mascot.MascotMood
 import com.edukasyon.studentai.ui.navigation.MainTab
 import com.edukasyon.studentai.ui.navigation.routeToSelectedTab
 import com.edukasyon.studentai.ui.theme.StudentAiGradients
@@ -808,6 +810,14 @@ fun StudentAiBottomBar(
                 icon = tab.unselectedIcon,
                 selectedIcon = tab.selectedIcon,
                 badgeCount = tabBadges[tab],
+                customIcon = if (tab == MainTab.JEVI) {
+                    { isSelected ->
+                        AnimatedMascotIcon(
+                            mood = if (isSelected) MascotMood.Motivated else MascotMood.Idle,
+                            size = 28.dp,
+                        )
+                    }
+                } else null,
             )
         },
         selectedIndex = selectedIndex,
@@ -832,7 +842,7 @@ fun AdaptiveNavigationRail(
 
     Surface(
         modifier = modifier.fillMaxHeight(),
-        color = MaterialTheme.colorScheme.background,
+        color = Color.Transparent,
         tonalElevation = 0.dp,
     ) {
         PillTabBar(
@@ -842,6 +852,14 @@ fun AdaptiveNavigationRail(
                     icon = tab.unselectedIcon,
                     selectedIcon = tab.selectedIcon,
                     badgeCount = tabBadges[tab],
+                    customIcon = if (tab == MainTab.JEVI) {
+                        { isSelected ->
+                            AnimatedMascotIcon(
+                                mood = if (isSelected) MascotMood.Motivated else MascotMood.Idle,
+                                size = 28.dp,
+                            )
+                        }
+                    } else null,
                 )
             },
             selectedIndex = selectedIndex,

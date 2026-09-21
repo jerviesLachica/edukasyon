@@ -61,6 +61,7 @@ data class PillTabSpec(
     val icon: ImageVector? = null,
     val selectedIcon: ImageVector? = null,
     val badgeCount: Int? = null,
+    val customIcon: (@Composable (selected: Boolean) -> Unit)? = null,
 )
 
 enum class PillTabOrientation {
@@ -96,7 +97,7 @@ private fun rememberPillTabColors(): PillTabColors {
             )
         } else {
             PillTabColors(
-                container = Color.White,
+                container = Color(0xFFE8EAEE), // Sleek gray container behind logos in light mode
                 glider = scheme.primaryContainer.copy(alpha = 0.55f),
                 selectedContent = scheme.primary,
                 unselectedContent = Color(0xFF1A1A1A),
@@ -352,7 +353,29 @@ private fun PillTabCell(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            if (icon != null) {
+            if (tab.customIcon != null) {
+                Box(contentAlignment = Alignment.TopEnd) {
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .graphicsLayer {
+                                scaleX = selectedIconScale
+                                scaleY = selectedIconScale
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        tab.customIcon.invoke(selected)
+                    }
+                    tab.badgeCount?.takeIf { it > 0 }?.let { count ->
+                        PillTabBadge(
+                            count = count,
+                            selected = selected,
+                            colors = colors,
+                            modifier = Modifier.offset(x = 8.dp, y = (-4).dp),
+                        )
+                    }
+                }
+            } else if (icon != null) {
                 Box(contentAlignment = Alignment.TopEnd) {
                     Icon(
                         imageVector = icon,
