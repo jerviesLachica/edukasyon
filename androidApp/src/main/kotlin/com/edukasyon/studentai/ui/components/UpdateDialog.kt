@@ -33,6 +33,7 @@ fun UpdateDialog(
     onDismissRequest: () -> Unit,
     onUpdateNow: (String) -> Unit,
     onStartDownload: () -> Unit,
+    onRequestPermission: () -> Unit = {},
 ) {
     when (state) {
         UpdateUiState.Idle,
@@ -43,11 +44,18 @@ fun UpdateDialog(
             onDismissRequest = onDismissRequest,
             onStartDownload = onStartDownload,
         )
-        is UpdateUiState.Downloading -> UpdateDownloadingCard(state = state)
+        is UpdateUiState.Downloading -> {
+            // Background downloads are displayed via floating status indicator in the main screen;
+            // only show modal dialog if triggered interactively
+            if (!state.isBackground) {
+                UpdateDownloadingCard(state = state)
+            }
+        }
         is UpdateUiState.ReadyToInstall -> UpdateReadyCard(
             state = state,
             onDismissRequest = onDismissRequest,
             onUpdateNow = onUpdateNow,
+            onRequestPermission = onRequestPermission,
         )
         UpdateUiState.InstallStarted -> Unit
         is UpdateUiState.Error -> UpdateErrorCard(state = state, onDismissRequest = onDismissRequest)
@@ -128,7 +136,7 @@ private fun UpdateAvailableCard(
         val notes = state.info.releaseNotes.isNotBlank()
         UpdateMessage(
             if (notes) state.info.releaseNotes
-            else "A new version of the app is ready to install.\nDo you want to update now?"
+            else "A new version of SchedMate is ready to download.\nDo you want to update now?"
         )
         Spacer(Modifier.height(4.dp))
         UpdateCta(label = "Update Now", onClick = onStartDownload)
@@ -146,7 +154,9 @@ private fun UpdateDownloadingCard(state: UpdateUiState.Downloading) {
             progress = { state.progress.coerceIn(0f, 1f) },
             modifier = Modifier.fillMaxWidth(),
         )
-        UpdateMessage("Downloading SchedMate update… ${(state.progress * 100).toInt()}%")
+        val percent = (state.progress * 100).toInt()
+        val versionText = if (state.versionName.isNotBlank()) "v${state.versionName}" else ""
+        UpdateMessage("Downloading SchedMate $versionText update… $percent%")
     }
 }
 
@@ -155,12 +165,25 @@ private fun UpdateReadyCard(
     state: UpdateUiState.ReadyToInstall,
     onDismissRequest: () -> Unit,
     onUpdateNow: (String) -> Unit,
+    onRequestPermission: () -> Unit,
 ) {
     UpdateCard {
-        UpdateTitle("Ready to Install")
-        UpdateMessage("Version downloaded successfully.\nTap below to install it now.")
-        UpdateCta(label = "Install Now", onClick = { onUpdateNow(state.apkUri) })
-        UpdateDismissLink(label = "Not Now", onClick = onDismissRequest)
+        if (state.needsPermission) {
+            UpdateTitle("Permission Needed")
+            UpdateMessage("Android requires permission to install SchedMate updates automatically.\nPlease allow 'Install unknown apps' on the next screen.")
+            Spacer(Modifier.height(4.dp))
+            UpdateCta(label = "Enable Permission", onClick = onRequestPermission)
+            UpdateDismissLink(label = "Not Now", onClick = onDismissRequest)
+        } else {
+            UpdateTitle("Update Ready")
+            val vName = state.info?.versionName?.let { "v$it" } ?: ""
+            UpdateMessage("SchedMate $vName has been downloaded.\nTap below to install now without losing any data.")
+            Spacer(Modifier.height(4.dp))
+            UpdateCta(label = "Install & Update", onClick = { onUpdateNow(state.apkUri) })
+            if (state.info?.mandatoryUpdate != true) {
+                UpdateDismissLink(label = "Later", onClick = onDismissRequest)
+            }
+        }
     }
 }
 
@@ -168,7 +191,7 @@ private fun UpdateReadyCard(
 private fun UpdateErrorCard(state: UpdateUiState.Error, onDismissRequest: () -> Unit) {
     val context = LocalContext.current
     UpdateCard {
-        UpdateTitle("Update Unavailable")
+        UpdateTitle("Update Issue")
         UpdateMessage(state.message)
         OutlinedButton(
             onClick = {

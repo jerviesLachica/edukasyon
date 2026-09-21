@@ -95,8 +95,7 @@ tasks.withType<KotlinCompile>().configureEach {
         jvmTarget.set(JvmTarget.JVM_17)
         freeCompilerArgs.addAll(
             "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
-            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi",
-            "-opt-in=androidx.lifecycle.compose.collectAsStateWithLifecycle"
+            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi"
         )
     }
 }

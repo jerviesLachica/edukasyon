@@ -192,6 +192,9 @@ object DateUtils {
 
     /** Default reminder: one day before due at 9:00 AM, or same-day morning / 1 hour before if sooner. */
     fun defaultReminderAt(dueMillis: Long): Long {
+        val now = System.currentTimeMillis()
+        if (dueMillis <= now) return dueMillis
+
         val dayBeforeMorning = java.util.Calendar.getInstance().apply {
             timeInMillis = dueMillis
             add(java.util.Calendar.DAY_OF_MONTH, -1)
@@ -200,7 +203,7 @@ object DateUtils {
             set(java.util.Calendar.SECOND, 0)
             set(java.util.Calendar.MILLISECOND, 0)
         }
-        if (dayBeforeMorning.timeInMillis > System.currentTimeMillis()) {
+        if (dayBeforeMorning.timeInMillis > now) {
             return dayBeforeMorning.timeInMillis
         }
         val sameDayMorning = java.util.Calendar.getInstance().apply {
@@ -210,10 +213,11 @@ object DateUtils {
             set(java.util.Calendar.SECOND, 0)
             set(java.util.Calendar.MILLISECOND, 0)
         }
-        if (sameDayMorning.timeInMillis > System.currentTimeMillis()) {
+        if (sameDayMorning.timeInMillis > now) {
             return sameDayMorning.timeInMillis
         }
-        return (dueMillis - 60 * 60 * 1000L).coerceAtLeast(System.currentTimeMillis() + 1000)
+        val oneHourBefore = dueMillis - 60 * 60 * 1000L
+        return if (oneHourBefore > now) oneHourBefore else dueMillis
     }
 
     fun tomorrowStartOfDay(): Long = startOfDay(System.currentTimeMillis() + 86_400_000L)

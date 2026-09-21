@@ -1,0 +1,9 @@
+{
+  "name": "schedmate-dashboard",
+  "version": "2.1.3",
+  "description": "Secure Fleet Command & Monitoring Dashboard for SchedMate",
+  "private": true,
+  "scripts": {
+    "start": "npx serve ."
+  }
+}

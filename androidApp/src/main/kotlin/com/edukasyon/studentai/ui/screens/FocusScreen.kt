@@ -33,9 +33,13 @@ import com.edukasyon.studentai.domain.model.FocusBlockType
 import com.edukasyon.studentai.domain.model.FocusMode
 import com.edukasyon.studentai.domain.model.FocusPreset
 import com.edukasyon.studentai.domain.model.FocusTimerPhase
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.components.*
+import com.edukasyon.studentai.ui.components.mascot.MascotMood
+import com.edukasyon.studentai.ui.components.mascot.SchedMateMascot
 import com.edukasyon.studentai.ui.viewmodel.FocusScreenStep
 import com.edukasyon.studentai.ui.viewmodel.FocusViewModel
 import kotlin.math.roundToInt
@@ -158,6 +162,11 @@ private fun FocusSetupContent(
     onStartManual: () -> Unit,
     onGeneratePlan: () -> Unit,
 ) {
+    val haptics = LocalHapticFeedback.current
+    var customFocusStr by remember(state.customFocusMinutes) { mutableStateOf(state.customFocusMinutes.toString()) }
+    var customBreakStr by remember(state.customBreakMinutes) { mutableStateOf(state.customBreakMinutes.toString()) }
+    var aiMinutesStr by remember(state.aiTotalMinutes) { mutableStateOf(state.aiTotalMinutes.toString()) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -202,16 +211,24 @@ private fun FocusSetupContent(
                     ModernCard(containerColor = focusPastelCard(isDark)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedTextField(
-                                value = state.customFocusMinutes.toString(),
-                                onValueChange = { onCustomFocus(it.toIntOrNull() ?: 25) },
+                                value = customFocusStr,
+                                onValueChange = { raw ->
+                                    val digits = raw.filter { it.isDigit() }.take(3)
+                                    customFocusStr = digits
+                                    digits.toIntOrNull()?.let { if (it in 1..240) onCustomFocus(it) }
+                                },
                                 label = { Text("Focus (min)") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
                             )
                             OutlinedTextField(
-                                value = state.customBreakMinutes.toString(),
-                                onValueChange = { onCustomBreak(it.toIntOrNull() ?: 5) },
+                                value = customBreakStr,
+                                onValueChange = { raw ->
+                                    val digits = raw.filter { it.isDigit() }.take(3)
+                                    customBreakStr = digits
+                                    digits.toIntOrNull()?.let { if (it in 1..60) onCustomBreak(it) }
+                                },
                                 label = { Text("Break (min)") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
@@ -235,8 +252,11 @@ private fun FocusSetupContent(
                     isDark = isDark,
                 )
 
-                Button(
-                    onClick = onStartManual,
+                BouncyButton(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onStartManual()
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                 ) {
@@ -255,8 +275,12 @@ private fun FocusSetupContent(
                 }
 
                 OutlinedTextField(
-                    value = state.aiTotalMinutes.toString(),
-                    onValueChange = { onAiMinutes(it.toIntOrNull() ?: 90) },
+                    value = aiMinutesStr,
+                    onValueChange = { raw ->
+                        val digits = raw.filter { it.isDigit() }.take(3)
+                        aiMinutesStr = digits
+                        digits.toIntOrNull()?.let { if (it in 15..480) onAiMinutes(it) }
+                    },
                     label = { Text("Session length (minutes)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
@@ -277,8 +301,11 @@ private fun FocusSetupContent(
                     Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
 
-                Button(
-                    onClick = onGeneratePlan,
+                BouncyButton(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onGeneratePlan()
+                    },
                     enabled = !state.isGeneratingPlan,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -454,9 +481,13 @@ private fun FocusTimerContent(
     onSkip: () -> Unit,
     onEnd: () -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
     val progress = if (state.totalPhaseSeconds > 0) {
         1f - (state.remainingSeconds.toFloat() / state.totalPhaseSeconds)
     } else 0f
+
+    val isBreak = state.phase == FocusTimerPhase.BREAK
+    val ringColor = if (isBreak) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
 
     Column(
         modifier = Modifier
@@ -464,22 +495,28 @@ private fun FocusTimerContent(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = horizontalPadding, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         val phaseLabel = when (state.phase) {
-            FocusTimerPhase.FOCUS -> "Focus"
-            FocusTimerPhase.BREAK -> "Break"
+            FocusTimerPhase.FOCUS -> "Focus Session"
+            FocusTimerPhase.BREAK -> "Break Time ☕"
             FocusTimerPhase.BLOCK -> FocusPlanValidator.blockTypeLabel(
                 state.plan?.blocks?.getOrNull(state.currentBlockIndex)?.type ?: FocusBlockType.STUDY
             )
             FocusTimerPhase.COMPLETE -> "Done"
         }
-        Text(
-            phaseLabel,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = if (isBreak) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer,
+        ) {
+            Text(
+                phaseLabel,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelLarge,
+                color = if (isBreak) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Bold,
+            )
+        }
         Text(
             state.currentActivityLabel,
             style = MaterialTheme.typography.headlineSmall,
@@ -501,15 +538,35 @@ private fun FocusTimerContent(
                 modifier = Modifier.fillMaxSize(),
                 strokeWidth = 10.dp,
                 strokeCap = StrokeCap.Round,
+                color = ringColor,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
-            Text(
-                formatCountdown(state.remainingSeconds),
-                style = MaterialTheme.typography.displayMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp,
-                ),
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (state.isPaused) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                    ) {
+                        Text(
+                            "PAUSED",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+                Text(
+                    formatCountdown(state.remainingSeconds),
+                    style = MaterialTheme.typography.displayMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp,
+                    ),
+                )
+            }
         }
 
         if (state.mode == FocusMode.MANUAL) {
@@ -533,13 +590,31 @@ private fun FocusTimerContent(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            OutlinedButton(onClick = onEnd, modifier = Modifier.weight(1f)) {
+            BouncyOutlinedButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onEnd()
+                },
+                modifier = Modifier.weight(1f),
+            ) {
                 Text("End")
             }
-            FilledTonalButton(onClick = onSkip, modifier = Modifier.weight(1f)) {
+            BouncyOutlinedButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onSkip()
+                },
+                modifier = Modifier.weight(1f),
+            ) {
                 Text("Skip")
             }
-            Button(onClick = onTogglePause, modifier = Modifier.weight(1f)) {
+            BouncyButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onTogglePause()
+                },
+                modifier = Modifier.weight(1f),
+            ) {
                 Icon(
                     if (state.isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
                     contentDescription = null,
@@ -562,27 +637,28 @@ private fun FocusCompleteContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = horizontalPadding, vertical = 32.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = horizontalPadding, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Icon(
-            Icons.Default.CheckCircle,
-            contentDescription = null,
-            modifier = Modifier.size(72.dp),
-            tint = MaterialTheme.colorScheme.primary,
+        SchedMateMascot(
+            mood = MascotMood.Submitting,
+            size = 140.dp,
+            customSpeechText = "Awesome focus session! You logged ${state.totalFocusMinutesLogged} minutes of deep work! 🚀",
         )
         Text("Session complete!", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
-            "You logged ${state.totalFocusMinutesLogged} minutes of focused study.",
+            "Great job maintaining your concentration. Keep this momentum going!",
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.weight(1f))
-        Button(onClick = onAgain, modifier = Modifier.fillMaxWidth()) {
+        Spacer(Modifier.weight(1f, fill = false))
+        BouncyButton(onClick = onAgain, modifier = Modifier.fillMaxWidth()) {
             Text("Start another session")
         }
-        OutlinedButton(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
+        BouncyOutlinedButton(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
             Text("Done")
         }
     }

@@ -10,10 +10,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Grade
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,6 +38,12 @@ import com.edukasyon.studentai.ui.adaptive.isMediumOrExpandedWidth
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveWidth
 import com.edukasyon.studentai.ui.components.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.input.KeyboardType
+import com.edukasyon.studentai.ui.components.mascot.MascotMood
+import com.edukasyon.studentai.ui.components.mascot.SchedMateMascot
 import com.edukasyon.studentai.ui.theme.StudentAiShapes
 import com.edukasyon.studentai.ui.theme.parseHexColor
 import com.edukasyon.studentai.ui.viewmodel.GradesViewModel
@@ -129,7 +135,7 @@ fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
                     StatChip(
                         label = "Entries",
                         value = filteredEntries.size.toString(),
-                        icon = Icons.Default.MenuBook,
+                        icon = Icons.AutoMirrored.Filled.MenuBook,
                         modifier = Modifier.weight(1f)
                     )
                     StatChip(
@@ -171,18 +177,29 @@ fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
 
             if (filteredEntries.isEmpty()) {
                 item {
-                    ModernEmptyState(
-                        title = "No grades yet",
-                        message = "Add your first assessment to start tracking your weighted average and subject progress.",
-                        actionLabel = "Add Grade",
-                        onAction = {
-                            preselectedSubjectId = null
-                            showAddSheet = true
-                        },
-                        modifier = Modifier.padding(top = 24.dp)
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        SchedMateMascot(
+                            mood = MascotMood.Learning,
+                            size = 120.dp,
+                            customSpeechText = "Add your first quiz or exam score to see your weighted GPA!",
+                        )
+                        ModernEmptyState(
+                            title = "No grades yet",
+                            message = "Add your first assessment to start tracking your weighted average and subject progress.",
+                            actionLabel = "Add Grade",
+                            onAction = {
+                                preselectedSubjectId = null
+                                showAddSheet = true
+                            },
+                        )
+                    }
                 }
-                } else {
+            } else {
                     item { SectionHeader("BY SUBJECT") }
                     // Rows of N cards chunked from the subject list — heights come
                     // from the tallest card in each row (no estimates), so subjects
@@ -358,7 +375,11 @@ private fun GradeEntryRow(
             )
             GradeBadge(percent = percent, compact = true)
         }
-        IconButton(onClick = onDelete) {
+        val haptic = LocalHapticFeedback.current
+        IconButton(onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            onDelete()
+        }) {
             Icon(
                 Icons.Default.Delete,
                 contentDescription = "Delete ${entry.assessment}",
@@ -479,6 +500,7 @@ private fun AddGradeBottomSheet(
                     value = score,
                     onValueChange = { score = it.filter { c -> c.isDigit() || c == '.' } },
                     label = { Text("Score") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
@@ -486,6 +508,7 @@ private fun AddGradeBottomSheet(
                     value = maxScore,
                     onValueChange = { maxScore = it.filter { c -> c.isDigit() || c == '.' } },
                     label = { Text("Max score") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
@@ -560,12 +583,15 @@ private fun AddGradeBottomSheet(
                 onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } },
                 label = { Text("Category weight") },
                 supportingText = { Text("Higher weight = more impact on overall grade") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
 
+            val haptic = LocalHapticFeedback.current
             Button(
                 onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onConfirm(
                         GradeEntry(
                             id = UUID.randomUUID().toString(),

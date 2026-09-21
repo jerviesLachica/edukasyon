@@ -738,15 +738,10 @@ fun GizmoChatBubble(
                             )
                         }
                         if (message.isNotBlank()) {
-                            if (isUser) {
-                                Text(
-                                    message,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                )
-                            } else {
-                                MarkdownChatText(markdown = message)
-                            }
+                            MarkdownChatText(
+                                markdown = message,
+                                contentColor = if (isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                            )
                         }
                         if (!isUser && !toolActionType.isNullOrBlank()) {
                             JeviToolActionCard(

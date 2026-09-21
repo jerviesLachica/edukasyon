@@ -10,6 +10,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.automirrored.filled.Note
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,6 +21,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -266,7 +273,7 @@ private fun LectureFilesEmptyState(onAddFile: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 16.dp),
+            .padding(horizontal = 24.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -275,13 +282,23 @@ private fun LectureFilesEmptyState(onAddFile: () -> Unit) {
             size = 130.dp,
             customSpeechText = "Drop your syllabus, slides, or textbook photos here to get started!",
         )
-        ModernEmptyState(
-            title = "No lecture files yet",
-            message = "Add a PDF, slide deck, or photo to generate flashcards and quizzes with AI.",
-            actionLabel = "Add File",
-            onAction = onAddFile,
-            modifier = Modifier.fillMaxWidth(),
+        Text(
+            text = "No lecture files yet",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
         )
+        Text(
+            text = "Add a PDF, slide deck, or photo to generate flashcards and quizzes with AI.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        BouncyButton(onClick = onAddFile) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Add File")
+        }
     }
 }
 
@@ -293,25 +310,49 @@ private fun LectureFileCard(
     onDelete: () -> Unit,
     onStudyWithAi: () -> Unit = {},
 ) {
+    val haptic = LocalHapticFeedback.current
     val dateFormat = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
-    val icon = when {
-        file.mimeType.startsWith("image/") -> Icons.Default.Image
-        file.mimeType.contains("pdf") -> Icons.Default.PictureAsPdf
-        else -> Icons.Default.InsertDriveFile
-    }
-    val fileTypeDescription = when {
-        file.mimeType.startsWith("image/") -> "Image file"
-        file.mimeType.contains("pdf") -> "PDF file"
-        else -> "Document file"
+    val (icon, badgeColor, containerColor, fileTypeTag) = when {
+        file.mimeType.contains("pdf") -> Quadruple(
+            Icons.Default.PictureAsPdf,
+            MaterialTheme.colorScheme.error,
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
+            "PDF",
+        )
+        file.mimeType.startsWith("image/") -> Quadruple(
+            Icons.Default.Image,
+            MaterialTheme.colorScheme.primary,
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+            "IMG",
+        )
+        else -> Quadruple(
+            Icons.AutoMirrored.Filled.InsertDriveFile,
+            MaterialTheme.colorScheme.tertiary,
+            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f),
+            "DOC",
+        )
     }
 
     ModernCard(onClick = onOpen) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(icon, contentDescription = fileTypeDescription, tint = MaterialTheme.colorScheme.primary)
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(containerColor),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = fileTypeTag,
+                    tint = badgeColor,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -319,33 +360,72 @@ private fun LectureFileCard(
                 Text(
                     file.title,
                     style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    subjectLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    dateFormat.format(Date(file.createdAt)),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Surface(
+                        shape = StudentAiShapes.chip,
+                        color = containerColor,
+                    ) {
+                        Text(
+                            fileTypeTag,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = badgeColor,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                    Text(
+                        subjectLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        "·",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        dateFormat.format(Date(file.createdAt)),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            IconButton(onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onStudyWithAi()
+            }) {
+                Icon(
+                    Icons.Default.AutoAwesome,
+                    contentDescription = "AI Study Tools",
+                    tint = MaterialTheme.colorScheme.primary,
                 )
             }
-            IconButton(onClick = onStudyWithAi) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = "AI Study Tools", tint = MaterialTheme.colorScheme.primary)
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+            IconButton(onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onDelete()
+            }) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Delete",
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                )
             }
         }
     }
 }
+
+private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -395,7 +475,7 @@ fun StudyMaterialsPillNav(
 ) {
     PillTabBar(
         tabs = listOf(
-            PillTabSpec(label = "Notes", icon = Icons.Default.Note, selectedIcon = Icons.Default.Note),
+            PillTabSpec(label = "Notes", icon = Icons.AutoMirrored.Filled.Note, selectedIcon = Icons.AutoMirrored.Filled.Note),
             PillTabSpec(label = "Files", icon = Icons.Default.Folder, selectedIcon = Icons.Default.Folder),
             PillTabSpec(label = "Tasks", icon = Icons.Default.TaskAlt, selectedIcon = Icons.Default.TaskAlt),
         ),

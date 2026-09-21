@@ -3788,6 +3788,23 @@ class OnboardingViewModel @Inject constructor(
     }
 }
 
+data class CalendarMonthState(
+    val year: Int,
+    val month: Int, // 0 = Jan .. 11 = Dec
+    val title: String,
+    val startMillis: Long,
+    val endMillis: Long,
+    val daysInMonth: Int,
+    val firstDayOfWeek: Int, // 1 = Sunday .. 7 = Saturday
+)
+
+enum class CalendarTab(val label: String) {
+    AGENDA("Agenda"),
+    UPCOMING_HOLIDAYS("Holidays"),
+    LONG_WEEKENDS("Long Weekends")
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class CalendarViewModel @Inject constructor(
     private val calendarRepo: CalendarRepository,
@@ -3797,18 +3814,43 @@ class CalendarViewModel @Inject constructor(
     private val saveCalendarEvent: SaveCalendarEventUseCase,
     private val holidayRepo: com.edukasyon.studentai.data.repository.HolidayRepository
 ) : ViewModel() {
-    private val monthStart: Long
-    private val monthEnd: Long
-    private val visibleYear: Int
+
+    private val _visibleMonth = MutableStateFlow(
+        computeMonthState(
+            java.util.Calendar.getInstance().get(java.util.Calendar.YEAR),
+            java.util.Calendar.getInstance().get(java.util.Calendar.MONTH)
+        )
+    )
+    val visibleMonth: StateFlow<CalendarMonthState> = _visibleMonth.asStateFlow()
+
+    private val _selectedDateMillis = MutableStateFlow<Long?>(null)
+    val selectedDateMillis: StateFlow<Long?> = _selectedDateMillis.asStateFlow()
+
+    private val _activeTab = MutableStateFlow(CalendarTab.AGENDA)
+    val activeTab: StateFlow<CalendarTab> = _activeTab.asStateFlow()
+
+    val events: StateFlow<List<CalendarEvent>> = _visibleMonth
+        .flatMapLatest { mState ->
+            calendarRepo.observeEvents(mState.startMillis, mState.endMillis)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _holidays = MutableStateFlow<List<com.edukasyon.studentai.domain.model.Holiday>>(emptyList())
+    val holidays: StateFlow<List<com.edukasyon.studentai.domain.model.Holiday>> = _holidays.asStateFlow()
+
+    private val _upcomingHolidays = MutableStateFlow<List<com.edukasyon.studentai.domain.model.Holiday>>(emptyList())
+    val upcomingHolidays: StateFlow<List<com.edukasyon.studentai.domain.model.Holiday>> = _upcomingHolidays.asStateFlow()
+
+    private val _longWeekends = MutableStateFlow<List<com.edukasyon.studentai.domain.model.LongWeekend>>(emptyList())
+    val longWeekends: StateFlow<List<com.edukasyon.studentai.domain.model.LongWeekend>> = _longWeekends.asStateFlow()
+
+    private val _holidaysLoading = MutableStateFlow(false)
+    val holidaysLoading: StateFlow<Boolean> = _holidaysLoading.asStateFlow()
+
+    private val _isLiveApiOnline = MutableStateFlow(holidayRepo.isOnline())
+    val isLiveApiOnline: StateFlow<Boolean> = _isLiveApiOnline.asStateFlow()
 
     init {
-        val cal = java.util.Calendar.getInstance()
-        visibleYear = cal.get(java.util.Calendar.YEAR)
-        cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-        monthStart = cal.timeInMillis
-        cal.add(java.util.Calendar.MONTH, 1)
-        monthEnd = cal.timeInMillis
         viewModelScope.launch {
             combine(taskRepo.observeTasks(), examRepo.observeExams(), assignmentRepo.observeAssignments()) { tasks, exams, assignments ->
                 tasks.filter { it.dueDate != null }.forEach { task ->
@@ -3828,39 +3870,133 @@ class CalendarViewModel @Inject constructor(
                 }
             }.collect { }
         }
+
+        refreshHolidays()
     }
 
-    val events: StateFlow<List<CalendarEvent>> = calendarRepo.observeEvents(monthStart, monthEnd)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    fun nextMonth() {
+        val current = _visibleMonth.value
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.YEAR, current.year)
+            set(java.util.Calendar.MONTH, current.month)
+            set(java.util.Calendar.DAY_OF_MONTH, 1)
+            add(java.util.Calendar.MONTH, 1)
+        }
+        _visibleMonth.value = computeMonthState(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH))
+        _selectedDateMillis.value = null
+        refreshHolidays()
+    }
 
-    private val _holidays = MutableStateFlow<List<com.edukasyon.studentai.domain.model.Holiday>>(emptyList())
-    val holidays: StateFlow<List<com.edukasyon.studentai.domain.model.Holiday>> = _holidays.asStateFlow()
+    fun previousMonth() {
+        val current = _visibleMonth.value
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.YEAR, current.year)
+            set(java.util.Calendar.MONTH, current.month)
+            set(java.util.Calendar.DAY_OF_MONTH, 1)
+            add(java.util.Calendar.MONTH, -1)
+        }
+        _visibleMonth.value = computeMonthState(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH))
+        _selectedDateMillis.value = null
+        refreshHolidays()
+    }
 
-    private val _holidaysLoading = MutableStateFlow(false)
-    val holidaysLoading: StateFlow<Boolean> = _holidaysLoading.asStateFlow()
+    fun goToToday() {
+        val today = java.util.Calendar.getInstance()
+        _visibleMonth.value = computeMonthState(today.get(java.util.Calendar.YEAR), today.get(java.util.Calendar.MONTH))
+        val todayStart = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        _selectedDateMillis.value = todayStart
+        refreshHolidays()
+    }
+
+    fun selectDate(millis: Long?) {
+        _selectedDateMillis.value = if (_selectedDateMillis.value == millis) null else millis
+    }
+
+    fun setActiveTab(tab: CalendarTab) {
+        _activeTab.value = tab
+    }
 
     fun refreshHolidays() {
         viewModelScope.launch {
+            _isLiveApiOnline.value = holidayRepo.isOnline()
             loadHolidaysForVisibleMonth()
+            loadUpcomingAndLongWeekends()
         }
     }
 
     private suspend fun loadHolidaysForVisibleMonth() {
+        val mState = _visibleMonth.value
         val hasCache = holidayRepo.hasCachedData()
         if (!hasCache) {
             _holidaysLoading.value = true
         }
 
-        _holidays.value = holidayRepo.getHolidays(monthStart, monthEnd)
+        _holidays.value = holidayRepo.getHolidays(mState.startMillis, mState.endMillis)
         if (_holidays.value.isNotEmpty()) {
             _holidaysLoading.value = false
         }
 
-        val refreshed = holidayRepo.refreshYearIfStale(visibleYear, force = !hasCache)
+        val refreshed = holidayRepo.refreshYearIfStale(mState.year, force = !hasCache)
         if (refreshed || !hasCache) {
-            _holidays.value = holidayRepo.getHolidays(monthStart, monthEnd)
+            _holidays.value = holidayRepo.getHolidays(mState.startMillis, mState.endMillis)
         }
         _holidaysLoading.value = false
+    }
+
+    private suspend fun loadUpcomingAndLongWeekends() {
+        val mState = _visibleMonth.value
+        try {
+            val upcoming = holidayRepo.getUpcomingHolidays()
+            if (upcoming.isNotEmpty()) {
+                _upcomingHolidays.value = upcoming
+            }
+        } catch (_: Exception) {}
+
+        try {
+            val weekends = holidayRepo.getLongWeekends(mState.year)
+            _longWeekends.value = weekends
+        } catch (_: Exception) {}
+    }
+
+    companion object {
+        fun computeMonthState(year: Int, month: Int): CalendarMonthState {
+            val cal = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.YEAR, year)
+                set(java.util.Calendar.MONTH, month)
+                set(java.util.Calendar.DAY_OF_MONTH, 1)
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+            val startMillis = cal.timeInMillis
+            val daysInMonth = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+            val firstDayOfWeek = cal.get(java.util.Calendar.DAY_OF_WEEK) // 1 = Sunday
+
+            val endCal = cal.clone() as java.util.Calendar
+            endCal.add(java.util.Calendar.MONTH, 1)
+            val endMillis = endCal.timeInMillis
+
+            val monthNames = arrayOf(
+                "January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"
+            )
+            val title = "${monthNames[month.coerceIn(0, 11)]} $year"
+            return CalendarMonthState(
+                year = year,
+                month = month,
+                title = title,
+                startMillis = startMillis,
+                endMillis = endMillis,
+                daysInMonth = daysInMonth,
+                firstDayOfWeek = firstDayOfWeek
+            )
+        }
     }
 }
 

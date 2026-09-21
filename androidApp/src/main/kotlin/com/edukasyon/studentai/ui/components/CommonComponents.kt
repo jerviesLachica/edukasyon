@@ -13,14 +13,16 @@ fun EmptyState(
     message: String,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    illustration: (@Composable () -> Unit)? = null,
 ) {
     ModernEmptyState(
         title = title,
         message = message,
         actionLabel = actionLabel,
         onAction = onAction,
-        modifier = modifier
+        modifier = modifier,
+        illustration = illustration,
     )
 }
 

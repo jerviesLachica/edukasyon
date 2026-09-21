@@ -9,6 +9,7 @@ import com.edukasyon.studentai.data.local.dao.CachedHolidayDao
 import com.edukasyon.studentai.data.local.entity.CachedHolidayEntity
 import com.edukasyon.studentai.domain.model.Holiday
 import com.edukasyon.studentai.domain.model.HolidayType
+import com.edukasyon.studentai.domain.model.LongWeekend
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -54,6 +55,54 @@ class HolidayRepository @Inject constructor(
         loadBundled()
     }
 
+    suspend fun getUpcomingHolidays(countryCode: String = "PH"): List<Holiday> = withContext(Dispatchers.IO) {
+        if (connectivity.isCurrentlyOnline()) {
+            try {
+                val dtoList = holidayApi.getNextPublicHolidays(countryCode)
+                val now = System.currentTimeMillis()
+                val fetchedAt = now
+                val mapped = dtoList.mapNotNull { dto ->
+                    val time = runCatching { dateFormat.parse(dto.date)?.time }.getOrNull() ?: return@mapNotNull null
+                    Holiday(
+                        name = dto.name,
+                        localName = dto.localName.takeIf { it.isNotBlank() },
+                        dateMillis = time,
+                        type = mapNagerType(dto.types)
+                    )
+                }
+                if (mapped.isNotEmpty()) return@withContext mapped
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to fetch dynamic upcoming holidays from API, falling back", e)
+            }
+        }
+        val now = System.currentTimeMillis()
+        val oneYearAhead = now + (365L * 24 * 60 * 60 * 1000)
+        getHolidays(now, oneYearAhead)
+    }
+
+    suspend fun getLongWeekends(year: Int, countryCode: String = "PH"): List<LongWeekend> = withContext(Dispatchers.IO) {
+        if (!connectivity.isCurrentlyOnline()) return@withContext emptyList()
+        try {
+            val dtoList = holidayApi.getLongWeekends(year, countryCode)
+            dtoList.mapNotNull { dto ->
+                val start = runCatching { dateFormat.parse(dto.startDate)?.time }.getOrNull() ?: return@mapNotNull null
+                val end = runCatching { dateFormat.parse(dto.endDate)?.time }.getOrNull() ?: return@mapNotNull null
+                LongWeekend(
+                    startDateMillis = start,
+                    endDateMillis = end,
+                    dayCount = dto.dayCount,
+                    needBridgeDay = dto.needBridgeDay,
+                    bridgeDays = dto.bridgeDays
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to fetch long weekends for year $year", e)
+            emptyList()
+        }
+    }
+
+    fun isOnline(): Boolean = connectivity.isCurrentlyOnline()
+
     suspend fun hasCachedData(): Boolean = withContext(Dispatchers.IO) {
         cachedHolidayDao.getLatestFetchedAtForYear(Calendar.getInstance().get(Calendar.YEAR)) != null
     }
@@ -75,8 +124,8 @@ class HolidayRepository @Inject constructor(
         syncYear(year)
     }
 
-    private suspend fun syncYear(year: Int): Boolean {
-        return try {
+    suspend fun syncYear(year: Int): Boolean = withContext(Dispatchers.IO) {
+        return@withContext try {
             val response = holidayApi.getPublicHolidays(year)
             val fetchedAt = System.currentTimeMillis()
             val entities = response.map { it.toEntity(year, fetchedAt) }

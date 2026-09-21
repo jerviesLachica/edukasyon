@@ -1,6 +1,7 @@
 package com.edukasyon.studentai.ui
 
 import android.util.Log
+import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,6 +25,13 @@ import com.edukasyon.studentai.ui.navigation.navigateToTab
 import com.edukasyon.studentai.ui.navigation.routeToSelectedTab
 import com.edukasyon.studentai.core.update.UpdateManager
 import com.edukasyon.studentai.core.update.UpdateResult
+import com.edukasyon.studentai.core.update.UpdateUiState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.edukasyon.studentai.ui.components.UpdateDialog
 import com.edukasyon.studentai.ui.screens.*
 import com.edukasyon.studentai.ui.share.RedeemShareScreen
@@ -61,13 +69,12 @@ fun StudentAiAppContent(
             when (val result = updateManager.checkForUpdate()) {
                 is UpdateResult.Available -> {
                     if (autoTriggerUpdate) {
-                        // User tapped the push notification's "Install update" action —
-                        // skip straight to downloading; progress shows in the dialog.
+                        // User tapped the push notification's "Install update" action
                         onAutoTriggerConsumed()
                         updateManager.startDownload(result.info)
                     } else {
-                        // Regular app open — show the in-app update prompt.
-                        updateManager.showAvailable(result.info)
+                        // Shopee-style: silent background download without blocking prompts
+                        updateManager.startAutoDownload(result.info)
                     }
                 }
                 else -> updateManager.reset()
@@ -79,6 +86,10 @@ fun StudentAiAppContent(
     }
 
     val updateState by updateManager.uiState.collectAsStateWithLifecycle()
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        updateManager.onResume()
+    }
 
     StudentAiTheme(
         themeMode = themeMode,
@@ -144,11 +155,55 @@ fun StudentAiAppContent(
         }
     }
 
+    AnimatedVisibility(
+        visible = updateState is UpdateUiState.Downloading && (updateState as UpdateUiState.Downloading).isBackground,
+        enter = fadeIn() + slideInVertically { -it },
+        exit = fadeOut() + slideOutVertically { -it },
+    ) {
+        val downloadState = updateState as? UpdateUiState.Downloading ?: return@AnimatedVisibility
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(top = 12.dp, start = 16.dp, end = 16.dp),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            Surface(
+                onClick = { updateManager.startPendingDownload() },
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp,
+                modifier = Modifier.wrapContentSize(),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    CircularProgressIndicator(
+                        progress = { downloadState.progress.coerceIn(0f, 1f) },
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = "Updating SchedMate in background… ${(downloadState.progress * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+
     UpdateDialog(
         state = updateState,
         onDismissRequest = updateManager::reset,
         onUpdateNow = updateManager::installApk,
         onStartDownload = updateManager::startPendingDownload,
+        onRequestPermission = updateManager::openInstallPermissionSettings,
     )
 }
 

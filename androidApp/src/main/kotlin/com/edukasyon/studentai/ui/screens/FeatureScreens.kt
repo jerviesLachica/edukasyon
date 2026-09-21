@@ -13,6 +13,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -426,13 +428,18 @@ private fun FlashcardFace(
             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
         ),
     )
+    val scrollState = rememberScrollState()
+    val hasMarkdown = remember(text) {
+        text.contains("**") || text.contains("*") || text.contains("`") ||
+            text.contains("~~") || text.contains("> ") || text.contains("# ")
+    }
 
     Box(
         modifier = modifier
             .graphicsLayer { this.alpha = if (visible) 1f else 0f }
             .clip(RoundedCornerShape(20.dp))
             .background(gradient)
-            .padding(28.dp),
+            .padding(20.dp),
         contentAlignment = Alignment.Center,
     ) {
         ElevatedCard(
@@ -446,6 +453,7 @@ private fun FlashcardFace(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(scrollState)
                     .padding(horizontal = 24.dp, vertical = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
@@ -459,10 +467,11 @@ private fun FlashcardFace(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                     )
                 }
                 if (!topic.isNullOrBlank()) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         text = topic,
                         style = MaterialTheme.typography.labelMedium,
@@ -470,13 +479,26 @@ private fun FlashcardFace(
                         textAlign = TextAlign.Center,
                     )
                 }
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.headlineSmall,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
+                Spacer(Modifier.height(14.dp))
+                if (hasMarkdown) {
+                    com.edukasyon.studentai.ui.components.MarkdownChatText(
+                        markdown = text,
+                        modifier = Modifier.fillMaxWidth(),
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    )
+                } else {
+                    val textStyle = when {
+                        text.length < 80 -> MaterialTheme.typography.headlineSmall
+                        text.length < 180 -> MaterialTheme.typography.titleMedium
+                        else -> MaterialTheme.typography.bodyLarge
+                    }
+                    Text(
+                        text = text,
+                        style = textStyle,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
         }
     }
@@ -501,13 +523,23 @@ private fun FlashcardRatingBar(
                 onClick = onAgain,
                 modifier = Modifier.weight(1f),
             ) {
-                Text("Again", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    "Again",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                )
             }
             BouncyOutlinedButton(
                 onClick = onHard,
                 modifier = Modifier.weight(1f),
             ) {
-                Text("Hard", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    "Hard",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                )
             }
         }
         Row(

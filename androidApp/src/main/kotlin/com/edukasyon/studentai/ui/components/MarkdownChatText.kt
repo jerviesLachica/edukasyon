@@ -8,7 +8,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -33,6 +36,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -41,6 +45,7 @@ import androidx.compose.ui.unit.dp
 fun MarkdownChatText(
     markdown: String,
     modifier: Modifier = Modifier,
+    contentColor: Color = MaterialTheme.colorScheme.onSurface,
 ) {
     // Rich content path: math, diagrams, graphs → WebView renderer
     if (hasRichContent(markdown)) {
@@ -60,6 +65,9 @@ fun MarkdownChatText(
     val typography = MaterialTheme.typography
     val blocks = remember(markdown) { parseMarkdownBlocks(markdown) }
 
+    val linkColor = if (contentColor == colors.onPrimary) contentColor else colors.primary
+    val codeBg = if (contentColor == colors.onPrimary) Color.White.copy(alpha = 0.2f) else colors.surface.copy(alpha = 0.65f)
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -70,18 +78,18 @@ fun MarkdownChatText(
                     val headingStyle = when (block.level) {
                         1 -> typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                         2 -> typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                        3 -> typography.titleSmall.copy(fontWeight = FontWeight.SemiBold, color = colors.primary)
+                        3 -> typography.titleSmall.copy(fontWeight = FontWeight.SemiBold, color = if (contentColor == colors.onPrimary) contentColor else colors.primary)
                         else -> typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
                     }
                     SelectionContainer {
                         Text(
                             text = buildInlineMarkdown(
                                 text = block.text,
-                                linkColor = colors.primary,
-                                codeBackground = colors.surface.copy(alpha = 0.65f),
+                                linkColor = linkColor,
+                                codeBackground = codeBg,
                             ),
                             style = headingStyle,
-                            color = if (block.level == 3) colors.primary else colors.onSurface,
+                            color = if (block.level == 3 && contentColor != colors.onPrimary) colors.primary else contentColor,
                             modifier = Modifier.padding(top = if (block.level <= 2) 8.dp else 4.dp, bottom = 2.dp),
                         )
                     }
@@ -90,7 +98,7 @@ fun MarkdownChatText(
                 is MarkdownBlock.Divider -> {
                     androidx.compose.material3.HorizontalDivider(
                         modifier = Modifier.padding(vertical = 6.dp),
-                        color = colors.outlineVariant.copy(alpha = 0.4f),
+                        color = if (contentColor == colors.onPrimary) contentColor.copy(alpha = 0.35f) else colors.outlineVariant.copy(alpha = 0.4f),
                         thickness = 1.dp,
                     )
                 }
@@ -100,11 +108,11 @@ fun MarkdownChatText(
                         Text(
                             text = buildInlineMarkdown(
                                 text = block.text,
-                                linkColor = colors.primary,
-                                codeBackground = colors.surface.copy(alpha = 0.65f),
+                                linkColor = linkColor,
+                                codeBackground = codeBg,
                             ),
                             style = typography.bodyMedium,
-                            color = colors.onSurface,
+                            color = contentColor,
                         )
                     }
                 }
@@ -112,13 +120,13 @@ fun MarkdownChatText(
                 is MarkdownBlock.Code -> {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = colors.surface.copy(alpha = 0.85f),
+                        color = if (contentColor == colors.onPrimary) Color.White.copy(alpha = 0.18f) else colors.surface.copy(alpha = 0.85f),
                     ) {
                         SelectionContainer {
                             Text(
                                 text = block.content,
                                 style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                                color = colors.onSurface,
+                                color = contentColor,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                             )
                         }
@@ -132,18 +140,18 @@ fun MarkdownChatText(
                                 Text(
                                     text = "•",
                                     style = typography.bodyMedium,
-                                    color = colors.onSurface,
+                                    color = contentColor,
                                     modifier = Modifier.padding(end = 8.dp),
                                 )
                                 SelectionContainer(modifier = Modifier.weight(1f, fill = false)) {
                                     Text(
                                         text = buildInlineMarkdown(
                                             text = item,
-                                            linkColor = colors.primary,
-                                            codeBackground = colors.surface.copy(alpha = 0.65f),
+                                            linkColor = linkColor,
+                                            codeBackground = codeBg,
                                         ),
                                         style = typography.bodyMedium,
-                                        color = colors.onSurface,
+                                        color = contentColor,
                                     )
                                 }
                             }
@@ -158,18 +166,18 @@ fun MarkdownChatText(
                                 Text(
                                     text = "${index + 1}.",
                                     style = typography.bodyMedium,
-                                    color = colors.onSurface,
+                                    color = contentColor,
                                     modifier = Modifier.padding(end = 8.dp),
                                 )
                                 SelectionContainer(modifier = Modifier.weight(1f, fill = false)) {
                                     Text(
                                         text = buildInlineMarkdown(
                                             text = item,
-                                            linkColor = colors.primary,
-                                            codeBackground = colors.surface.copy(alpha = 0.65f),
+                                            linkColor = linkColor,
+                                            codeBackground = codeBg,
                                         ),
                                         style = typography.bodyMedium,
-                                        color = colors.onSurface,
+                                        color = contentColor,
                                     )
                                 }
                             }
@@ -184,6 +192,38 @@ fun MarkdownChatText(
                         typography = typography,
                     )
                 }
+
+                is MarkdownBlock.Blockquote -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Min)
+                            .padding(vertical = 2.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(3.dp)
+                                .fillMaxHeight()
+                                .background(
+                                    if (contentColor == colors.onPrimary) contentColor.copy(alpha = 0.5f)
+                                    else colors.primary,
+                                    shape = RoundedCornerShape(2.dp),
+                                )
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        SelectionContainer {
+                            Text(
+                                text = buildInlineMarkdown(
+                                    text = block.text,
+                                    linkColor = linkColor,
+                                    codeBackground = codeBg,
+                                ),
+                                style = typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                                color = if (contentColor == colors.onPrimary) contentColor.copy(alpha = 0.9f) else colors.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -197,6 +237,7 @@ internal sealed class MarkdownBlock {
     data class BulletList(val items: List<String>) : MarkdownBlock()
     data class OrderedList(val items: List<String>) : MarkdownBlock()
     data class Table(val headers: List<String>, val rows: List<List<String>>) : MarkdownBlock()
+    data class Blockquote(val text: String) : MarkdownBlock()
 }
 
 internal fun parseMarkdownBlocks(markdown: String): List<MarkdownBlock> {
@@ -245,6 +286,11 @@ internal fun parseMarkdownBlocks(markdown: String): List<MarkdownBlock> {
             continue
         }
 
+        if (trimmed.startsWith(">")) {
+            index = parseBlockquote(lines, index, blocks)
+            continue
+        }
+
         if (line.isBlank()) {
             index++
             continue
@@ -254,6 +300,26 @@ internal fun parseMarkdownBlocks(markdown: String): List<MarkdownBlock> {
     }
 
     return blocks
+}
+
+private fun parseBlockquote(
+    lines: List<String>,
+    startIndex: Int,
+    blocks: MutableList<MarkdownBlock>,
+): Int {
+    val quoteLines = mutableListOf<String>()
+    var index = startIndex
+    while (index < lines.size) {
+        val trimmed = lines[index].trim()
+        if (trimmed.startsWith(">")) {
+            quoteLines.add(trimmed.removePrefix(">").trim())
+            index++
+        } else {
+            break
+        }
+    }
+    blocks += MarkdownBlock.Blockquote(quoteLines.joinToString(" "))
+    return index
 }
 
 private fun parseCodeFence(
@@ -319,6 +385,7 @@ private fun parseParagraph(
         if (line.isBlank()) break
         if (
             line.trimStart().startsWith("```") ||
+            trimmed.startsWith(">") ||
             HEADING_REGEX.find(trimmed)?.range?.first == 0 ||
             DIVIDER_REGEX.matches(trimmed) ||
             BULLET_LIST_REGEX.matches(line) ||
@@ -548,9 +615,10 @@ private fun AnnotatedString.Builder.appendInlineMarkdown(
         val citationMatch = CITATION_REGEX.find(text, cursor)
         val boldMatch = BOLD_REGEX.find(text, cursor)
         val italicMatch = ITALIC_REGEX.find(text, cursor)
+        val strikethroughMatch = STRIKETHROUGH_REGEX.find(text, cursor)
         val codeMatch = INLINE_CODE_REGEX.find(text, cursor)
 
-        val next = listOfNotNull(linkMatch, citationMatch, boldMatch, italicMatch, codeMatch)
+        val next = listOfNotNull(linkMatch, citationMatch, boldMatch, italicMatch, strikethroughMatch, codeMatch)
             .minByOrNull { it.range.first }
 
         if (next == null) {
@@ -603,6 +671,13 @@ private fun AnnotatedString.Builder.appendInlineMarkdown(
                 }
             }
 
+            strikethroughMatch != null && next.range == strikethroughMatch.range -> {
+                val content = strikethroughMatch.groupValues[1]
+                withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) {
+                    append(content)
+                }
+            }
+
             codeMatch != null && next.range == codeMatch.range -> {
                 withStyle(
                     SpanStyle(
@@ -623,4 +698,5 @@ private val LINK_REGEX = Regex("""\[([^\]]+)\]\(([^)]+)\)""")
 private val CITATION_REGEX = Regex("""\[(\d+(?:\s*,\s*\d+)*)\](?!\()""")
 private val BOLD_REGEX = Regex("""\*\*(.+?)\*\*|__(.+?)__""")
 private val ITALIC_REGEX = Regex("""(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)|(?<!_)_(?!_)(.+?)(?<!_)_(?!_)""")
+private val STRIKETHROUGH_REGEX = Regex("""~~(.+?)~~""")
 private val INLINE_CODE_REGEX = Regex("""`([^`]+)`""")

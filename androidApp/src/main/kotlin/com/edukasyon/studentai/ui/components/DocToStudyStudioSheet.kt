@@ -900,7 +900,7 @@ private fun GeneratedQuizPreview(
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         q.options.forEach { opt ->
-                            val isCorrect = opt.trim().equals(q.correctAnswer.trim(), ignoreCase = true)
+                            val isCorrect = q.isAnswerCorrect(opt)
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
                                 color = if (isCorrect) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,

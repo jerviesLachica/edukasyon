@@ -19,11 +19,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Assignment
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Grade
 import androidx.compose.material3.Icon
@@ -96,7 +96,7 @@ fun AcademicOverviewCard(
                     AcademicOverviewStatTile(
                         label = "Subjects",
                         value = overview.subjectsCount,
-                        icon = Icons.Default.MenuBook,
+                        icon = Icons.AutoMirrored.Filled.MenuBook,
                         staggerIndex = 0,
                         modifier = Modifier.weight(1f),
                     )
@@ -117,7 +117,7 @@ fun AcademicOverviewCard(
                     AcademicOverviewStatTile(
                         label = "Tasks",
                         value = overview.tasksCount,
-                        icon = Icons.Default.Assignment,
+                        icon = Icons.AutoMirrored.Filled.Assignment,
                         staggerIndex = 2,
                         modifier = Modifier.weight(1f),
                     )
@@ -145,7 +145,7 @@ fun AcademicOverviewCard(
                             AcademicOverviewInsightChip(
                                 label = "Strongest",
                                 subject = subject,
-                                icon = Icons.Default.TrendingUp,
+                                icon = Icons.AutoMirrored.Filled.TrendingUp,
                                 containerAlpha = 0.22f,
                                 contentColor = MaterialTheme.colorScheme.tertiary,
                             )
@@ -154,7 +154,7 @@ fun AcademicOverviewCard(
                             AcademicOverviewInsightChip(
                                 label = "Needs attention",
                                 subject = subject,
-                                icon = Icons.Default.TrendingDown,
+                                icon = Icons.AutoMirrored.Filled.TrendingDown,
                                 containerAlpha = 0.18f,
                                 contentColor = MaterialTheme.colorScheme.secondary,
                             )

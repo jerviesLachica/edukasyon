@@ -448,10 +448,16 @@ private fun JeviFlashcardsTab(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                        SchedMateMascot(
+                            mood = MascotMood.Learning,
+                            size = 72.dp,
+                            showSpeechBubble = false,
+                            interactive = true,
+                        )
                         Text("No Decks Yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Import a document, scan notes, or create your first flashcard deck with AI.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Button(onClick = onOpenCreate) {
+                        Text("Import a document, scan notes, or create your first flashcard deck with AI.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        Spacer(Modifier.height(4.dp))
+                        BouncyButton(onClick = onOpenCreate) {
                             Text("Create Flashcards")
                         }
                     }
@@ -561,10 +567,16 @@ private fun JeviQuizArenaTab(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Icon(Icons.Outlined.Quiz, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                        SchedMateMascot(
+                            mood = MascotMood.Motivated,
+                            size = 72.dp,
+                            showSpeechBubble = false,
+                            interactive = true,
+                        )
                         Text("No Quizzes Yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Generate your first quiz from any lecture or flashcard deck to test your knowledge.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Button(onClick = onOpenQuiz) {
+                        Text("Generate your first quiz from any lecture or flashcard deck to test your knowledge.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        Spacer(Modifier.height(4.dp))
+                        BouncyButton(onClick = onOpenQuiz) {
                             Text("Launch Quiz Arena")
                         }
                     }
@@ -796,7 +808,16 @@ fun JeviDecksScreen(
                 Box(contentModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     EmptyState(
                         title = "No decks yet",
-                        message = "Create a deck or generate flashcards with JEVI AI.",
+                        message = "Create your first flashcard deck or generate cards with JEVI AI.",
+                        actionLabel = "Create Deck",
+                        onAction = { showCreateDialog = true },
+                        illustration = {
+                            SchedMateMascot(
+                                mood = MascotMood.Learning,
+                                size = 115.dp,
+                                interactive = true,
+                            )
+                        },
                     )
                 }
             } else {

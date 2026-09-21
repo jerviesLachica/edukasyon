@@ -23,6 +23,7 @@ class ReminderSyncService @Inject constructor(
     private val assignmentRepo: AssignmentRepository,
     private val examRepo: ExamRepository,
     private val reminderScheduler: ReminderScheduler,
+    private val reminderDismissManager: ReminderDismissManager,
     private val preferences: com.edukasyon.studentai.data.preferences.UserPreferences
 ) {
     private val reminderLeadMs = 15 * 60 * 1000L
@@ -31,11 +32,11 @@ class ReminderSyncService @Inject constructor(
         scheduleRepo.observeSchedule().first().forEach { scheduleClassReminder(it) }
         taskRepo.observeTasks().first()
             .filter { it.status != TaskStatus.COMPLETED && it.dueDate != null }
-            .forEach { scheduleTaskReminder(it) }
+            .forEach { scheduleTaskReminder(it, resetDismissal = false) }
         assignmentRepo.observeAssignments().first()
             .filter { it.status != TaskStatus.COMPLETED && it.dueDate != null }
-            .forEach { scheduleAssignmentReminder(it) }
-        examRepo.observeExams().first().forEach { scheduleExamReminder(it) }
+            .forEach { scheduleAssignmentReminder(it, resetDismissal = false) }
+        examRepo.observeExams().first().forEach { scheduleExamReminder(it, resetDismissal = false) }
     }
 
     suspend fun scheduleClassReminder(item: ScheduleItem) {
@@ -65,7 +66,10 @@ class ReminderSyncService @Inject constructor(
         }
     }
 
-    fun scheduleTaskReminder(task: Task) {
+    fun scheduleTaskReminder(task: Task, resetDismissal: Boolean = false) {
+        if (resetDismissal) {
+            reminderDismissManager.resetReminder(ReminderType.TASK, task.id)
+        }
         if (task.status == TaskStatus.COMPLETED) {
             cancelTaskReminder(task.id)
             return
@@ -84,7 +88,10 @@ class ReminderSyncService @Inject constructor(
         )
     }
 
-    fun scheduleAssignmentReminder(assignment: Assignment) {
+    fun scheduleAssignmentReminder(assignment: Assignment, resetDismissal: Boolean = false) {
+        if (resetDismissal) {
+            reminderDismissManager.resetReminder(ReminderType.ASSIGNMENT, assignment.id)
+        }
         if (assignment.status == TaskStatus.COMPLETED) {
             cancelAssignmentReminder(assignment.id)
             return
@@ -103,29 +110,45 @@ class ReminderSyncService @Inject constructor(
         )
     }
 
-    fun scheduleExamReminder(exam: Exam) {
-        val trigger = (exam.reminderAt ?: DateUtils.defaultReminderAt(exam.examDate))
-            .coerceAtLeast(System.currentTimeMillis() + 1000)
+    fun scheduleExamReminder(exam: Exam, resetDismissal: Boolean = false) {
+        if (resetDismissal) {
+            reminderDismissManager.resetReminder(ReminderType.EXAM, exam.id)
+        }
+        val now = System.currentTimeMillis()
+        if (exam.examDate <= now) {
+            cancelExamReminder(exam.id)
+            return
+        }
+        if (reminderDismissManager.isDismissedOrFired(ReminderType.EXAM, exam.id)) {
+            return
+        }
+        val targetTrigger = exam.reminderAt ?: DateUtils.defaultReminderAt(exam.examDate)
+        if (targetTrigger <= now) {
+            return
+        }
         reminderScheduler.scheduleReminder(
             uniqueWorkName = workName(ReminderType.EXAM, exam.id),
             type = ReminderType.EXAM,
             title = "Upcoming exam",
             message = "${exam.title} is coming up",
-            triggerAtMillis = trigger,
+            triggerAtMillis = targetTrigger,
             referenceId = exam.id
         )
     }
 
     fun cancelTaskReminder(taskId: String) {
         reminderScheduler.cancelReminder(workName(ReminderType.TASK, taskId))
+        reminderDismissManager.resetReminder(ReminderType.TASK, taskId)
     }
 
     fun cancelAssignmentReminder(assignmentId: String) {
         reminderScheduler.cancelReminder(workName(ReminderType.ASSIGNMENT, assignmentId))
+        reminderDismissManager.resetReminder(ReminderType.ASSIGNMENT, assignmentId)
     }
 
     fun cancelExamReminder(examId: String) {
         reminderScheduler.cancelReminder(workName(ReminderType.EXAM, examId))
+        reminderDismissManager.resetReminder(ReminderType.EXAM, examId)
     }
 
     private fun scheduleDueReminder(
@@ -138,16 +161,27 @@ class ReminderSyncService @Inject constructor(
     ) {
         if (reminderAt == 0L) {
             reminderScheduler.cancelReminder(workName(type, id))
+            reminderDismissManager.resetReminder(type, id)
             return
         }
-        val trigger = (reminderAt ?: DateUtils.defaultReminderAt(dueMillis))
-            .coerceAtLeast(System.currentTimeMillis() + 1000)
+        val now = System.currentTimeMillis()
+        if (dueMillis <= now) {
+            reminderScheduler.cancelReminder(workName(type, id))
+            return
+        }
+        if (reminderDismissManager.isDismissedOrFired(type, id)) {
+            return
+        }
+        val targetTrigger = reminderAt ?: DateUtils.defaultReminderAt(dueMillis)
+        if (targetTrigger <= now) {
+            return
+        }
         reminderScheduler.scheduleReminder(
             uniqueWorkName = workName(type, id),
             type = type,
             title = title,
             message = message,
-            triggerAtMillis = trigger,
+            triggerAtMillis = targetTrigger,
             referenceId = id
         )
     }

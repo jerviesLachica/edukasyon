@@ -17,6 +17,17 @@
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.android.package-archive" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.INSTALL_PACKAGE" />
+            <data android:mimeType="application/vnd.android.package-archive" />
+        </intent>
+    </queries>
+
     <application
         android:name=".StudentAiApplication"
         android:allowBackup="true"
@@ -86,6 +97,11 @@
         <!-- V2 explicit checkbox toggle target (same-process explicit broadcast). -->
         <receiver
             android:name=".widget.update.WidgetToggleReceiver"
+            android:exported="false" />
+
+        <!-- Notification dismissal receiver -->
+        <receiver
+            android:name=".core.notifications.NotificationDismissReceiver"
             android:exported="false" />
 
         <!-- V2 restoration receiver (own entry, same system broadcasts). -->

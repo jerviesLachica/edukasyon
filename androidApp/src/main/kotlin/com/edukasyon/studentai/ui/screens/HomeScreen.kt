@@ -229,6 +229,7 @@ fun HomeScreen(
                     ExamPreviewCard(
                         exam = exam,
                         readiness = state.examReadiness[exam.id],
+                        modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 5.dp),
                     )
                 }
             }
@@ -837,11 +838,13 @@ private fun HomeDueBadge(label: String) {
 private fun ExamPreviewCard(
     exam: Exam,
     readiness: com.edukasyon.studentai.domain.model.ExamReadiness?,
+    modifier: Modifier = Modifier,
 ) {
     ExamReadinessCard(
         exam = exam,
         readiness = readiness,
         compact = true,
+        modifier = modifier,
     )
 }
 

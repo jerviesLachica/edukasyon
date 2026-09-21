@@ -24,7 +24,8 @@ class ReminderWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
     private val notificationHelper: NotificationHelper,
-    private val preferences: UserPreferences
+    private val preferences: UserPreferences,
+    private val reminderDismissManager: ReminderDismissManager
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -42,9 +43,13 @@ class ReminderWorker @AssistedInject constructor(
         }
         if (!enabled) return Result.success()
 
+        val referenceId = inputData.getString(ReminderWorkerKeys.REFERENCE_ID)
+        if (referenceId != null && reminderDismissManager.isDismissed(type, referenceId)) {
+            return Result.success()
+        }
+
         val title = inputData.getString(ReminderWorkerKeys.TITLE) ?: return Result.failure()
         val message = inputData.getString(ReminderWorkerKeys.MESSAGE) ?: return Result.failure()
-        val referenceId = inputData.getString(ReminderWorkerKeys.REFERENCE_ID)
         val notificationId = inputData.getInt(ReminderWorkerKeys.NOTIFICATION_ID, title.hashCode())
 
         // Honor user's sound selection: fall back to preference-stored URI if not in work data
@@ -54,6 +59,9 @@ class ReminderWorker @AssistedInject constructor(
             ?: preferences.alarmSoundName.first()
 
         notificationHelper.showReminder(notificationId, type, title, message, referenceId, alarmSoundUri)
+        if (referenceId != null) {
+            reminderDismissManager.markFired(type, referenceId)
+        }
         return Result.success()
     }
 }

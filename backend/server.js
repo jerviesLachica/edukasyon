@@ -20,6 +20,8 @@
 require('dotenv').config();
 
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const { createGateway } = require('./ai/AiSafetyGateway');
 const { createAiProvider } = require('./ai/AiProvider');
@@ -1582,6 +1584,98 @@ app.get('/health/safety', (_, res) => {
     abuseEventCounts: abuseEvents.countByType(),
     usage: usageTracker.snapshot(),
   });
+});
+
+// ── Admin Command & Monitoring Dashboard ──────────────────────────────────
+const ADMIN_PASSKEY = process.env.ADMIN_KEY || process.env.DASHBOARD_PASSKEY || 'SchedMateAdmin2026!';
+
+// Verify admin passkey
+app.post('/api/admin/auth', (req, res) => {
+  const { passkey } = req.body || {};
+  if (!passkey || passkey !== ADMIN_PASSKEY) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized: Invalid master passkey' });
+  }
+  const expiresAt = Date.now() + 24 * 3600 * 1000;
+  const token = crypto.createHmac('sha256', ADMIN_PASSKEY).update(String(expiresAt)).digest('hex');
+  res.json({ ok: true, token: `${expiresAt}.${token}`, expiresAt });
+});
+
+// Admin metrics API (protected)
+app.get('/api/admin/metrics', (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  const adminKeyHeader = req.headers['x-admin-key'] || '';
+  let authorized = adminKeyHeader === ADMIN_PASSKEY;
+
+  if (!authorized && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    const [expiresStr, hash] = token.split('.');
+    if (expiresStr && hash && Date.now() < parseInt(expiresStr, 10)) {
+      const expected = crypto.createHmac('sha256', ADMIN_PASSKEY).update(expiresStr).digest('hex');
+      if (expected === hash) authorized = true;
+    }
+  }
+
+  if (!authorized) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  }
+
+  let versionInfo = { versionName: '2.1.3', versionCode: 14 };
+  try {
+    versionInfo = require('../version.json');
+  } catch (e) {}
+
+  res.json({
+    ok: true,
+    system: {
+      uptime: process.uptime(),
+      nodeVersion: process.version,
+      memoryUsage: process.memoryUsage(),
+      timestamp: Date.now()
+    },
+    ai: {
+      configured: provider.hasAiKey,
+      baseUrl: provider.AI_BASE_URL,
+      defaultModel: provider.DEFAULT_MODEL,
+      textModel: provider.TEXT_MODEL,
+      visionModel: provider.VISION_MODEL,
+      allowedModels: provider.ALLOWED_MODELS
+    },
+    policy: {
+      maxInputChars: policy.maxInputChars,
+      globalDailyQuota: policy.globalDailyQuota,
+      endpoints: policy.endpoints
+    },
+    usage: usageTracker.snapshot(),
+    abuse: {
+      counts: abuseEvents.countByType(),
+      recent: abuseEvents.events.slice(-20)
+    },
+    version: versionInfo
+  });
+});
+
+// Serve Admin Dashboard Static Frontend
+const adminPublicDir = path.join(__dirname, 'public/admin');
+const adminIndexPath = path.join(adminPublicDir, 'index.html');
+let cachedAdminHtml = '';
+try {
+  cachedAdminHtml = fs.readFileSync(adminIndexPath, 'utf8');
+} catch (_) {}
+
+app.get(['/admin', '/dashboard'], (_, res) => {
+  if (cachedAdminHtml) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(cachedAdminHtml);
+  }
+  res.sendFile(adminIndexPath);
+});
+app.use('/admin', express.static(adminPublicDir));
+app.get('/admin/*', (_, res) => {
+  if (cachedAdminHtml) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(cachedAdminHtml);
+  }
+  res.sendFile(adminIndexPath);
 });
 
 if (require.main === module) {

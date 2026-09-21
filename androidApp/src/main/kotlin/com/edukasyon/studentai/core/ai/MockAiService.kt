@@ -334,8 +334,8 @@ Would you like to build a study schedule or generate flashcards for a specific s
 Here is a structured overview of **$topic**:
 
 #### Core Principles:
-- **Definition**: Understanding the fundamentals and key terminology of $topic$ is the first step toward mastery.
-- **Application**: Focus on how $topic$ applies in practical problem-solving and typical exam questions.
+- **Definition**: Understanding the fundamentals and key terminology of $topic is the first step toward mastery.
+- **Application**: Focus on how $topic applies in practical problem-solving and typical exam questions.
 - **Review Strategy**: Use active recall and spaced review to consolidate your understanding.
 
 #### Topic Breakdown:
@@ -424,47 +424,96 @@ How would you like to continue?
         return "Summary: ${words.joinToString(" ")}${if (text.split("\\s+".toRegex()).size > 30) "..." else ""}"
     }
 
-    override suspend fun generateFlashcards(text: String): List<Flashcard> = listOf(
-        Flashcard(
-            id = UUID.randomUUID().toString(),
-            question = "What is the main topic?",
-            answer = text.take(100),
-            subjectId = null,
-            topic = null,
-            difficulty = "medium",
-            reviewCount = 0,
-            correctCount = 0,
-            incorrectCount = 0,
-            lastReviewedAt = null,
-            nextReviewAt = null,
-        ),
-        Flashcard(
-            id = UUID.randomUUID().toString(),
-            question = "Key concept?",
-            answer = "Review the note content for details.",
-            subjectId = null,
-            topic = null,
-            difficulty = "easy",
-            reviewCount = 0,
-            correctCount = 0,
-            incorrectCount = 0,
-            lastReviewedAt = null,
-            nextReviewAt = null,
-        ),
-    )
+    override suspend fun generateFlashcards(text: String): List<Flashcard> {
+        val lines = text.lines().map { it.trim() }.filter { it.length > 5 }
+        val cards = mutableListOf<Flashcard>()
+        for (line in lines) {
+            val clean = line.removePrefix("- ").removePrefix("• ").removePrefix("* ").trim()
+            if (clean.contains(":") || clean.contains(" - ")) {
+                val parts = if (clean.contains(":")) clean.split(":", limit = 2) else clean.split(" - ", limit = 2)
+                val q = parts[0].trim()
+                val a = parts[1].trim()
+                if (q.length in 3..100 && a.length in 3..300) {
+                    cards.add(
+                        Flashcard(
+                            id = UUID.randomUUID().toString(),
+                            question = if (q.endsWith("?")) q else "What is **$q**?",
+                            answer = a,
+                            subjectId = null,
+                            topic = null,
+                            difficulty = "medium",
+                            reviewCount = 0,
+                            correctCount = 0,
+                            incorrectCount = 0,
+                            lastReviewedAt = null,
+                            nextReviewAt = null,
+                        )
+                    )
+                }
+            }
+            if (cards.size >= 4) break
+        }
+        if (cards.isEmpty()) {
+            val title = lines.firstOrNull()?.take(60) ?: "Key Concept"
+            cards.add(
+                Flashcard(
+                    id = UUID.randomUUID().toString(),
+                    question = "What is the core principle of **$title**?",
+                    answer = text.take(160).ifBlank { "Review your study notes to reinforce key points." },
+                    subjectId = null,
+                    topic = null,
+                    difficulty = "medium",
+                    reviewCount = 0,
+                    correctCount = 0,
+                    incorrectCount = 0,
+                    lastReviewedAt = null,
+                    nextReviewAt = null,
+                )
+            )
+            cards.add(
+                Flashcard(
+                    id = UUID.randomUUID().toString(),
+                    question = "How is this concept applied in problem-solving?",
+                    answer = "Practice worked examples and connect definitions to practical exercises.",
+                    subjectId = null,
+                    topic = null,
+                    difficulty = "easy",
+                    reviewCount = 0,
+                    correctCount = 0,
+                    incorrectCount = 0,
+                    lastReviewedAt = null,
+                    nextReviewAt = null,
+                )
+            )
+        }
+        return cards
+    }
 
     override suspend fun generateQuiz(text: String, count: Int?, difficulty: String?): Quiz {
         val quizId = UUID.randomUUID().toString()
+        val firstLine = text.lines().firstOrNull { it.isNotBlank() }?.take(50)?.trim() ?: "Study Topic"
         return Quiz(
             id = quizId,
-            title = "Generated Quiz",
+            title = "$firstLine Quiz",
             subjectId = null,
             sourceNoteId = null,
             questions = listOf(
-                QuizQuestion(UUID.randomUUID().toString(), quizId, QuestionType.MULTIPLE_CHOICE,
-                    "What is covered in this note?", listOf("Option A", "Option B", "Option C"), "Option A"),
-                QuizQuestion(UUID.randomUUID().toString(), quizId, QuestionType.TRUE_FALSE,
-                    "This note contains important study material.", listOf("True", "False"), "True")
+                QuizQuestion(
+                    UUID.randomUUID().toString(),
+                    quizId,
+                    QuestionType.MULTIPLE_CHOICE,
+                    "Which of the following best describes the main focus of $firstLine?",
+                    listOf("Core concepts and definitions", "Historical background only", "Unrelated trivia", "None of the above"),
+                    "Core concepts and definitions",
+                ),
+                QuizQuestion(
+                    UUID.randomUUID().toString(),
+                    quizId,
+                    QuestionType.TRUE_FALSE,
+                    "Active recall and self-testing improve long-term retention of $firstLine.",
+                    listOf("True", "False"),
+                    "True",
+                ),
             ),
             createdAt = System.currentTimeMillis()
         )

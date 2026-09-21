@@ -27,6 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import android.content.Intent
@@ -180,6 +182,7 @@ fun PlannerScreen(
                         onToggle = viewModel::toggleTask,
                         onDelete = viewModel::deleteTask,
                         onEdit = { editingTask = it },
+                        onAddTask = { showAddDialog = true },
                         viewModel = viewModel,
                     )
                     1 -> AssignmentList(
@@ -189,6 +192,7 @@ fun PlannerScreen(
                         onComplete = viewModel::completeAssignment,
                         onEdit = { editingAssignment = it },
                         onDelete = viewModel::deleteAssignment,
+                        onAddAssignment = { showAddDialog = true },
                     )
                    2 -> ExamList(
                         exams = state.exams,
@@ -200,6 +204,7 @@ fun PlannerScreen(
                         onDuplicate = viewModel::duplicateExam,
                         onToggleExpanded = viewModel::toggleExamExpanded,
                         onLinkStudy = { linkingExam = it },
+                        onAddExam = { showAddExamDialog = true },
                     )
                 }
             }
@@ -397,10 +402,23 @@ private fun TaskList(
     onToggle: (String) -> Unit,
     onDelete: (String) -> Unit,
     onEdit: (Task) -> Unit,
+    onAddTask: () -> Unit,
     viewModel: PlannerViewModel,
 ) {
     if (tasks.isEmpty()) {
-        EmptyState("No tasks", "You're all caught up.")
+        EmptyState(
+            title = "No tasks",
+            message = "You're all caught up. Tap below to create a new task.",
+            actionLabel = "Add Task",
+            onAction = onAddTask,
+            illustration = {
+                SchedMateMascot(
+                    mood = MascotMood.Submitting,
+                    size = 110.dp,
+                    interactive = true,
+                )
+            },
+        )
         return
     }
 
@@ -454,6 +472,13 @@ private fun TaskList(
                     EmptyState(
                         title = "Select a task",
                         message = "Choose a task from the list to view details and subtasks.",
+                        illustration = {
+                            SchedMateMascot(
+                                mood = MascotMood.Planning,
+                                size = 90.dp,
+                                interactive = true,
+                            )
+                        },
                     )
                 }
             }
@@ -481,6 +506,7 @@ private fun TaskCard(
     onEdit: (Task) -> Unit,
     viewModel: PlannerViewModel
 ) {
+    val haptics = LocalHapticFeedback.current
     var newSubtask by remember(task.id) { mutableStateOf("") }
     var showDeleteDialog by remember { mutableStateOf(false) }
     val isCompleted = task.status == TaskStatus.COMPLETED
@@ -495,7 +521,10 @@ private fun TaskCard(
             Column(Modifier.weight(1f)) {
                 AnimatedTaskCheckboxRow(
                     checked = isCompleted,
-                    onCheckedChange = { onToggle(task.id) },
+                    onCheckedChange = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onToggle(task.id)
+                    },
                     label = task.title,
                     textStyle = MaterialTheme.typography.titleMedium
                 )
@@ -542,13 +571,19 @@ private fun TaskCard(
             ) {
                 AnimatedTaskCheckboxRow(
                     checked = sub.isCompleted,
-                    onCheckedChange = { viewModel.toggleSubtask(task.id, sub.id) },
+                    onCheckedChange = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        viewModel.toggleSubtask(task.id, sub.id)
+                    },
                     label = sub.title,
                     textStyle = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f)
                 )
                 BouncyIconButton(
-                    onClick = { viewModel.deleteSubtask(task.id, sub.id) },
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        viewModel.deleteSubtask(task.id, sub.id)
+                    },
                     modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
@@ -585,6 +620,7 @@ private fun TaskCard(
                 keyboardActions = KeyboardActions(
                     onDone = {
                         if (newSubtask.isNotBlank()) {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             viewModel.addSubtask(task.id, newSubtask.trim())
                             newSubtask = ""
                         }
@@ -594,6 +630,7 @@ private fun TaskCard(
             FilledIconButton(
                 onClick = {
                     if (newSubtask.isNotBlank()) {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         viewModel.addSubtask(task.id, newSubtask.trim())
                         newSubtask = ""
                     }
@@ -621,6 +658,7 @@ private fun TaskCard(
             text = { Text("Are you sure you want to delete \"${task.title}\"? This can't be undone.") },
             confirmButton = {
                 TextButton(onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     onDelete(task.id)
                     showDeleteDialog = false
                 }) {
@@ -673,20 +711,37 @@ private fun AssignmentList(
     onComplete: (String) -> Unit,
     onEdit: (Assignment) -> Unit,
     onDelete: (String) -> Unit,
+    onAddAssignment: () -> Unit,
 ) {
     if (assignments.isEmpty()) {
-        EmptyState("No assignments", "Add your first assignment.")
+        EmptyState(
+            title = "No assignments",
+            message = "Stay ahead of deadlines. Add your upcoming assignments.",
+            actionLabel = "Add Assignment",
+            onAction = onAddAssignment,
+            illustration = {
+                SchedMateMascot(
+                    mood = MascotMood.Learning,
+                    size = 110.dp,
+                    interactive = true,
+                )
+            },
+        )
         return
     }
 
     val contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 8.dp)
     val cardContent: @Composable (Assignment) -> Unit = { assignment ->
+        val haptics = LocalHapticFeedback.current
         StudentAiCard {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     AnimatedTaskCheckboxRow(
                         checked = assignment.status == TaskStatus.COMPLETED,
-                        onCheckedChange = { if (it) onComplete(assignment.id) },
+                        onCheckedChange = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            if (it) onComplete(assignment.id)
+                        },
                         label = assignment.title,
                         textStyle = MaterialTheme.typography.titleSmall,
                         enabled = assignment.status != TaskStatus.COMPLETED,
@@ -704,7 +759,10 @@ private fun AssignmentList(
                     BouncyIconButton(onClick = { onEdit(assignment) }) {
                         Icon(Icons.Default.Edit, "Edit")
                     }
-                    BouncyIconButton(onClick = { onDelete(assignment.id) }) {
+                    BouncyIconButton(onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onDelete(assignment.id)
+                    }) {
                         Icon(Icons.Default.Delete, "Delete")
                     }
                 }
@@ -741,9 +799,23 @@ private fun ExamList(
     onDuplicate: (Exam) -> Unit,
     onToggleExpanded: (String) -> Unit,
     onLinkStudy: (Exam) -> Unit,
+    onAddExam: () -> Unit,
 ) {
-    if (exams.isEmpty()) EmptyState("No exams", "Track your upcoming exams here.")
-    else LazyColumn(contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 8.dp)) {
+    if (exams.isEmpty()) {
+        EmptyState(
+            title = "No exams scheduled",
+            message = "Track upcoming midterms and finals with study decks and countdowns.",
+            actionLabel = "Add Exam",
+            onAction = onAddExam,
+            illustration = {
+                SchedMateMascot(
+                    mood = MascotMood.Motivated,
+                    size = 110.dp,
+                    interactive = true,
+                )
+            },
+        )
+    } else LazyColumn(contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 8.dp)) {
         items(exams, key = { it.id }) { exam ->
             val readiness = examReadiness[exam.id]
             val expanded = expandedExamId == exam.id

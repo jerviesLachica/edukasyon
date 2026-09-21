@@ -70,6 +70,7 @@ fun WeeklyScheduleGrid(
     var dragPosition by remember { mutableStateOf(Offset.Zero) }
     var dragGrabOffset by remember { mutableStateOf(Offset.Zero) }
     var dropTargetDay by remember { mutableStateOf<DayOfWeek?>(null) }
+    var gridPositionInRoot by remember { mutableStateOf(Offset.Zero) }
     val columnBounds = remember { mutableStateMapOf<DayOfWeek, Rect>() }
 
     fun resolveDropTarget(position: Offset): DayOfWeek? =
@@ -93,7 +94,13 @@ fun WeeklyScheduleGrid(
             ?: MaterialTheme.colorScheme.primary
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onGloballyPositioned { coordinates ->
+                gridPositionInRoot = coordinates.positionInRoot()
+            }
+    ) {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -201,8 +208,8 @@ fun WeeklyScheduleGrid(
                     .width(100.dp)
                     .offset {
                         IntOffset(
-                            (dragPosition.x - dragGrabOffset.x).roundToInt(),
-                            (dragPosition.y - dragGrabOffset.y).roundToInt(),
+                            (dragPosition.x - gridPositionInRoot.x - dragGrabOffset.x).roundToInt(),
+                            (dragPosition.y - gridPositionInRoot.y - dragGrabOffset.y).roundToInt(),
                         )
                     }
                     .graphicsLayer {

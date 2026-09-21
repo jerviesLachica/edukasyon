@@ -126,15 +126,30 @@ class NotificationHelper @Inject constructor(
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+
+        val dismissIntent = Intent(context, NotificationDismissReceiver::class.java).apply {
+            action = NotificationDismissReceiver.ACTION_DISMISS
+            putExtra(NotificationDismissReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+            putExtra(NotificationDismissReceiver.EXTRA_REMINDER_TYPE, type.name)
+            referenceId?.let { putExtra(NotificationDismissReceiver.EXTRA_REFERENCE_ID, it) }
+        }
+        val dismissPending = PendingIntent.getBroadcast(
+            context,
+            notificationId,
+            dismissIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, effectiveChannelId)
             .setSmallIcon(R.drawable.ic_stat_schedmate)
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setContentIntent(pending)
-            .setFullScreenIntent(pending, true)
+            .setDeleteIntent(dismissPending)
+            .addAction(R.drawable.ic_stat_schedmate, "Dismiss", dismissPending)
             .setAutoCancel(true)
             .build()
         NotificationManagerCompat.from(context).notify(notificationId, notification)

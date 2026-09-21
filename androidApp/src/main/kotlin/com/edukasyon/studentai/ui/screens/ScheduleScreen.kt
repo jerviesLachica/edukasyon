@@ -38,7 +38,11 @@ import com.edukasyon.studentai.domain.model.ScheduleItem
 import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
 import com.edukasyon.studentai.ui.adaptive.isMediumOrExpandedWidth
 import com.edukasyon.studentai.ui.adaptive.rememberAdaptiveHorizontalPadding
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import com.edukasyon.studentai.ui.components.*
+import com.edukasyon.studentai.ui.components.mascot.MascotMood
+import com.edukasyon.studentai.ui.components.mascot.SchedMateMascot
 import com.edukasyon.studentai.ui.share.ShareSheet
 import com.edukasyon.studentai.ui.share.ShareTarget
 import com.edukasyon.studentai.ui.share.ShareViewModel
@@ -338,10 +342,17 @@ private fun DailyScheduleList(
         val items = viewModel.itemsForSelectedDay()
         if (items.isEmpty()) {
             EmptyState(
-                "No classes on ${state.selectedDay.displayName}",
-                "Add a class for this day.",
+                title = "No classes on ${state.selectedDay.displayName}",
+                message = "Enjoy your free time or add a class for this day.",
                 actionLabel = "Add Class",
                 onAction = onAdd,
+                illustration = {
+                    SchedMateMascot(
+                        mood = MascotMood.Resting,
+                        size = 110.dp,
+                        interactive = true,
+                    )
+                },
                 modifier = modifier,
             )
         } else {
@@ -825,6 +836,7 @@ private fun ClassActionDialog(
     onDuplicate: (DayOfWeek) -> Unit,
     onDelete: () -> Unit
 ) {
+    val haptics = LocalHapticFeedback.current
     var showEdit by remember { mutableStateOf(false) }
     var showDuplicatePicker by remember { mutableStateOf(false) }
 
@@ -835,6 +847,7 @@ private fun ClassActionDialog(
             initial = item,
             onDismiss = { showEdit = false },
             onConfirm = { updated ->
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onEdit(updated)
                 showEdit = false
             }
@@ -847,6 +860,7 @@ private fun ClassActionDialog(
             item = item,
             onDismiss = { showDuplicatePicker = false },
             onConfirm = { targetDay ->
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onDuplicate(targetDay)
                 showDuplicatePicker = false
             },
@@ -890,13 +904,16 @@ private fun ClassActionDialog(
                     }
                 }
                 TextButton(
-                    onClick = onDelete,
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onDelete()
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Delete")
+                        Text("Delete", color = MaterialTheme.colorScheme.error)
                     }
                 }
             }

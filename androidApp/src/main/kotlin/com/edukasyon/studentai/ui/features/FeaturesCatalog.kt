@@ -1,6 +1,9 @@
 package com.edukasyon.studentai.ui.features
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Note
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.edukasyon.studentai.ui.navigation.MainTab
@@ -129,7 +132,7 @@ object FeaturesCatalog {
             description = "Track homework and project deadlines. Open the Assignments tab in Planner.",
             filterCategory = FeatureFilterCategory.STUDY,
             section = FeatureSection.SCHEDULE_PLANNING,
-            icon = Icons.Default.Assignment,
+            icon = Icons.AutoMirrored.Filled.Assignment,
             destination = FeatureDestination.Tab(MainTab.PLANNER)
         ),
         FeatureItem(
@@ -176,7 +179,7 @@ object FeaturesCatalog {
             description = "Capture study notes with search. Create, edit, and organize your written materials.",
             filterCategory = FeatureFilterCategory.STUDY,
             section = FeatureSection.SCHEDULE_PLANNING,
-            icon = Icons.Default.Note,
+            icon = Icons.AutoMirrored.Filled.Note,
             destination = FeatureDestination.Route(Routes.NOTES)
         ),
 
@@ -205,7 +208,7 @@ object FeaturesCatalog {
             description = "Chat with Jevi — ask questions, get explanations, and use quick study prompts.",
             filterCategory = FeatureFilterCategory.AI,
             section = FeatureSection.AI_TOOLS,
-            icon = Icons.Default.Chat,
+            icon = Icons.AutoMirrored.Filled.Chat,
             destination = FeatureDestination.Tab(MainTab.JEVI),
             dashboardLabel = "Ask Jevi",
         ),

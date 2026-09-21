@@ -46,6 +46,14 @@ val SchedMateQuotesAndJokes = listOf(
     "An organized schedule is half the battle won. You've got this! 🎯",
     "Why did the math book look sad? Because it had too many problems! 📐",
     "Remember to breathe! One assignment at a time. 🐾",
+    "Why was the teacher wearing sunglasses? Because their students were so bright! 😎",
+    "Consistency beats cramming every time. 20 focused minutes really count! ⏱️",
+    "Flashcard tip: Explaining a topic out loud to yourself locks it into memory! 🧠",
+    "Study tip: The Pomodoro technique + SchedMate timer = unstoppable focus! 🍅",
+    "Why did the clock get sent to the principal's office? For tocking too much! ⏰",
+    "Done is better than perfect. Write that first draft and polish it next! 📝",
+    "You've survived 100% of your hardest school days so far. Keep that streak going! 🌟",
+    "Coffee fuels the body, but crossing off tasks fuels the soul! ☕",
     "Click me again for another joke or motivation boost! 😄"
 )
 

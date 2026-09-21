@@ -117,4 +117,36 @@ class MarkdownChatTextTest {
         assertEquals(listOf("Math", "Mon", "08:00"), table.rows[0])
         assertEquals(listOf("Science", "Wed", "10:00"), table.rows[1])
     }
+
+    @Test
+    fun parseMarkdownBlocks_supportsBlockquotes() {
+        val markdown = """
+            Here is a wise note:
+            > Knowledge is power.
+            > Continue learning every day!
+            Next paragraph.
+        """.trimIndent()
+
+        val blocks = parseMarkdownBlocks(markdown)
+        assertEquals(3, blocks.size)
+        assertTrue(blocks[0] is MarkdownBlock.Paragraph)
+        assertTrue(blocks[1] is MarkdownBlock.Blockquote)
+        assertTrue(blocks[2] is MarkdownBlock.Paragraph)
+
+        val quote = blocks[1] as MarkdownBlock.Blockquote
+        assertTrue(quote.text.contains("Knowledge is power"))
+        assertTrue(quote.text.contains("Continue learning every day!"))
+    }
+
+    @Test
+    fun buildInlineMarkdown_rendersStrikethrough() {
+        val annotated = buildInlineMarkdown(
+            text = "The old price was ~~P100~~ now free!",
+            linkColor = androidx.compose.ui.graphics.Color.Blue,
+            codeBackground = androidx.compose.ui.graphics.Color.Gray,
+        )
+        assertTrue(annotated.text.contains("P100"))
+        assertTrue(annotated.text.contains("now free!"))
+    }
 }
+

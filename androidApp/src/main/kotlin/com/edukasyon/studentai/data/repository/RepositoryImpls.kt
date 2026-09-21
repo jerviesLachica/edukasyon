@@ -80,7 +80,7 @@ class TaskRepositoryImpl @Inject constructor(
             taskDao.insert(task.toEntity())
             subtaskDao.deleteByTask(task.id)
             task.subtasks.forEach { subtaskDao.insert(it.toEntity()) }
-            reminderSyncService.get().scheduleTaskReminder(task)
+            reminderSyncService.get().scheduleTaskReminder(task, resetDismissal = true)
             WidgetUpdateManager.refreshAllAsync(context, WidgetUpdateManager.RefreshReason.TASK_CHANGED)
         }
 
@@ -105,7 +105,7 @@ class TaskRepositoryImpl @Inject constructor(
                 )
                 taskDao.insert(updated)
                 val subtasks = subtaskDao.observeByTask(id).first().map { it.toDomain() }
-                reminderSyncService.get().scheduleTaskReminder(updated.toDomain(subtasks))
+                reminderSyncService.get().scheduleTaskReminder(updated.toDomain(subtasks), resetDismissal = true)
             }
             WidgetUpdateManager.refreshAllAsync(context, WidgetUpdateManager.RefreshReason.TASK_CHANGED)
         }
@@ -160,7 +160,7 @@ class AssignmentRepositoryImpl @Inject constructor(
 
     override suspend fun saveAssignment(assignment: Assignment) {
         assignmentDao.insert(assignment.toEntity())
-        reminderSyncService.get().scheduleAssignmentReminder(assignment)
+        reminderSyncService.get().scheduleAssignmentReminder(assignment, resetDismissal = true)
     }
 
     override suspend fun deleteAssignment(id: String) {
@@ -183,7 +183,7 @@ class ExamRepositoryImpl @Inject constructor(
 
     override suspend fun saveExam(exam: Exam) {
         examDao.insert(exam.toEntity())
-        reminderSyncService.get().scheduleExamReminder(exam)
+        reminderSyncService.get().scheduleExamReminder(exam, resetDismissal = true)
     }
 
     override suspend fun deleteExam(id: String) {

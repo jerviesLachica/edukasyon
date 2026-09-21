@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -268,8 +270,12 @@ private fun InputContent(
                     label = { Text("Assignment instructions") },
                     placeholder = { Text("Paste syllabus text, LMS instructions, or rubric…") },
                 )
+                val haptic = LocalHapticFeedback.current
                 BouncyButton(
-                    onClick = onAnalyzeText,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onAnalyzeText()
+                    },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     shape = com.edukasyon.studentai.ui.theme.StudentAiShapes.button,
                 ) {
@@ -468,29 +474,36 @@ private fun BreakdownReviewContent(
             item { SectionHeader("Notes") }
             item {
                 ModernCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        breakdown.notes,
-                        style = MaterialTheme.typography.bodyMedium,
+                    MarkdownChatText(
+                        markdown = breakdown.notes,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
         }
 
         item {
+            val haptic = LocalHapticFeedback.current
             Spacer(Modifier.height(8.dp))
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 OutlinedButton(
-                    onClick = onBackToInput,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onBackToInput()
+                    },
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                     enabled = !isSaving,
                 ) {
                     Text("Back to input")
                 }
                 BouncyButton(
-                    onClick = onAddToPlanner,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onAddToPlanner()
+                    },
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                     enabled = !isSaving,
                     shape = com.edukasyon.studentai.ui.theme.StudentAiShapes.button,

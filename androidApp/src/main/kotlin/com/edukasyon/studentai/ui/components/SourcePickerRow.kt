@@ -16,7 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.outlined.LibraryBooks
+import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Checkbox
 import androidx.compose.material.icons.Icons
@@ -244,7 +244,7 @@ fun SourcesBottomSheet(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Icon(
-                            Icons.Outlined.LibraryBooks,
+                            Icons.AutoMirrored.Outlined.LibraryBooks,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                         )

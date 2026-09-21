@@ -19,14 +19,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -124,7 +124,7 @@ fun JeviChatInputBar(
                     label = { Text(attachment.fileName, maxLines = 1) },
                     leadingIcon = {
                         Icon(
-                            if (attachment.isImage) Icons.Outlined.Image else Icons.Outlined.InsertDriveFile,
+                            if (attachment.isImage) Icons.Outlined.Image else Icons.AutoMirrored.Outlined.InsertDriveFile,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
                         )
@@ -152,51 +152,7 @@ fun JeviChatInputBar(
             }
         }
 
-        // Source chips — horizontal scroll inside a compact row above input.
-        // Shows only the user's added sources; the '+ Add sources' control lives in
-        // the top app bar, so we don't duplicate it here.
-        if (sources.isNotEmpty()) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 6.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                shape = RoundedCornerShape(8.dp),
-                tonalElevation = 0.dp,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    sources.forEach { source ->
-                        val isSelected = selectedSourceIds == null || selectedSourceIds.contains(source.id)
-                        FilterChipSmall(
-                            selected = isSelected,
-                            onClick = { onSourceToggle?.invoke(source.id) },
-                            label = { Text(source.name) },
-                            leadingIcon = {
-                                if (isSelected) {
-                                    Icon(Icons.Default.Check, contentDescription = "Selected", modifier = Modifier.size(14.dp))
-                                } else {
-                                    Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(14.dp))
-                                }
-                            },
-                            trailingIcon = {
-                                if (onDeleteSource != null) {
-                                    IconButton(onClick = { onDeleteSource.invoke(source.id) }, modifier = Modifier.size(20.dp)) {
-                                        Icon(Icons.Filled.Close, contentDescription = "Delete source", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(12.dp))
-                                    }
-                                }
-                            },
-                            enabled = enabled,
-                        )
-                    }
-                }
-            }
-        }
+
 
         val scheme = MaterialTheme.colorScheme
         Surface(
@@ -245,7 +201,7 @@ fun JeviChatInputBar(
                                 showAttachMenu = false
                                 onPickFile()
                             },
-                            leadingIcon = { Icon(Icons.Outlined.InsertDriveFile, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Outlined.InsertDriveFile, contentDescription = null) },
                         )
                     }
                 }
@@ -322,7 +278,7 @@ fun JeviChatInputBar(
                         ),
                 ) {
                     Icon(
-                        Icons.Default.Send,
+                        Icons.AutoMirrored.Filled.Send,
                         contentDescription = "Send",
                         tint = if (canSend) scheme.onPrimary else scheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
