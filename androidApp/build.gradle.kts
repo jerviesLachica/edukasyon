@@ -28,7 +28,7 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
-        buildConfigField("String", "AI_BACKEND_URL", "\"https://jerviesLachica-schedmate-backend.hf.space/\"")
+        buildConfigField("String", "AI_BACKEND_URL", "\"https://schedmate-backend.vercel.app/\"")
     }
 
     signingConfigs {
@@ -48,7 +48,7 @@ android {
 
     buildTypes {
         release {
-            buildConfigField("String", "AI_BACKEND_URL", "\"https://jerviesLachica-schedmate-backend.hf.space/\"")
+            buildConfigField("String", "AI_BACKEND_URL", "\"https://schedmate-backend.vercel.app/\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

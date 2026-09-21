@@ -158,7 +158,7 @@ class UpdateManager @Inject constructor(
         val allowedHosts = setOf(
             "edukasyon-studentai.web.app",
             "edukasyon-studentai.firebaseapp.com",
-            "jerviesLachica-schedmate-backend.hf.space",
+            "schedmate-backend.vercel.app",
             "github.com",
         )
         // Exact match or any subdomain of an allowed parent domain.

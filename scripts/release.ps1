@@ -178,7 +178,7 @@ if ($Broadcast) {
     } | ConvertTo-Json -Compress
     Write-Host "[..] broadcasting to topic app_updates" -ForegroundColor Cyan
     if (-not $DryRun) {
-        $r = Invoke-RestMethod -Method Post -Uri "https://jerviesLachica-schedmate-backend.hf.space/internal/broadcast-update" `
+        $r = Invoke-RestMethod -Method Post -Uri "https://schedmate-backend.vercel.app/internal/broadcast-update" `
             -Headers @{ "x-admin-key" = $key; "Content-Type" = "application/json" } `
             -Body $body -TimeoutSec 120
         Write-Host ("[ok] broadcast sent: {0}" -f $r.messageId) -ForegroundColor Green
