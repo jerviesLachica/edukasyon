@@ -148,7 +148,7 @@ if ($CreateRelease) {
     Copy-Item $apkPath $upload -Force
     Write-Host "[..] gh release create $tag" -ForegroundColor Cyan
     if (-not $DryRun) {
-        gh release create $tag $upload --title "$tag" --notes $Notes
+        gh release create $tag $upload $apkPath --title "$tag" --notes $Notes
         if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }
     }
     Write-Host "[ok] release published: https://github.com/$repoSlug/releases/tag/$tag" -ForegroundColor Green

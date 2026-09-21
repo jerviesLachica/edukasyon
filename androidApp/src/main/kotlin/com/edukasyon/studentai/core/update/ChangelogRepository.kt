@@ -11,6 +11,17 @@ data class ChangelogEntry(
 object ChangelogRepository {
     val changelog = listOf(
         ChangelogEntry(
+            versionName = "2.1.2",
+            versionCode = 13,
+            releaseDate = "2026-09-21",
+            isMandatory = false,
+            notes = listOf(
+                "Instant AI Cold Starts: Fully migrated backend to ultra-fast serverless infrastructure with sub-second wakeups, eliminating 50-90s cold start delays.",
+                "High-Speed Multi-Provider AI: Seamless instant answers with Groq, Google Gemini, OpenRouter, and HCNsec fallback routing.",
+                "Enhanced Connectivity: Streamlined backend connectivity and update checks with zero dropped requests.",
+            ),
+        ),
+        ChangelogEntry(
             versionName = "2.1.1",
             versionCode = 12,
             releaseDate = "2026-09-19",
