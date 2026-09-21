@@ -65,7 +65,26 @@ class NotificationHelper @Inject constructor(
                 enableVibration(true)
                 setBypassDnd(true)
             }
-            manager.createNotificationChannel(channel)
+            try {
+                manager.createNotificationChannel(channel)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to create channel with sound $baseUri, falling back to default", e)
+                try {
+                    val fallbackChannel = NotificationChannel(channelId, displayName, NotificationManager.IMPORTANCE_HIGH).apply {
+                        description = "SchedMate"
+                        setSound(
+                            Settings.System.DEFAULT_ALARM_ALERT_URI,
+                            AudioAttributes.Builder()
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .setUsage(AudioAttributes.USAGE_ALARM)
+                                .build()
+                        )
+                        enableVibration(true)
+                        setBypassDnd(true)
+                    }
+                    manager.createNotificationChannel(fallbackChannel)
+                } catch (_: Exception) {}
+            }
             
             // Clean up old unversioned channel if using versioned
             if (versionSuffix.isNotEmpty()) {

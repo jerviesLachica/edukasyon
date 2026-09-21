@@ -8,6 +8,11 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.provider.OpenableColumns
+import java.io.File
+import java.io.FileOutputStream
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.activity.result.launch
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -216,6 +221,7 @@ fun NotificationSettingsDetailScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val composeScope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -385,8 +391,13 @@ fun NotificationSettingsDetailScreen(
                             return
                         }
                         runCatching {
+                            val parsedUri = Uri.parse(uri)
                             previewPlayer = android.media.MediaPlayer().apply {
-                                setDataSource(appCtx, Uri.parse(uri))
+                                if (parsedUri.scheme == "content" || parsedUri.scheme == "android.resource") {
+                                    setDataSource(appCtx, parsedUri)
+                                } else {
+                                    setDataSource(uri)
+                                }
                                 setAudioAttributes(alarmAudioAttrs)
                                 setOnCompletionListener { stopPreview() }
                                 prepare()
@@ -411,22 +422,61 @@ fun NotificationSettingsDetailScreen(
                     val soundPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.GetContent()
                     ) { uri: Uri? ->
-                        uri?.let {
-                            context.contentResolver.takePersistableUriPermission(
-                                uri,
-                                Intent.FLAG_GRANT_READ_URI_PERMISSION
-                            )
-                            val name = runCatching {
-                                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                                    if (cursor.moveToFirst()) {
-                                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                                        if (nameIndex >= 0) cursor.getString(nameIndex) else "Custom Audio"
-                                    } else "Custom Audio"
+                        uri?.let { pickedUri ->
+                            composeScope.launch(Dispatchers.IO) {
+                                // Attempt persistable permission grant safely without throwing if unsupported
+                                runCatching {
+                                    context.contentResolver.takePersistableUriPermission(
+                                        pickedUri,
+                                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                    )
                                 }
-                            }.getOrNull() ?: "Custom Audio"
-                            viewModel.selectAlarmSound(name, uri.toString())
-                            // Hear what you just picked before it becomes your alarm.
-                            previewSound(uri.toString())
+                                val name = runCatching {
+                                    context.contentResolver.query(pickedUri, null, null, null, null)?.use { cursor ->
+                                        if (cursor.moveToFirst()) {
+                                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                                            if (nameIndex >= 0) cursor.getString(nameIndex) else null
+                                        } else null
+                                    }
+                                }.getOrNull()?.takeIf { it.isNotBlank() }
+                                    ?: pickedUri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+                                    ?: "Custom Audio"
+
+                                // Copy audio file under the transient grant into app-private storage so it survives reboots and file moves
+                                val finalUriString = runCatching {
+                                    val dir = File(context.filesDir, "custom_audio").apply { mkdirs() }
+                                    dir.listFiles()?.forEach { it.delete() }
+                                    val ext = name.substringAfterLast('.', "mp3").take(5)
+                                    val dest = File(dir, "custom_alarm_sound.$ext")
+                                    context.contentResolver.openInputStream(pickedUri)?.use { input ->
+                                        FileOutputStream(dest).use { output ->
+                                            input.copyTo(output)
+                                        }
+                                    }
+                                    if (dest.exists() && dest.length() > 0) {
+                                        val contentUri = FileProvider.getUriForFile(
+                                            context,
+                                            "${context.packageName}.fileprovider",
+                                            dest
+                                        )
+                                        runCatching {
+                                            context.grantUriPermission("android", contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            context.grantUriPermission("com.android.systemui", contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        contentUri.toString()
+                                    } else {
+                                        pickedUri.toString()
+                                    }
+                                }.getOrElse {
+                                    pickedUri.toString()
+                                }
+
+                                withContext(Dispatchers.Main) {
+                                    viewModel.selectAlarmSound(name, finalUriString)
+                                    // Hear what you just picked before it becomes your alarm.
+                                    previewSound(finalUriString)
+                                }
+                            }
                         }
                     }
 
@@ -524,7 +574,13 @@ fun NotificationSettingsDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { soundPickerLauncher.launch("audio/*") }
+                            .clickable {
+                                runCatching {
+                                    soundPickerLauncher.launch("audio/*")
+                                }.onFailure {
+                                    runCatching { soundPickerLauncher.launch("*/*") }
+                                }
+                            }
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
