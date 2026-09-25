@@ -126,10 +126,12 @@ fun ProfileScreen(
         }
     }
 
-    state.feedbackMessage?.let { msg ->
-        LaunchedEffect(msg) {
-            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
-            viewModel.clearFeedbackMessage()
+    if (state.feedbackSuccess) {
+        state.feedbackMessage?.let { msg ->
+            LaunchedEffect(msg) {
+                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                viewModel.clearFeedbackMessage()
+            }
         }
     }
 
@@ -530,10 +532,12 @@ fun SettingsScreen(
         }
     }
 
-    state.feedbackMessage?.let { msg ->
-        LaunchedEffect(msg) {
-            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
-            viewModel.clearFeedbackMessage()
+    if (state.feedbackSuccess) {
+        state.feedbackMessage?.let { msg ->
+            LaunchedEffect(msg) {
+                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                viewModel.clearFeedbackMessage()
+            }
         }
     }
 

@@ -1,5 +1,12 @@
 package com.edukasyon.studentai.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
@@ -210,6 +217,8 @@ private fun FocusSetupContent(
                 if (state.preset == FocusPreset.CUSTOM) {
                     ModernCard(containerColor = focusPastelCard(isDark)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            val isFocusValid = customFocusStr.toIntOrNull()?.let { it in 1..240 } == true
+                            val isBreakValid = customBreakStr.toIntOrNull()?.let { it in 1..60 } == true
                             OutlinedTextField(
                                 value = customFocusStr,
                                 onValueChange = { raw ->
@@ -218,6 +227,8 @@ private fun FocusSetupContent(
                                     digits.toIntOrNull()?.let { if (it in 1..240) onCustomFocus(it) }
                                 },
                                 label = { Text("Focus (min)") },
+                                supportingText = { Text("1–240 min") },
+                                isError = customFocusStr.isNotEmpty() && !isFocusValid,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
@@ -230,6 +241,8 @@ private fun FocusSetupContent(
                                     digits.toIntOrNull()?.let { if (it in 1..60) onCustomBreak(it) }
                                 },
                                 label = { Text("Break (min)") },
+                                supportingText = { Text("1–60 min") },
+                                isError = customBreakStr.isNotEmpty() && !isBreakValid,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
@@ -274,6 +287,7 @@ private fun FocusSetupContent(
                     )
                 }
 
+                val isAiMinutesValid = aiMinutesStr.toIntOrNull()?.let { it in 15..480 } == true
                 OutlinedTextField(
                     value = aiMinutesStr,
                     onValueChange = { raw ->
@@ -282,6 +296,8 @@ private fun FocusSetupContent(
                         digits.toIntOrNull()?.let { if (it in 15..480) onAiMinutes(it) }
                     },
                     label = { Text("Session length (minutes)") },
+                    supportingText = { Text("15–480 min") },
+                    isError = aiMinutesStr.isNotEmpty() && !isAiMinutesValid,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -317,20 +333,12 @@ private fun FocusSetupContent(
                             modifier = Modifier.size(20.dp),
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("Generating…")
+                        Text("Planning your session…")
                     } else {
                         Icon(Icons.Default.AutoAwesome, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
                         Text("Generate plan with Jevi")
                     }
-                }
-
-                if (state.isGeneratingPlan) {
-                    StudentAiLoader(
-                        label = "Planning",
-                        style = StudentAiLoaderStyle.Compact,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
                 }
             }
         }
@@ -486,8 +494,19 @@ private fun FocusTimerContent(
         1f - (state.remainingSeconds.toFloat() / state.totalPhaseSeconds)
     } else 0f
 
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 500, easing = LinearEasing),
+        label = "timerProgress",
+    )
+
     val isBreak = state.phase == FocusTimerPhase.BREAK
     val ringColor = if (isBreak) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
+    val animatedRingColor by animateColorAsState(
+        targetValue = ringColor,
+        animationSpec = tween(durationMillis = 600),
+        label = "ringColor",
+    )
 
     Column(
         modifier = Modifier
@@ -534,18 +553,22 @@ private fun FocusTimerContent(
                 .heightIn(max = 240.dp),
         ) {
             CircularProgressIndicator(
-                progress = { progress.coerceIn(0f, 1f) },
+                progress = { animatedProgress },
                 modifier = Modifier.fillMaxSize(),
                 strokeWidth = 10.dp,
                 strokeCap = StrokeCap.Round,
-                color = ringColor,
+                color = animatedRingColor,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.Center,
             ) {
-                if (state.isPaused) {
+                AnimatedVisibility(
+                    visible = state.isPaused,
+                    enter = fadeIn(tween(200)),
+                    exit = fadeOut(tween(200)),
+                ) {
                     Surface(
                         shape = RoundedCornerShape(6.dp),
                         color = MaterialTheme.colorScheme.errorContainer,
@@ -559,6 +582,7 @@ private fun FocusTimerContent(
                         )
                     }
                 }
+                Spacer(Modifier.height(4.dp))
                 Text(
                     formatCountdown(state.remainingSeconds),
                     style = MaterialTheme.typography.displayMedium.copy(

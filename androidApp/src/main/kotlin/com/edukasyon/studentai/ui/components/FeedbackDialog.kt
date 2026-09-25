@@ -79,7 +79,8 @@ fun FeedbackDialog(
             modifier = Modifier
                 .fillMaxWidth(0.94f)
                 .wrapContentHeight()
-                .padding(vertical = 24.dp),
+                .padding(vertical = 24.dp)
+                .imePadding(),
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
