@@ -90,8 +90,8 @@ describe('Admin Fleet Dashboard & Metrics API', () => {
     assert.ok(res.json.ai);
     assert.ok(res.json.policy);
     assert.ok(res.json.usage);
-    assert.ok(res.json.version);
-    assert.equal(res.json.version.versionName, '2.1.3');
+    const expectedVersion = require('../../version.json').versionName;
+    assert.equal(res.json.version.versionName, expectedVersion);
   });
 
   it('serves admin dashboard HTML at /admin', async () => {

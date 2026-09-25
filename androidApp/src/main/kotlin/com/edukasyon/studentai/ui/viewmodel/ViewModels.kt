@@ -1729,9 +1729,11 @@ class AiViewModel @Inject constructor(
                     }
                 }
                 val finalContent = parsed.displayText.ifBlank { reply.ifBlank { "I've processed your request." } }
-                val toolActionMeta = response.toolAction?.let {
-                    com.edukasyon.studentai.core.ai.ToolActionMeta(it.type, it.data)
-                }
+                val finalToolActionType = response.toolAction?.type ?: parsed.toolActionType
+                val finalToolActionData = response.toolAction?.data ?: parsed.toolActionData
+                val toolActionMeta = if (!finalToolActionType.isNullOrBlank() && !finalToolActionData.isNullOrBlank()) {
+                    com.edukasyon.studentai.core.ai.ToolActionMeta(finalToolActionType, finalToolActionData)
+                } else null
                 safePersistMessage(
                     AiConversationMessage(
                         id = aiMessageId(),
@@ -1763,8 +1765,8 @@ class AiViewModel @Inject constructor(
                             timestamp = assistantTimestamp,
                             reasoning = reasoning,
                             citations = citedViews,
-                            toolActionType = response.toolAction?.type,
-                            toolActionData = response.toolAction?.data,
+                            toolActionType = finalToolActionType,
+                            toolActionData = finalToolActionData,
                         ),
                         studyProposals = studyBlocks,
                         followUps = followUps,

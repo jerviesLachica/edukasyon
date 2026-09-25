@@ -479,7 +479,7 @@ function createAiProvider(config = {}) {
     };
   }
 
-  async function chatCompletionOnce(messages, { temperature = 0.7, maxTokens = 2048, model, signal, responseFormat, reasoning, tools, toolChoice, baseUrl, apiKey, provider = '' } = {}) {
+  async function chatCompletionOnce(messages, { temperature = 0.7, maxTokens = 2048, model, signal, responseFormat, reasoning, tools, toolChoice, baseUrl, apiKey, provider = '', isVision = false } = {}) {
     const payload = { model, messages, temperature, max_tokens: maxTokens };
     // Structured-output hint; providers that don't support it are handled by the caller's fallback.
     if (responseFormat) payload.response_format = responseFormat;
@@ -496,18 +496,50 @@ function createAiProvider(config = {}) {
     }
     const url = baseUrl || AI_BASE_URL;
     const key = apiKey || AI_API_KEY;
-    const res = await fetch(`${url}/chat/completions`, {
-      method: 'POST',
-      headers: providerHeaders(key, provider),
-      body: JSON.stringify(payload),
-      signal,
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`AI API error ${res.status}: ${body.slice(0, 300)}`);
+
+    // Fast failover timeout: 15s for text, 28s for vision
+    const timeoutMs = isVision ? 28000 : 15000;
+    const controller = new AbortController();
+    let timeoutFired = false;
+    const timer = setTimeout(() => {
+      timeoutFired = true;
+      controller.abort(new Error(`Upstream provider ${provider || 'default'} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    let abortListener = null;
+    if (signal) {
+      if (signal.aborted) {
+        clearTimeout(timer);
+        throw signal.reason || new Error('Request was aborted');
+      }
+      abortListener = () => controller.abort(signal.reason);
+      signal.addEventListener('abort', abortListener, { once: true });
     }
-    const data = await res.json();
-    return parseChatCompletionResult(data);
+
+    try {
+      const res = await fetch(`${url}/chat/completions`, {
+        method: 'POST',
+        headers: providerHeaders(key, provider),
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`AI API error ${res.status}: ${body.slice(0, 300)}`);
+      }
+      const data = await res.json();
+      return parseChatCompletionResult(data);
+    } catch (err) {
+      if (timeoutFired) {
+        throw new Error(`AI provider ${provider || 'default'} timeout after ${timeoutMs}ms`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+      if (signal && abortListener) {
+        signal.removeEventListener('abort', abortListener);
+      }
+    }
   }
 
   async function chatCompletion(messages, { temperature = 0.7, maxTokens = 2048, model, isVision = false, isFastText = false, thinking: thinkingOpt, signal, responseFormat, reasoning, tools, toolChoice, wireModelOverride } = {}) {
@@ -625,6 +657,7 @@ function createAiProvider(config = {}) {
             baseUrl,
             apiKey,
             provider,
+            isVision,
           });
           return { ...result, model: result.model || candidate, provider };
         } catch (err) {
@@ -634,7 +667,7 @@ function createAiProvider(config = {}) {
           } else if (/402|payment_required/i.test(String(err.message || ''))) {
             console.warn(`[ai] Provider ${provider} requires payment/quota; placing in cooldown for 5m`);
             markProviderCooldown(provider, 300000);
-          } else if (/5\d\d|timeout/i.test(String(err.message || ''))) {
+          } else if (/5\d\d|timeout|timed out|ECONNREFUSED|ENOTFOUND/i.test(String(err.message || ''))) {
             console.warn(`[ai] Provider ${provider} error (${String(err.message).slice(0, 80)}); marking cooldown`);
             markProviderCooldown(provider, 30000);
           }
@@ -650,6 +683,7 @@ function createAiProvider(config = {}) {
                 baseUrl,
                 apiKey,
                 provider,
+                isVision,
               });
               return { ...retry, model: retry.model || candidate, provider };
             } catch (retryErr) {

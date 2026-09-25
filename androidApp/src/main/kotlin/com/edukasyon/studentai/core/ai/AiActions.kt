@@ -14,6 +14,23 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Serializable
+data class FlashcardItemPayload(
+    val front: String? = null,
+    val question: String? = null,
+    val back: String? = null,
+    val answer: String? = null,
+    val topic: String? = null,
+)
+
+@Serializable
+data class QuizQuestionPayload(
+    val question: String? = null,
+    val options: List<String> = emptyList(),
+    val correctAnswer: String? = null,
+    val explanation: String? = null,
+)
+
+@Serializable
 data class AiActionPayload(
     val type: String,
     val subject: String? = null,
@@ -33,6 +50,9 @@ data class AiActionPayload(
     val content: String? = null,
     val blocks: List<StudyBlockPayload>? = null,
     val items: List<String>? = null,
+    val cards: List<FlashcardItemPayload>? = null,
+    val questions: List<QuizQuestionPayload>? = null,
+    val dueDateString: String? = null,
 )
 
 /** Dated, one-off study block proposed by the tutor; accepted blocks become tasks. */
@@ -57,6 +77,9 @@ data class ParsedAiReply(
     val followUps: List<String> = emptyList(),
     /** Non-proposal actions that should be auto-executed. */
     val directActions: List<AiActionPayload> = emptyList(),
+    /** Interactive tool action card (e.g. save flashcards or start quiz). */
+    val toolActionType: String? = null,
+    val toolActionData: String? = null,
 )
 
 object AiActionParser {
@@ -94,10 +117,85 @@ object AiActionParser {
             it.type.lowercase() in AiActionExecutor.PROPOSAL_TYPES
         }
 
+        var extractedToolType: String? = null
+        var extractedToolData: String? = null
+
+        val flashcardAction = base.actions.firstOrNull {
+            it.type.lowercase() in setOf("create_flashcard_deck", "create_deck", "flashcards")
+        }
+        if (flashcardAction != null && !flashcardAction.cards.isNullOrEmpty()) {
+            extractedToolType = "create_flashcard_deck"
+            val title = flashcardAction.title?.ifBlank { "Study Deck" } ?: "Study Deck"
+            val obj = kotlinx.serialization.json.buildJsonObject {
+                put("title", kotlinx.serialization.json.JsonPrimitive(title))
+                put("cards", kotlinx.serialization.json.buildJsonArray {
+                    flashcardAction.cards.forEach { c ->
+                        val front = c.front ?: c.question ?: ""
+                        val back = c.back ?: c.answer ?: ""
+                        if (front.isNotBlank() && back.isNotBlank()) {
+                            add(kotlinx.serialization.json.buildJsonObject {
+                                put("front", kotlinx.serialization.json.JsonPrimitive(front))
+                                put("back", kotlinx.serialization.json.JsonPrimitive(back))
+                                put("topic", kotlinx.serialization.json.JsonPrimitive(c.topic ?: title))
+                            })
+                        }
+                    }
+                })
+            }
+            extractedToolData = obj.toString()
+        }
+
+        val quizAction = base.actions.firstOrNull {
+            it.type.lowercase() in setOf("launch_practice_quiz", "practice_quiz", "quiz")
+        }
+        if (quizAction != null && !quizAction.questions.isNullOrEmpty() && extractedToolType == null) {
+            extractedToolType = "launch_practice_quiz"
+            val title = quizAction.title?.ifBlank { "Practice Quiz" } ?: "Practice Quiz"
+            val obj = kotlinx.serialization.json.buildJsonObject {
+                put("title", kotlinx.serialization.json.JsonPrimitive(title))
+                put("questions", kotlinx.serialization.json.buildJsonArray {
+                    quizAction.questions.forEach { q ->
+                        val questionText = q.question.orEmpty()
+                        if (questionText.isNotBlank()) {
+                            add(kotlinx.serialization.json.buildJsonObject {
+                                put("question", kotlinx.serialization.json.JsonPrimitive(questionText))
+                                put("correctAnswer", kotlinx.serialization.json.JsonPrimitive(q.correctAnswer.orEmpty()))
+                                put("options", kotlinx.serialization.json.buildJsonArray {
+                                    q.options.forEach { opt ->
+                                        add(kotlinx.serialization.json.JsonPrimitive(opt))
+                                    }
+                                })
+                                q.explanation?.let { exp ->
+                                    put("explanation", kotlinx.serialization.json.JsonPrimitive(exp))
+                                }
+                            })
+                        }
+                    }
+                })
+            }
+            extractedToolData = obj.toString()
+        }
+
+        val taskAction = base.actions.firstOrNull {
+            it.type.lowercase() == "create_study_task"
+        }
+        if (taskAction != null && extractedToolType == null) {
+            extractedToolType = "create_study_task"
+            val title = taskAction.title ?: "Study Task"
+            val due = taskAction.dueDateString ?: taskAction.dueTime ?: ""
+            val obj = kotlinx.serialization.json.buildJsonObject {
+                put("title", kotlinx.serialization.json.JsonPrimitive(title))
+                put("dueDate", kotlinx.serialization.json.JsonPrimitive(due))
+            }
+            extractedToolData = obj.toString()
+        }
+
         return base.copy(
             studyBlocks = studyBlocks,
             followUps = followUps,
             directActions = directActions,
+            toolActionType = extractedToolType,
+            toolActionData = extractedToolData,
         )
     }
 
@@ -164,7 +262,17 @@ class AiActionExecutor @Inject constructor(
     }
 
     companion object {
-        val PROPOSAL_TYPES = setOf("propose_study_blocks", "suggest_followups")
+        val PROPOSAL_TYPES = setOf(
+            "propose_study_blocks",
+            "suggest_followups",
+            "create_flashcard_deck",
+            "create_deck",
+            "flashcards",
+            "launch_practice_quiz",
+            "practice_quiz",
+            "quiz",
+            "create_study_task",
+        )
     }
 
     private suspend fun executeOne(action: AiActionPayload): String = when (action.type.lowercase()) {

@@ -569,6 +569,12 @@ private fun AiTutorTab(
                                 onPick = onInputChange,
                             )
                         }
+                    } else if (!state.isLoading && state.messages.isNotEmpty() && state.messages.lastOrNull()?.isUser == false) {
+                        item {
+                            ContextualStudySuggestionsRow(
+                                onPick = onInputChange,
+                            )
+                        }
                     }
                 }
                 Column(

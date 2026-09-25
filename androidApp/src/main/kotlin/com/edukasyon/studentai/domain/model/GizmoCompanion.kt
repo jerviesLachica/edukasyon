@@ -67,10 +67,12 @@ object GizmoConstants {
 
     val QUICK_PROMPTS = listOf(
         "Explain photosynthesis simply",
-        "Help me study for my exam",
-        "Summarize this topic for me",
-        "Give me a practice question",
-        "How do I stay motivated?",
-        "Break down quadratic equations"
+        "Help me study for my upcoming exam",
+        "Make flashcards on this topic",
+        "Quiz me on key concepts",
+        "Break down quadratic equations",
+        "Create a step-by-step study plan",
+        "Summarize my notes into bullet points",
+        "How do I stay focused?",
     )
 }
