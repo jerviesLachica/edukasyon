@@ -15,6 +15,7 @@ import com.edukasyon.studentai.domain.repository.GradeRepository
 import com.edukasyon.studentai.domain.repository.SubjectRepository
 import com.edukasyon.studentai.domain.usecase.GenerateFocusPlanUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -149,6 +150,9 @@ class FocusViewModel @Inject constructor(
                         step = FocusScreenStep.REVIEW,
                     )
                 }
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isGeneratingPlan = false) }
+                throw e
             } catch (e: AiException) {
                 _uiState.update {
                     it.copy(isGeneratingPlan = false, planError = e.message)
