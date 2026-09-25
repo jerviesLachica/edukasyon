@@ -432,8 +432,9 @@ private fun AddGradeBottomSheet(
     var subjectExpanded by remember { mutableStateOf(false) }
 
     val isValid = assessment.isNotBlank() &&
-        score.toDoubleOrNull() != null &&
-        (maxScore.toDoubleOrNull() ?: 0.0) > 0
+        (score.toDoubleOrNull() ?: -1.0) >= 0.0 &&
+        (maxScore.toDoubleOrNull() ?: 0.0) > 0 &&
+        (weight.toDoubleOrNull() ?: -1.0) >= 0.0
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
