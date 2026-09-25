@@ -81,7 +81,7 @@ fun ScheduleScreen(
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
         floatingActionButton = {
             StudentAiFab(

@@ -88,7 +88,7 @@ fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = {

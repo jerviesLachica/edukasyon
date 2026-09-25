@@ -186,14 +186,16 @@ fun JeviHubScreen(
 
     Scaffold(
         contentWindowInsets = WindowInsets(0),
+        containerColor = Color.Transparent,
         topBar = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(Color.Transparent)
                     .statusBarsPadding()
             ) {
                 TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             SchedMateMascot(
@@ -244,7 +246,7 @@ fun JeviHubScreen(
                 )
                 SecondaryTabRow(
                     selectedTabIndex = selectedTab.ordinal,
-                    containerColor = MaterialTheme.colorScheme.surface,
+                    containerColor = Color.Transparent,
                     contentColor = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -781,9 +783,11 @@ fun JeviDecksScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text("Decks") },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
@@ -878,10 +882,12 @@ fun JeviDeckDetailScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(deck?.title ?: "Deck") },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
@@ -1111,10 +1117,12 @@ fun JeviCreateScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Create Flashcards") },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
@@ -1804,9 +1812,11 @@ fun JeviQuizArenaScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 title = {
                     Column {
                         Text("Quiz Arena")

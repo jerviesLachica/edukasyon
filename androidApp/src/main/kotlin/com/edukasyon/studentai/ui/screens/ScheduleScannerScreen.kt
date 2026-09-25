@@ -40,6 +40,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -260,10 +261,12 @@ fun ScheduleScannerScreen(
         } == true
 
     Scaffold(
+        containerColor = Color.Transparent,
         snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Scan Schedule") },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")

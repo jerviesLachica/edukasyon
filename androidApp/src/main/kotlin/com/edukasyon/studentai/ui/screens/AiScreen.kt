@@ -22,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -206,9 +207,11 @@ fun AiScreen(
 
     if (showTopBar) {
         Scaffold(
+            containerColor = Color.Transparent,
             snackbarHost = { StudentAiSnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                     title = { Text("Jevi AI") },
                     actions = {
                         IconButton(onClick = { onOpenHistory("tutor") }) {
