@@ -846,6 +846,27 @@ fun GizmoChatBubble(
                                                     onQuickPrompt("Explain this more simply in plain language with a real-world analogy.")
                                                 },
                                             )
+                                            DropdownMenuItem(
+                                                text = { Text("📐 Step-by-Step Breakdown") },
+                                                onClick = {
+                                                    showStudyMenu = false
+                                                    onQuickPrompt("Break this down into detailed step-by-step points with a summary comparison table.")
+                                                },
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("🎯 Practice Problems") },
+                                                onClick = {
+                                                    showStudyMenu = false
+                                                    onQuickPrompt("Give me 3 practice problems based on this with hints and complete solutions.")
+                                                },
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("📋 Summary Review Sheet") },
+                                                onClick = {
+                                                    showStudyMenu = false
+                                                    onQuickPrompt("Create a concise study summary sheet with key takeaways, formulas, and critical concepts.")
+                                                },
+                                            )
                                         }
                                     }
                                 }

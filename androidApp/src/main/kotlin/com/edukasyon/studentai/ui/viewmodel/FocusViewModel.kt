@@ -239,6 +239,19 @@ class FocusViewModel @Inject constructor(
         }
     }
 
+    fun addMinutes(minutes: Int) {
+        val state = _uiState.value
+        if (!state.isRunning || state.step != FocusScreenStep.RUNNING) return
+        val addSeconds = minutes * 60
+        _uiState.update {
+            it.copy(
+                remainingSeconds = it.remainingSeconds + addSeconds,
+                totalPhaseSeconds = it.totalPhaseSeconds + addSeconds,
+                snackbarMessage = "+$minutes min added to ${if (it.phase == FocusTimerPhase.BREAK) "break" else "focus"}",
+            )
+        }
+    }
+
     fun skipPhase() {
         val state = _uiState.value
         if (state.step != FocusScreenStep.RUNNING) return

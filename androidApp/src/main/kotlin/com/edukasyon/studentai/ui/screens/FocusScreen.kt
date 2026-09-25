@@ -118,6 +118,7 @@ fun FocusScreen(
                         onTogglePause = viewModel::togglePause,
                         onSkip = viewModel::skipPhase,
                         onEnd = viewModel::endSession,
+                        onAddMinutes = viewModel::addMinutes,
                     )
                     FocusScreenStep.COMPLETE -> FocusCompleteContent(
                         state = state,
@@ -397,7 +398,7 @@ private fun SubjectLabelField(
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
             ) {
-                subjects.take(4).forEach { subject ->
+                subjects.forEach { subject ->
                     SuggestionChip(
                         onClick = { onLabelChange(subject) },
                         label = { Text(subject, maxLines = 1) },
@@ -488,6 +489,7 @@ private fun FocusTimerContent(
     onTogglePause: () -> Unit,
     onSkip: () -> Unit,
     onEnd: () -> Unit,
+    onAddMinutes: (Int) -> Unit = {},
 ) {
     val haptic = LocalHapticFeedback.current
     val progress = if (state.totalPhaseSeconds > 0) {
@@ -589,6 +591,77 @@ private fun FocusTimerContent(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 2.sp,
                     ),
+                )
+            }
+        }
+
+        // Quick time extension chips
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Extend:",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            SuggestionChip(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onAddMinutes(1)
+                },
+                label = { Text("+1m") },
+                shape = RoundedCornerShape(10.dp),
+            )
+            SuggestionChip(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onAddMinutes(5)
+                },
+                label = { Text("+5m") },
+                shape = RoundedCornerShape(10.dp),
+            )
+            SuggestionChip(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onAddMinutes(15)
+                },
+                label = { Text("+15m") },
+                shape = RoundedCornerShape(10.dp),
+            )
+        }
+
+        // Companion Motivation Card
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            color = if (isBreak) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f)
+            else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                SchedMateMascot(
+                    mood = when {
+                        state.isPaused -> MascotMood.Resting
+                        isBreak -> MascotMood.Coffee
+                        else -> MascotMood.Learning
+                    },
+                    size = 36.dp,
+                    showSpeechBubble = false,
+                    interactive = false,
+                )
+                Text(
+                    text = when {
+                        state.isPaused -> "Paused — take a breather and resume when you're ready!"
+                        isBreak -> "Break time! Stand up, stretch, or hydrate ☕"
+                        else -> "You're in the zone! Keep this momentum going 🚀"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
                 )
             }
         }

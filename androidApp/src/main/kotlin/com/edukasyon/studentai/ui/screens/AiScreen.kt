@@ -404,7 +404,10 @@ private fun AiTutorTab(
                         item {
                             AiWelcomeHub(
                                 onSelectPrompt = { prompt -> onQuickPrompt(prompt) },
-                                onPrefillInput = { text -> onInputChange(text) },
+                                onPrefillInput = { text ->
+                                    onInputChange(text)
+                                    onChatInputActive(true)
+                                },
                                 sources = state.sources,
                                 onStudyGuide = onStudyGuide,
                                 onAudioOverview = onAudioOverview,
@@ -974,6 +977,13 @@ private fun AiWelcomeHub(
                 title = "Practice Quiz",
                 subtitle = "Test your knowledge with 5 diagnostic practice questions",
                 onClick = { onPrefillInput("Give me a 5-question practice quiz on: ") },
+            )
+            StudyStarterCard(
+                icon = Icons.AutoMirrored.Filled.MenuBook,
+                iconTint = MaterialTheme.colorScheme.tertiary,
+                title = "Study Summary Sheet",
+                subtitle = "Generate a structured review sheet with key takeaways & facts",
+                onClick = { onPrefillInput("Create a comprehensive study summary sheet for: ") },
             )
         }
 
