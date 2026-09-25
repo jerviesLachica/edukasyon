@@ -2010,6 +2010,9 @@ class AiViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(isLoading = false, loadingTool = null, lastSummary = result)
                 }
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isLoading = false, loadingTool = null) }
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, loadingTool = null, error = e.message ?: "Summarize failed") }
             }
@@ -2067,6 +2070,9 @@ class AiViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(isLoading = false, loadingTool = null, generatedFlashcards = cards)
                 }
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isLoading = false, loadingTool = null) }
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, loadingTool = null, error = e.message ?: "Flashcard generation failed") }
             }
@@ -2081,6 +2087,8 @@ class AiViewModel @Inject constructor(
                 saveFlashcards.execute(cards)
                 awardXp(GizmoConstants.XP_SAVE_FLASHCARDS, "Flashcards saved · +${GizmoConstants.XP_SAVE_FLASHCARDS} XP")
                 _uiState.update { it.copy(flashcardsSaved = true) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message ?: "Failed to save flashcards") }
             }
@@ -2144,6 +2152,9 @@ class AiViewModel @Inject constructor(
                         quizSession = QuizSessionState(quiz = quiz),
                     )
                 }
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isLoading = false, loadingTool = null) }
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, loadingTool = null, error = e.message ?: "Quiz generation failed") }
             }
@@ -2225,6 +2236,8 @@ class AiViewModel @Inject constructor(
             try {
                 saveQuiz.execute(quiz)
                 _uiState.update { it.copy(quizSaved = true, statusMessage = "Quiz saved to library") }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message ?: "Failed to save quiz") }
             }
@@ -2288,6 +2301,8 @@ class AiViewModel @Inject constructor(
                         statusMessage = "Deck '${deck.title}' saved with ${parsedCards.size} cards! (+${GizmoConstants.XP_SAVE_FLASHCARDS} XP)"
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to save tool deck", e)
                 _uiState.update { it.copy(error = "Failed to save deck: ${e.message}") }
@@ -2309,6 +2324,8 @@ class AiViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(statusMessage = "Task '$title' added to your study schedule!")
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to schedule tool task", e)
                 _uiState.update { it.copy(error = "Failed to add task: ${e.message}") }
@@ -2363,6 +2380,8 @@ class AiViewModel @Inject constructor(
                         statusMessage = "Quiz '${quiz.title}' saved and ready in Quizzes!"
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to launch tool quiz", e)
                 _uiState.update { it.copy(error = "Failed to launch quiz: ${e.message}") }
@@ -2638,6 +2657,9 @@ class AiViewModel @Inject constructor(
                 }
                 awardXp(GizmoConstants.XP_CHAT, "Imported ${classes.size} classes to schedule")
                 _uiState.update { it.copy(scannedClasses = emptyList()) }
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(scheduleScanStatus = ScheduleScanStatus.IDLE) }
+                throw e
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -2714,6 +2736,14 @@ class AiViewModel @Inject constructor(
                     )
                 }
                 _uiState.update { it.copy(scannedClasses = emptyList()) }
+            } catch (e: CancellationException) {
+                _uiState.update {
+                    it.copy(
+                        scheduleScanStatus = ScheduleScanStatus.IDLE,
+                        classesBeingImported = emptyList(),
+                    )
+                }
+                throw e
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -3865,6 +3895,8 @@ class OnboardingViewModel @Inject constructor(
                 // Pull the rest of their cloud data down right away (reinstall restore) and
                 // push anything captured during onboarding up. No-ops for guests offline.
                 firestoreSyncService.syncAll()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("OnboardingViewModel", "Onboarding failed", e)
             } finally {
