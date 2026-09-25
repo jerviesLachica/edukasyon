@@ -273,6 +273,9 @@ class AssignmentIntelligenceViewModel @Inject constructor(
                 }
                 clearPersistedBreakdown()
                 persistUiState(_uiState.value)
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isSaving = false) }
+                throw e
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isSaving = false, error = e.message ?: "Could not save to Planner.")

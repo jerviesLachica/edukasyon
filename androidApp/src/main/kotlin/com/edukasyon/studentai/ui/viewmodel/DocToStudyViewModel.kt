@@ -23,6 +23,7 @@ import com.edukasyon.studentai.core.util.QuizValidator
 import com.edukasyon.studentai.domain.usecase.SaveFlashcardsToDeckUseCase
 import com.edukasyon.studentai.domain.usecase.SaveQuizUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -243,6 +244,14 @@ class DocToStudyViewModel @Inject constructor(
                         infoMessage = "$speedBadge · ${result.pageNotes.size} page(s) · $words words ready for study pack",
                     )
                 }
+            } catch (e: CancellationException) {
+                _uiState.update {
+                    it.copy(
+                        isExtracting = false,
+                        extractionProgressText = null,
+                    )
+                }
+                throw e
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -353,6 +362,14 @@ class DocToStudyViewModel @Inject constructor(
                         }
                     }
                 }
+            } catch (e: CancellationException) {
+                _uiState.update {
+                    it.copy(
+                        isGenerating = false,
+                        generatingProgressText = null,
+                    )
+                }
+                throw e
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -380,6 +397,8 @@ class DocToStudyViewModel @Inject constructor(
                         infoMessage = "Saved ${cards.size} flashcards to deck!",
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message ?: "Failed to save flashcards.") }
             }
@@ -399,6 +418,8 @@ class DocToStudyViewModel @Inject constructor(
                         infoMessage = "Quiz saved to your library!",
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message ?: "Failed to save quiz.") }
             }

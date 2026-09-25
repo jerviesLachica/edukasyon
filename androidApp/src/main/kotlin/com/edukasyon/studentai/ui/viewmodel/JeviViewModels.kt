@@ -30,6 +30,7 @@ import com.edukasyon.studentai.domain.usecase.SaveQuizUseCase
 import com.edukasyon.studentai.core.mlkit.PdfOcrHelper
 import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
@@ -586,6 +587,9 @@ class JeviCreateViewModel @Inject constructor(
                 }
                 gizmoManager.addXp(com.edukasyon.studentai.domain.model.GizmoConstants.XP_GENERATE_FLASHCARDS)
                 _uiState.update { it.copy(isGenerating = false, generatedCards = cards) }
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isGenerating = false) }
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(isGenerating = false, error = e.message ?: "Generation failed") }
             }
@@ -801,6 +805,9 @@ class JeviQuizViewModel @Inject constructor(
                     deckId = deckId,
                     subjectId = deck.subjectId,
                 )
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isGenerating = false) }
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(isGenerating = false, error = e.message ?: "Quiz generation failed") }
             }
@@ -823,6 +830,9 @@ class JeviQuizViewModel @Inject constructor(
                     deckId = _uiState.value.selectedDeckId,
                     subjectId = deck?.subjectId,
                 )
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isGenerating = false) }
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(isGenerating = false, error = e.message ?: "Quiz generation failed") }
             }
@@ -889,6 +899,9 @@ class JeviQuizViewModel @Inject constructor(
                     throw IllegalStateException("This quiz has no questions.")
                 }
                 beginSession(quiz)
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isGenerating = false) }
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(isGenerating = false, error = e.message ?: "Failed to load quiz") }
             }
