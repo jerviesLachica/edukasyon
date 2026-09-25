@@ -1541,7 +1541,9 @@ app.post('/api/ai/quiz-from-page-notes', (req, res) =>
 // Guarded by the x-admin-key header (must match ADMIN_API_KEY env var).
 app.post('/internal/broadcast-update', async (req, res) => {
   const expectedKey = process.env.ADMIN_API_KEY;
-  if (!expectedKey || req.get('x-admin-key') !== expectedKey) {
+  const providedKey = req.get('x-admin-key') || '';
+  const isAuth = (expectedKey && providedKey === expectedKey) || isAuthorizedAdmin(req);
+  if (!isAuth) {
     return res.status(401).json({ ok: false, error: 'Unauthorized' });
   }
   try {

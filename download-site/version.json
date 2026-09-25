@@ -1,11 +1,11 @@
 {
-    "versionCode":  14,
-    "versionName":  "2.1.3",
-    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.3/schedmate-2.1.3.apk",
-    "releaseNotes":  "SchedMate 2.1.3: Custom MP3 / Audio Alarm Tone Fix — Fixed SecurityException crash when selecting custom MP3 sounds, added local audio persistence across restarts, and resilient notification channel fallbacks.",
-    "mandatoryUpdate":  false,
-    "apkFile":  "schedmate-2.1.3.apk",
-    "sha256":  "6d766717721b2728ce9b3b4babbb093e6127d0b40821a8ac2722e1637ce6d7ed",
-    "sizeBytes":  82289227,
-    "releaseDate":  "2026-09-21"
+  "versionCode": 15,
+  "versionName": "2.1.4",
+  "apkUrl": "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.4/schedmate-2.1.4.apk",
+  "releaseNotes": "SchedMate 2.1.4: In-app feedback & bug reporting button, transparent navigation dock with animated JEVI mascot, and notification dismissal fixes.",
+  "mandatoryUpdate": false,
+  "apkFile": "schedmate-2.1.4.apk",
+  "sha256": "81a9d649947de862ff2ff1f768f3b16fc35da7a65093da1496d4d463ec994167",
+  "sizeBytes": 82371379,
+  "releaseDate": "2026-09-25"
 }

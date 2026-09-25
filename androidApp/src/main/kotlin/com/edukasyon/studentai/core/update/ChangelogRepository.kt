@@ -11,6 +11,18 @@ data class ChangelogEntry(
 object ChangelogRepository {
     val changelog = listOf(
         ChangelogEntry(
+            versionName = "2.1.4",
+            versionCode = 15,
+            releaseDate = "2026-09-25",
+            isMandatory = false,
+            notes = listOf(
+                "Feedback & Bug Reports: Direct in-app suggestion button in Profile and Settings to submit feature requests and report bugs directly to our admin team.",
+                "Transparent Navigation Bar: Modern translucent bottom navigation dock with stylish gray pill backdrop and animated JEVI mascot indicator.",
+                "Notification Dismiss Fix: Resolved issue where dismissed assignment and exam alerts kept recurring; dismissed items now stay properly cleared.",
+                "Spam & Bot Guardrails: Anti-spam rate limiting and cooldown guardrails for community feedback.",
+            ),
+        ),
+        ChangelogEntry(
             versionName = "2.1.3",
             versionCode = 14,
             releaseDate = "2026-09-21",
