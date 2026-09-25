@@ -1,5 +1,6 @@
 package com.edukasyon.studentai.ui.components.mascot
 
+import android.content.Context
 import android.os.Build
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -9,9 +10,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,9 +37,30 @@ import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
 import com.edukasyon.studentai.R
 import kotlinx.coroutines.delay
+/**
+ * Shared singleton ImageLoader for animated WebP mascot images.
+ * Avoids creating redundant thread pools and OkHttp client caches per mascot composable.
+ */
+object MascotImageLoaderProvider {
+    @Volatile
+    private var instance: ImageLoader? = null
 
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.width
+    fun get(context: Context): ImageLoader {
+        return instance ?: synchronized(this) {
+            instance ?: ImageLoader.Builder(context.applicationContext)
+                .components {
+                    if (Build.VERSION.SDK_INT >= 28) {
+                        add(ImageDecoderDecoder.Factory())
+                    } else {
+                        add(GifDecoder.Factory())
+                    }
+                }
+                .crossfade(false)
+                .build()
+                .also { instance = it }
+        }
+    }
+}
 
 enum class MascotBubblePosition {
     Top,
@@ -90,18 +114,8 @@ fun SchedMateMascot(
         label = "MascotBounce"
     )
 
-    // Animated WebP loader with platform hardware ImageDecoder
-    val imageLoader = remember(context) {
-        ImageLoader.Builder(context)
-            .components {
-                if (Build.VERSION.SDK_INT >= 28) {
-                    add(ImageDecoderDecoder.Factory())
-                } else {
-                    add(GifDecoder.Factory())
-                }
-            }
-            .build()
-    }
+    // Shared animated WebP loader
+    val imageLoader = remember(context) { MascotImageLoaderProvider.get(context) }
 
     // Check for drawable or raw animated assets dynamically
     val animResId = remember(mood) {
@@ -232,17 +246,7 @@ fun AnimatedMascotIcon(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val imageLoader = remember(context) {
-        ImageLoader.Builder(context)
-            .components {
-                if (Build.VERSION.SDK_INT >= 28) {
-                    add(ImageDecoderDecoder.Factory())
-                } else {
-                    add(GifDecoder.Factory())
-                }
-            }
-            .build()
-    }
+    val imageLoader = remember(context) { MascotImageLoaderProvider.get(context) }
     val animResId = remember(mood) {
         val drawableId = context.resources.getIdentifier(mood.rawResName, "drawable", context.packageName)
         if (drawableId != 0) drawableId else {
