@@ -216,10 +216,11 @@ class FocusViewModel @Inject constructor(
             return
         }
         val seconds = block.durationMinutes * 60
+        val phase = if (block.type == FocusBlockType.BREAK) FocusTimerPhase.BREAK else FocusTimerPhase.BLOCK
         _uiState.update {
             it.copy(
                 currentBlockIndex = index,
-                phase = FocusTimerPhase.BLOCK,
+                phase = phase,
                 remainingSeconds = seconds,
                 totalPhaseSeconds = seconds,
                 currentActivityLabel = block.activity,
@@ -262,8 +263,22 @@ class FocusViewModel @Inject constructor(
     fun endSession() {
         tickJob?.cancel()
         val state = _uiState.value
-        if (state.step == FocusScreenStep.RUNNING && state.totalFocusMinutesLogged > 0) {
-            persistSession(state)
+        if (state.step == FocusScreenStep.RUNNING) {
+            val isFocusPhase = when (state.mode) {
+                FocusMode.MANUAL -> state.phase == FocusTimerPhase.FOCUS
+                FocusMode.AI_PLAN -> {
+                    val currentBlock = state.plan?.blocks?.getOrNull(state.currentBlockIndex)
+                    currentBlock?.type != FocusBlockType.BREAK && state.phase != FocusTimerPhase.BREAK
+                }
+            }
+            val elapsedSeconds = (state.totalPhaseSeconds - state.remainingSeconds).coerceAtLeast(0)
+            val partialMinutes = if (isFocusPhase && elapsedSeconds >= 60) {
+                elapsedSeconds / 60
+            } else 0
+            val totalLogged = state.totalFocusMinutesLogged + partialMinutes
+            if (totalLogged > 0 || state.completedCycles > 0) {
+                persistSession(state.copy(totalFocusMinutesLogged = totalLogged))
+            }
         }
         resetToSetup()
     }
@@ -339,7 +354,9 @@ class FocusViewModel @Inject constructor(
             return
         }
         val currentBlock = plan.blocks.getOrNull(state.currentBlockIndex)
-        val loggedMinutes = currentBlock?.durationMinutes ?: 0
+        val isBreakBlock = currentBlock?.type == FocusBlockType.BREAK || state.phase == FocusTimerPhase.BREAK
+        val blockDuration = (state.totalPhaseSeconds / 60).coerceAtLeast(currentBlock?.durationMinutes ?: 0)
+        val loggedMinutes = if (!isBreakBlock) blockDuration else 0
         val nextIndex = state.currentBlockIndex + 1
         if (nextIndex >= plan.blocks.size) {
             _uiState.update {
@@ -381,10 +398,10 @@ class FocusViewModel @Inject constructor(
                     id = UUID.randomUUID().toString(),
                     mode = state.mode,
                     subjectLabel = state.subjectLabel.takeIf { it.isNotBlank() },
-                    focusMinutes = state.customFocusMinutes,
+                    focusMinutes = if (state.mode == FocusMode.MANUAL) state.customFocusMinutes else state.totalFocusMinutesLogged,
                     breakMinutes = state.customBreakMinutes,
                     completedCycles = state.completedCycles.coerceAtLeast(1),
-                    totalFocusMinutes = state.totalFocusMinutesLogged.coerceAtLeast(state.customFocusMinutes),
+                    totalFocusMinutes = state.totalFocusMinutesLogged.coerceAtLeast(1),
                     completedAt = System.currentTimeMillis(),
                 )
             )

@@ -783,10 +783,10 @@ private fun focusPastelCard(isDark: Boolean): Color =
 private fun formatCountdown(totalSeconds: Int): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
-    return "%02d:%02d".format(minutes, seconds)
+    return String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
 }
 
 private fun formatBlockRange(startMinute: Int, endMinute: Int): String {
-    fun fmt(m: Int) = "%d:%02d".format(m / 60, m % 60)
+    fun fmt(m: Int) = String.format(java.util.Locale.US, "%d:%02d", m / 60, m % 60)
     return "${fmt(startMinute)}–${fmt(endMinute)}"
 }
