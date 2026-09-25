@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
@@ -11,21 +13,28 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.automirrored.outlined.NoteAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -94,14 +103,16 @@ fun AiScreen(
                 .navigationBarsPadding()
                 .imePadding(),
         ) {
-            GizmoCompanionHeader(
-                gizmo = state.gizmo,
-                isOnline = state.isOnline,
-                expanded = headerExpanded,
-                onToggleExpanded = { headerExpanded = !headerExpanded },
-                thinkingLevel = state.thinkingLevel,
-                onThinkingLevelSelected = { viewModel.setThinkingLevel(it) },
-            )
+            if (showTopBar) {
+                GizmoCompanionHeader(
+                    gizmo = state.gizmo,
+                    isOnline = state.isOnline,
+                    expanded = headerExpanded,
+                    onToggleExpanded = { headerExpanded = !headerExpanded },
+                    thinkingLevel = state.thinkingLevel,
+                    onThinkingLevelSelected = { viewModel.setThinkingLevel(it) },
+                )
+            }
             if (state.activeDeckId != null) {
                 Row(
                     modifier = Modifier
@@ -391,77 +402,18 @@ private fun AiTutorTab(
                 ) {
                     if (state.messages.isEmpty()) {
                         item {
-                            val welcomeMessage =
-                                "Hi! I'm Jevi, your AI study buddy. Ask me anything — I'll explain concepts, help with homework, and cheer you on! 💪"
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                GizmoChatBubble(
-                                    message = welcomeMessage,
-                                    isUser = false,
-                                    sender = "Jevi",
-                                    onCopy = {
-                                        clipboard.setText(AnnotatedString(welcomeMessage))
-                                        scope.launch { onCopied() }
-                                    },
-                                )
-                                Text(
-                                    "Study Tools",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(start = 2.dp),
-                                )
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    StudioActionCard(
-                                        icon = Icons.Default.Podcasts,
-                                        label = "Audio Overview",
-                                        onClick = onAudioOverview,
-                                    )
-                                    StudioActionCard(
-                                        icon = Icons.AutoMirrored.Filled.LibraryBooks,
-                                        label = "Study Guide",
-                                        onClick = onStudyGuide,
-                                    )
-                                    StudioActionCard(
-                                        icon = Icons.Default.Style,
-                                        label = "Flashcards",
-                                        onClick = onFlashcards,
-                                    )
-                                    StudioActionCard(
-                                        icon = Icons.Default.Quiz,
-                                        label = "Practice Quiz",
-                                        onClick = onQuiz,
-                                    )
-                                    StudioActionCard(
-                                        icon = Icons.Default.Summarize,
-                                        label = "Briefing Doc",
-                                        onClick = onBriefingDoc,
-                                    )
-                                }
-                                if (!showPromptSidePanel) {
-                                    Text(
-                                        "Quick prompts",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.primary,
-                                    )
-                                    Row(
-                                        Modifier.horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        GizmoConstants.QUICK_PROMPTS.forEach { prompt ->
-                                            SuggestionChip(
-                                                onClick = { onQuickPrompt(prompt) },
-                                                label = { Text(prompt, maxLines = 1) },
-                                                enabled = !state.isLoading,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                            AiWelcomeHub(
+                                onSelectPrompt = { prompt -> onQuickPrompt(prompt) },
+                                onPrefillInput = { text -> onInputChange(text) },
+                                sources = state.sources,
+                                onStudyGuide = onStudyGuide,
+                                onAudioOverview = onAudioOverview,
+                                onBriefingDoc = onBriefingDoc,
+                                onFlashcardsFromSources = onFlashcards,
+                                onQuizFromSources = onQuiz,
+                                isLoading = state.isLoading,
+                                showQuickPrompts = !showPromptSidePanel,
+                            )
                         }
                     }
                     items(state.messages, key = { "${it.timestamp}-${it.content.hashCode()}" }) { msg ->
@@ -859,6 +811,238 @@ private fun NotebookLmSourcesBar(
                         },
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StudyStarterCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(iconTint.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = iconTint,
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AiWelcomeHub(
+    onSelectPrompt: (String) -> Unit,
+    onPrefillInput: (String) -> Unit,
+    sources: List<com.edukasyon.studentai.domain.model.CitedSource>,
+    onStudyGuide: () -> Unit,
+    onAudioOverview: () -> Unit,
+    onBriefingDoc: () -> Unit,
+    onFlashcardsFromSources: () -> Unit,
+    onQuizFromSources: () -> Unit,
+    isLoading: Boolean,
+    showQuickPrompts: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        // Welcome Banner Card
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Outlined.AutoAwesome,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "What would you like to learn today?",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Ask any question, snap homework, or pick a study starter below.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        // 4 Core Study Starters
+        Text(
+            "Study Starters",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 2.dp),
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            StudyStarterCard(
+                icon = Icons.Outlined.Lightbulb,
+                iconTint = MaterialTheme.colorScheme.primary,
+                title = "Explain a Concept",
+                subtitle = "Break down any topic with simple everyday examples",
+                onClick = { onPrefillInput("Explain this in simple terms: ") },
+            )
+            StudyStarterCard(
+                icon = Icons.Default.School,
+                iconTint = MaterialTheme.colorScheme.tertiary,
+                title = "Step-by-Step Solver",
+                subtitle = "Walk through math, physics, or science problems",
+                onClick = { onPrefillInput("Walk me through how to solve this step-by-step: ") },
+            )
+            StudyStarterCard(
+                icon = Icons.Default.Style,
+                iconTint = MaterialTheme.colorScheme.secondary,
+                title = "Make Flashcards",
+                subtitle = "Create an active recall deck with key terms & definitions",
+                onClick = { onPrefillInput("Create a flashcard deck for: ") },
+            )
+            StudyStarterCard(
+                icon = Icons.Default.Quiz,
+                iconTint = MaterialTheme.colorScheme.error,
+                title = "Practice Quiz",
+                subtitle = "Test your knowledge with 5 diagnostic practice questions",
+                onClick = { onPrefillInput("Give me a 5-question practice quiz on: ") },
+            )
+        }
+
+        // Quick Prompts
+        if (showQuickPrompts) {
+            Text(
+                "Quick Prompts",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 2.dp),
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                GizmoConstants.QUICK_PROMPTS.forEach { prompt ->
+                    SuggestionChip(
+                        onClick = { onSelectPrompt(prompt) },
+                        label = { Text(prompt, maxLines = 1) },
+                        enabled = !isLoading,
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                }
+            }
+        }
+
+        // Multi-Source Studio Tools (Only shown if sources are attached)
+        if (sources.isNotEmpty()) {
+            Text(
+                "Active Source Tools (${sources.size})",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 2.dp),
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                StudioActionCard(
+                    icon = Icons.AutoMirrored.Filled.LibraryBooks,
+                    label = "Study Guide",
+                    onClick = onStudyGuide,
+                )
+                StudioActionCard(
+                    icon = Icons.Default.Podcasts,
+                    label = "Audio Overview",
+                    onClick = onAudioOverview,
+                )
+                StudioActionCard(
+                    icon = Icons.Default.Style,
+                    label = "Flashcards",
+                    onClick = onFlashcardsFromSources,
+                )
+                StudioActionCard(
+                    icon = Icons.Default.Quiz,
+                    label = "Practice Quiz",
+                    onClick = onQuizFromSources,
+                )
+                StudioActionCard(
+                    icon = Icons.Default.Summarize,
+                    label = "Briefing Doc",
+                    onClick = onBriefingDoc,
+                )
             }
         }
     }

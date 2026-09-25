@@ -57,6 +57,11 @@ import com.edukasyon.studentai.ui.viewmodel.JeviQuizPhase
 import com.edukasyon.studentai.ui.viewmodel.JeviQuizSource
 import com.edukasyon.studentai.ui.viewmodel.JeviQuizViewModel
 
+import com.edukasyon.studentai.domain.model.AiConversationType
+import com.edukasyon.studentai.ui.viewmodel.AiViewModel
+import com.edukasyon.studentai.ui.viewmodel.sharedAiViewModel
+import androidx.compose.material.icons.automirrored.outlined.NoteAdd
+
 @OptIn(ExperimentalMaterial3Api::class)
 enum class JeviTab(val label: String, val icon: ImageVector) {
     TUTOR("AI Tutor", Icons.Outlined.Psychology),
@@ -78,9 +83,11 @@ fun JeviHubScreen(
     viewModel: JeviHomeViewModel = hiltViewModel(),
     decksViewModel: JeviDecksViewModel = hiltViewModel(),
     quizViewModel: JeviQuizViewModel = hiltViewModel(),
+    aiViewModel: AiViewModel = sharedAiViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val quizState by quizViewModel.uiState.collectAsStateWithLifecycle()
+    val aiState by aiViewModel.uiState.collectAsStateWithLifecycle()
     val dashboard = state.dashboard
     val horizontalPadding = rememberAdaptiveHorizontalPadding()
 
@@ -222,7 +229,11 @@ fun JeviHubScreen(
                                 )
                                 Text(
                                     text = when (selectedTab) {
-                                        JeviTab.TUTOR -> "Intelligent Study Companion"
+                                        JeviTab.TUTOR -> if (aiState.gizmo.streakDays > 0) {
+                                            "Lv.${aiState.gizmo.level} • ${aiState.gizmo.streakDays}d streak • ${aiState.gizmo.xp} XP"
+                                        } else {
+                                            "Lv.${aiState.gizmo.level} • AI Study Buddy"
+                                        }
                                         JeviTab.FLASHCARDS -> "${dashboard?.dueCount ?: 0} cards due today"
                                         JeviTab.QUIZ -> "${quizState.savedQuizzes.size} practice quizzes"
                                     },
@@ -235,6 +246,17 @@ fun JeviHubScreen(
                     },
                     actions = {
                         if (selectedTab == JeviTab.TUTOR) {
+                            IconButton(
+                                onClick = {
+                                    aiViewModel.startNewConversation(AiConversationType.TUTOR)
+                                }
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Outlined.NoteAdd,
+                                    contentDescription = "New Chat",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                             IconButton(onClick = { onOpenHistory("tutor") }) {
                                 Icon(Icons.Outlined.History, contentDescription = "History")
                             }
@@ -289,6 +311,7 @@ fun JeviHubScreen(
                     AiScreen(
                         onOpenHistory = onOpenHistory,
                         onChatInputActive = onChatInputActive,
+                        viewModel = aiViewModel,
                         showTopBar = false,
                     )
                 }
