@@ -272,14 +272,193 @@ Here is a structured overview of the molecular differences:
 | **Acceleration** | Rate of change of velocity over time | **Vector** (magnitude + direction) | $m/s^2$ | $\\vec{a} = \\frac{\\Delta \\vec{v}}{\\Delta t}$ |`;
   }
 
+  if (q.includes('prokaryot') || q.includes('eukaryot')) {
+    return `### Comparison: Prokaryotic vs. Eukaryotic Cells
+
+| Feature | Prokaryotic Cells | Eukaryotic Cells |
+| :--- | :--- | :--- |
+| **Nucleus** | Absent (DNA in nucleoid region) | True membrane-bound nucleus |
+| **Membrane-Bound Organelles** | None (no mitochondria, ER, Golgi) | Present (mitochondria, chloroplasts, Golgi, etc.) |
+| **Size** | Typically $0.1–5.0\\,\\mu m$ (smaller) | Typically $10–100\\,\\mu m$ (larger) |
+| **Ribosomes** | 70S ribosomes | 80S ribosomes (in cytoplasm) |
+| **Examples** | Bacteria, Archaea | Plants, Animals, Fungi, Protists |`;
+  }
+
+  if (q.includes('photosynthesis') && (q.includes('light') || q.includes('calvin') || q.includes('dark'))) {
+    return `### Photosynthesis: Light-Dependent vs. Calvin Cycle
+
+| Phase | Light-Dependent Reactions | Calvin Cycle (Light-Independent) |
+| :--- | :--- | :--- |
+| **Location** | Thylakoid membrane | Stroma (fluid of chloroplast) |
+| **Inputs** | Light energy, $\\text{H}_2\\text{O}$, $\\text{NADP}^+$, $\\text{ADP}$ | $\\text{CO}_2$, $\\text{ATP}$, $\\text{NADPH}$ |
+| **Outputs** | $\\text{O}_2$, $\\text{ATP}$, $\\text{NADPH}$ | Glucose (G3P), $\\text{NADP}^+$, $\\text{ADP}$ |
+| **Light Requirement** | Directly required | Does not directly require photons, but relies on ATP/NADPH from light phase |`;
+  }
+
+  if (q.includes('ionic') && q.includes('covalent')) {
+    return `### Chemical Bonds: Ionic vs. Covalent Bonding
+
+| Characteristic | Ionic Bonding | Covalent Bonding |
+| :--- | :--- | :--- |
+| **Electron Behavior** | Complete transfer of valence electrons | Sharing of valence electron pairs |
+| **Participating Atoms** | Metal + Non-metal | Non-metal + Non-metal |
+| **Electronegativity Difference** | Large (typically $> 1.7–2.0$) | Small to moderate ($\\le 1.7$) |
+| **Melting / Boiling Points** | Very high (strong crystal lattice) | Generally lower (weaker intermolecular forces) |
+| **Electrical Conductivity** | Conducts electricity when molten or in aqueous solution | Poor electrical conductor |
+| **Examples** | $\\text{NaCl}$, $\\text{MgO}$, $\\text{CaCl}_2$ | $\\text{H}_2\\text{O}$, $\\text{CO}_2$, $\\text{CH}_4$ |`;
+  }
+
   return null;
+}
+
+function extractTopic(message) {
+  const clean = (message || '')
+    .replace(/(?:make|create|generate|give me|build|produce|a|an|the|practice|study|flashcards?|quiz|questions?|for|on|about|of)\s+/gi, ' ')
+    .trim();
+  return clean.length >= 3 ? clean.charAt(0).toUpperCase() + clean.slice(1) : 'Key Study Concepts';
+}
+
+function generateFlashcardFallback(message, subject) {
+  const topic = extractTopic(message);
+  const title = `${topic} Flashcards`;
+  const cards = [
+    {
+      front: `What is the core definition of ${topic}?`,
+      back: `The fundamental principle and underlying mechanism that defines ${topic} in ${subject || 'your coursework'}.`,
+    },
+    {
+      front: `What is a primary formula or rule associated with ${topic}?`,
+      back: `State the standard governing equation, law, or relationship governing ${topic}.`,
+    },
+    {
+      front: `What is a common real-world application of ${topic}?`,
+      back: `How ${topic} is utilized in real scenarios, experimental design, or examination problems.`,
+    },
+    {
+      front: `What is a common pitfall or misconception regarding ${topic}?`,
+      back: `Be careful to check units, sign conventions, or distinguishing ${topic} from closely related terms.`,
+    },
+  ];
+
+  const actions = {
+    actions: [
+      {
+        type: 'create_flashcard_deck',
+        title,
+        cards,
+      },
+    ],
+  };
+
+  const reply = `### Flashcard Deck: ${title}
+
+Here is a 4-card active recall deck created for **${topic}**:
+
+| # | Front (Question) | Back (Answer) |
+| :--- | :--- | :--- |
+| 1 | **Definition** | Core principle & concept definition |
+| 2 | **Governing Rule** | Key formula, rule, or standard law |
+| 3 | **Real-World Application** | Practical examples & problem solving |
+| 4 | **Common Pitfall** | Units, conventions, and exam caveats |
+
+Tap the button below to save this deck directly to your flashcards!
+
+\`\`\`actions
+${JSON.stringify(actions)}
+\`\`\``;
+
+  return {
+    reply,
+    reasoning: 'Generated active recall study deck via SchedMate Offline Study Engine.',
+    model: 'smart-offline-deck',
+  };
+}
+
+function generateQuizFallback(message, subject) {
+  const topic = extractTopic(message);
+  const title = `${topic} Diagnostic Quiz`;
+  const questions = [
+    {
+      question: `Which statement best describes the fundamental purpose of ${topic}?`,
+      options: [
+        `It provides the foundational principle and mechanism for analyzing ${topic}.`,
+        `It is solely an arbitrary mathematical constant without physical meaning.`,
+        `It cannot be measured, verified, or observed experimentally.`,
+        `It only applies in isolated, hypothetical vacuums with zero variables.`,
+      ],
+      correctAnswer: `It provides the foundational principle and mechanism for analyzing ${topic}.`,
+      explanation: `By definition, ${topic} describes the primary governing mechanism in this domain.`,
+    },
+    {
+      question: `When solving problems involving ${topic}, what is the first recommended step?`,
+      options: [
+        `Identify known quantities, unknown targets, and relevant formulas.`,
+        `Guess random numerical values without reading given constraints.`,
+        `Skip the problem entirely without attempting a diagram or formula.`,
+        `Invert the values and ignore all units of measurement.`,
+      ],
+      correctAnswer: `Identify known quantities, unknown targets, and relevant formulas.`,
+      explanation: `Systematic problem-solving always starts by cataloging given variables and units.`,
+    },
+    {
+      question: `What distinguishes ${topic} from related concepts in ${subject || 'this subject'}?`,
+      options: [
+        `Its specific scope, defining conditions, and direct relationships.`,
+        `It has no differences and is completely interchangeable.`,
+        `It is only taught in advanced graduate courses and never on exams.`,
+        `It violates the law of conservation of energy.`,
+      ],
+      correctAnswer: `Its specific scope, defining conditions, and direct relationships.`,
+      explanation: `Distinguishing defining conditions is essential for mastering high-yield exam questions.`,
+    },
+  ];
+
+  const actions = {
+    actions: [
+      {
+        type: 'launch_practice_quiz',
+        title,
+        questions,
+      },
+    ],
+  };
+
+  const reply = `### Diagnostic Practice Quiz: ${title}
+
+Here is a 3-question diagnostic practice test prepared for **${topic}**:
+
+1. **Question 1**: Conceptual definition and mechanism
+2. **Question 2**: Problem-solving methodology
+3. **Question 3**: Distinguishing characteristics and exam mastery
+
+Tap the button below to start the quiz in Quiz Arena!
+
+\`\`\`actions
+${JSON.stringify(actions)}
+\`\`\``;
+
+  return {
+    reply,
+    reasoning: 'Generated practice quiz via SchedMate Offline Quiz Engine.',
+    model: 'smart-offline-quiz',
+  };
 }
 
 function generateSmartStudyFallback(body, upstreamError) {
   const message = (body.message || '').trim();
   const subject = body.subject || '';
 
-  // 1. Check for math questions
+  // 1. Check for flashcard requests
+  if (/\b(?:flashcards?|study deck|revision cards?|cards for)\b/i.test(message)) {
+    return generateFlashcardFallback(message, subject);
+  }
+
+  // 2. Check for quiz requests
+  if (/\b(?:quiz|practice quiz|test me|practice questions?|exam questions?)\b/i.test(message)) {
+    return generateQuizFallback(message, subject);
+  }
+
+  // 3. Check for math questions
   const mathAnswer = solveMathProblem(message);
   if (mathAnswer) {
     return {
@@ -289,7 +468,7 @@ function generateSmartStudyFallback(body, upstreamError) {
     };
   }
 
-  // 2. Check for table / comparison queries
+  // 4. Check for table / comparison queries
   const tableAnswer = generateTabularComparison(message);
   if (tableAnswer) {
     return {
@@ -299,7 +478,7 @@ function generateSmartStudyFallback(body, upstreamError) {
     };
   }
 
-  // 3. General Study Response with clean formatting
+  // 5. General Study Response with clean formatting
   const subjectLabel = subject ? ` for **${subject}**` : '';
   const reply = `### Study Notes${subjectLabel}
 

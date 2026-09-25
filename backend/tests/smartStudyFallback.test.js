@@ -64,6 +64,20 @@ describe('SmartStudyFallback - Columns & Rows Tables', () => {
     assert.match(res, /Scalar/);
     assert.match(res, /Vector/);
   });
+
+  it('generates structured biology table for prokaryotes vs eukaryotes', () => {
+    const res = generateTabularComparison('compare prokaryotic vs eukaryotic cells in a table');
+    assert.ok(res);
+    assert.match(res, /Nucleoid/i);
+    assert.match(res, /membrane-bound/i);
+  });
+
+  it('generates structured chemistry table for ionic vs covalent bonds', () => {
+    const res = generateTabularComparison('make a table comparing ionic and covalent bonds');
+    assert.ok(res);
+    assert.match(res, /transfer of valence electrons/i);
+    assert.match(res, /sharing of valence electron/i);
+  });
 });
 
 describe('SmartStudyFallback - Full Fallback Generator', () => {
@@ -78,6 +92,21 @@ describe('SmartStudyFallback - Full Fallback Generator', () => {
     const fallback = generateSmartStudyFallback({ message: 'create a table comparing DNA and RNA' });
     assert.ok(fallback.reply);
     assert.match(fallback.reply, /\| Property \| DNA/);
+  });
+
+  it('generates interactive flashcard deck with actions on flashcard requests', () => {
+    const fallback = generateSmartStudyFallback({ message: 'make flashcards on photosynthesis', subject: 'Biology' });
+    assert.ok(fallback.reply);
+    assert.match(fallback.reply, /create_flashcard_deck/);
+    assert.match(fallback.reply, /Photosynthesis/);
+    assert.equal(fallback.model, 'smart-offline-deck');
+  });
+
+  it('generates interactive quiz with actions on quiz requests', () => {
+    const fallback = generateSmartStudyFallback({ message: 'quiz me on calculus derivatives' });
+    assert.ok(fallback.reply);
+    assert.match(fallback.reply, /launch_practice_quiz/);
+    assert.equal(fallback.model, 'smart-offline-quiz');
   });
 
   it('provides structured study response with summary table for general study queries', () => {

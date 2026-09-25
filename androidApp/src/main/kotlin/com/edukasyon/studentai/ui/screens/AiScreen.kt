@@ -496,6 +496,11 @@ private fun AiTutorTab(
                             } else {
                                 null
                             },
+                            onQuickPrompt = if (!msg.isUser) {
+                                { onQuickPrompt(it) }
+                            } else {
+                                null
+                            },
                         )
                     }
                     if (state.isLoading && state.loadingTool == AiTool.TUTOR) {

@@ -677,6 +677,7 @@ fun GizmoChatBubble(
     onSaveDeck: ((title: String, cardsJson: String) -> Unit)? = null,
     onScheduleTask: ((title: String, dueDate: String) -> Unit)? = null,
     onLaunchQuiz: ((title: String, questionsJson: String) -> Unit)? = null,
+    onQuickPrompt: ((String) -> Unit)? = null,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -800,11 +801,54 @@ fun GizmoChatBubble(
                                 }
                             }
                         }
-                        if (!isUser && (onCopy != null || onSpeak != null) && message.isNotBlank()) {
+                        if (!isUser && (onCopy != null || onSpeak != null || onQuickPrompt != null) && message.isNotBlank()) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                                 horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
+                                if (onQuickPrompt != null) {
+                                    var showStudyMenu by remember { mutableStateOf(false) }
+                                    Box {
+                                        IconButton(
+                                            onClick = { showStudyMenu = true },
+                                            modifier = Modifier.size(28.dp),
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.AutoAwesome,
+                                                contentDescription = "Study actions",
+                                                modifier = Modifier.size(15.dp),
+                                                tint = MaterialTheme.colorScheme.primary,
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = showStudyMenu,
+                                            onDismissRequest = { showStudyMenu = false },
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("🗂️ Turn into Flashcards") },
+                                                onClick = {
+                                                    showStudyMenu = false
+                                                    onQuickPrompt("Create flashcards based on your previous explanation.")
+                                                },
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("📝 Quiz Me on This") },
+                                                onClick = {
+                                                    showStudyMenu = false
+                                                    onQuickPrompt("Create a 3-question practice quiz to test my understanding of your previous explanation.")
+                                                },
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("💡 Explain More Simply") },
+                                                onClick = {
+                                                    showStudyMenu = false
+                                                    onQuickPrompt("Explain this more simply in plain language with a real-world analogy.")
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
                                 if (onSpeak != null) {
                                     IconButton(
                                         onClick = onSpeak,
