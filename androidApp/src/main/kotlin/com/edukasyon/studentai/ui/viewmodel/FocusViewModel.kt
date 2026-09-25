@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.edukasyon.studentai.core.ai.AiException
 import com.edukasyon.studentai.core.notifications.NotificationHelper
+import com.edukasyon.studentai.core.notifications.ReminderScheduler
 import com.edukasyon.studentai.core.notifications.ReminderType
 import com.edukasyon.studentai.core.util.FocusPlanValidator
 import com.edukasyon.studentai.core.util.GradeCalculator
@@ -62,13 +63,20 @@ class FocusViewModel @Inject constructor(
     private val generateFocusPlan: GenerateFocusPlanUseCase,
     private val focusPreferences: FocusPreferences,
     private val notificationHelper: NotificationHelper,
+    private val reminderScheduler: ReminderScheduler,
 ) : ViewModel() {
+
+    companion object {
+        private const val FOCUS_WORK_NAME = "focus_phase_reminder"
+        private const val FOCUS_NOTIFICATION_ID = 90210
+    }
 
     private val _uiState = MutableStateFlow(FocusUiState())
     val uiState: StateFlow<FocusUiState> = _uiState.asStateFlow()
 
     private var tickJob: Job? = null
     private var manualOnBreak = false
+    private var phaseEndTimestampMs: Long = 0L
 
     init {
         viewModelScope.launch {
@@ -235,8 +243,11 @@ class FocusViewModel @Inject constructor(
             _uiState.update { it.copy(isPaused = false) }
             startTicking()
         } else {
-            _uiState.update { it.copy(isPaused = true) }
             tickJob?.cancel()
+            reminderScheduler.cancelReminder(FOCUS_WORK_NAME)
+            val now = System.currentTimeMillis()
+            val remaining = ((phaseEndTimestampMs - now) / 1000L).toInt().coerceAtLeast(0)
+            _uiState.update { it.copy(isPaused = true, remainingSeconds = remaining) }
         }
     }
 
@@ -244,10 +255,16 @@ class FocusViewModel @Inject constructor(
         val state = _uiState.value
         if (!state.isRunning || state.step != FocusScreenStep.RUNNING) return
         val addSeconds = minutes * 60
+        val newRemaining = state.remainingSeconds + addSeconds
+        val newTotal = state.totalPhaseSeconds + addSeconds
+        phaseEndTimestampMs += (addSeconds * 1000L)
+        if (!state.isPaused) {
+            schedulePhaseReminder(state, phaseEndTimestampMs)
+        }
         _uiState.update {
             it.copy(
-                remainingSeconds = it.remainingSeconds + addSeconds,
-                totalPhaseSeconds = it.totalPhaseSeconds + addSeconds,
+                remainingSeconds = newRemaining,
+                totalPhaseSeconds = newTotal,
                 snackbarMessage = "+$minutes min added to ${if (it.phase == FocusTimerPhase.BREAK) "break" else "focus"}",
             )
         }
@@ -257,11 +274,13 @@ class FocusViewModel @Inject constructor(
         val state = _uiState.value
         if (state.step != FocusScreenStep.RUNNING) return
         tickJob?.cancel()
+        reminderScheduler.cancelReminder(FOCUS_WORK_NAME)
         onPhaseComplete()
     }
 
     fun endSession() {
         tickJob?.cancel()
+        reminderScheduler.cancelReminder(FOCUS_WORK_NAME)
         val state = _uiState.value
         if (state.step == FocusScreenStep.RUNNING) {
             val isFocusPhase = when (state.mode) {
@@ -293,12 +312,17 @@ class FocusViewModel @Inject constructor(
 
     private fun startTicking() {
         tickJob?.cancel()
+        phaseEndTimestampMs = System.currentTimeMillis() + (_uiState.value.remainingSeconds * 1000L)
+        schedulePhaseReminder(_uiState.value, phaseEndTimestampMs)
         tickJob = viewModelScope.launch {
             while (_uiState.value.isRunning && !_uiState.value.isPaused) {
                 delay(1000)
-                val remaining = _uiState.value.remainingSeconds - 1
+                val now = System.currentTimeMillis()
+                val remaining = ((phaseEndTimestampMs - now) / 1000L).toInt()
                 if (remaining <= 0) {
+                    _uiState.update { it.copy(remainingSeconds = 0) }
                     onPhaseComplete()
+                    break
                 } else {
                     _uiState.update { it.copy(remainingSeconds = remaining) }
                 }
@@ -376,6 +400,7 @@ class FocusViewModel @Inject constructor(
 
     private fun completeSession() {
         tickJob?.cancel()
+        reminderScheduler.cancelReminder(FOCUS_WORK_NAME)
         val state = _uiState.value
         persistSession(state)
         _uiState.update {
@@ -410,6 +435,7 @@ class FocusViewModel @Inject constructor(
 
     private fun resetToSetup() {
         tickJob?.cancel()
+        reminderScheduler.cancelReminder(FOCUS_WORK_NAME)
         manualOnBreak = false
         _uiState.update {
             FocusUiState(
@@ -455,7 +481,7 @@ class FocusViewModel @Inject constructor(
         )
     }
 
-    private fun notifyPhaseComplete(state: FocusUiState) {
+    private fun getPhaseCompletionNotification(state: FocusUiState): Pair<String, String> {
         val title = when (state.phase) {
             FocusTimerPhase.FOCUS, FocusTimerPhase.BLOCK -> "Break time!"
             FocusTimerPhase.BREAK -> "Back to focus!"
@@ -467,8 +493,26 @@ class FocusViewModel @Inject constructor(
             FocusTimerPhase.BREAK -> "Start your next focus block."
             FocusTimerPhase.COMPLETE -> "Great work staying focused."
         }
+        return title to message
+    }
+
+    private fun schedulePhaseReminder(state: FocusUiState, triggerAtMillis: Long) {
+        val (title, message) = getPhaseCompletionNotification(state)
+        reminderScheduler.scheduleReminder(
+            uniqueWorkName = FOCUS_WORK_NAME,
+            type = ReminderType.FOCUS,
+            title = title,
+            message = message,
+            triggerAtMillis = triggerAtMillis,
+            notificationId = FOCUS_NOTIFICATION_ID,
+        )
+    }
+
+    private fun notifyPhaseComplete(state: FocusUiState) {
+        reminderScheduler.cancelReminder(FOCUS_WORK_NAME)
+        val (title, message) = getPhaseCompletionNotification(state)
         notificationHelper.showReminder(
-            notificationId = "focus_phase_${System.currentTimeMillis()}".hashCode(),
+            notificationId = FOCUS_NOTIFICATION_ID,
             type = ReminderType.FOCUS,
             title = title,
             message = message,
@@ -477,6 +521,7 @@ class FocusViewModel @Inject constructor(
 
     override fun onCleared() {
         tickJob?.cancel()
+        reminderScheduler.cancelReminder(FOCUS_WORK_NAME)
         super.onCleared()
     }
 }
