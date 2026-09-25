@@ -1204,6 +1204,12 @@ class AiViewModel @Inject constructor(
     fun retryLastMessage() {
         val lastUser = _uiState.value.messages.lastOrNull { it.isUser } ?: return
         clearError()
+        _uiState.update { s ->
+            val index = s.messages.lastIndexOf(lastUser)
+            if (index >= 0) {
+                s.copy(messages = s.messages.take(index))
+            } else s
+        }
         sendMessage(
             message = lastUser.content,
             attachment = null,
@@ -1222,11 +1228,25 @@ class AiViewModel @Inject constructor(
     fun startNewConversation(type: AiConversationType) {
         backendConversationId = null
         _uiState.update {
-            AiUiState(
-                gizmo = it.gizmo,
-                isOnline = it.isOnline,
-                xpEarnedThisSession = it.xpEarnedThisSession,
+            it.copy(
+                messages = emptyList(),
+                activeLocalConversationId = null,
                 activeConversationType = type,
+                activeDeckId = null,
+                activeDeckTitle = null,
+                streamingReasoning = null,
+                studyProposals = emptyList(),
+                followUps = emptyList(),
+                error = null,
+                lastSummary = null,
+                viewerChunks = emptyList(),
+                viewerIndex = -1,
+                viewerHighlight = null,
+                statusMessage = null,
+                restoredToolInput = null,
+                generatedFlashcards = emptyList(),
+                generatedQuiz = null,
+                quizSession = null,
             )
         }
     }
@@ -1557,6 +1577,25 @@ class AiViewModel @Inject constructor(
         lastChatMessage = displayMessage
         pendingAction = PendingAiAction(AiTool.TUTOR, displayMessage)
         val userTimestamp = System.currentTimeMillis()
+        val userMessage = GizmoChatMessage(
+            sender = "You",
+            content = displayMessage,
+            isUser = true,
+            timestamp = userTimestamp,
+            attachmentName = attachment?.fileName,
+            attachmentIsImage = attachment?.isImage == true,
+        )
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                loadingTool = AiTool.TUTOR,
+                streamingReasoning = null,
+                studyProposals = emptyList(),
+                followUps = emptyList(),
+                error = null,
+                messages = it.messages + userMessage,
+            )
+        }
         viewModelScope.launch {
             try {
                 // Deck-local tutor: stay on this deck's thread, ground on deck
@@ -1593,25 +1632,6 @@ class AiViewModel @Inject constructor(
                 }
                 val historyMessages = com.edukasyon.studentai.core.ai.ChatHistoryBuilder
                     .fromConversationMessages(aiConversationRepo.getMessages(localId))
-                val userMessage = GizmoChatMessage(
-                    sender = "You",
-                    content = displayMessage,
-                    isUser = true,
-                    timestamp = userTimestamp,
-                    attachmentName = attachment?.fileName,
-                    attachmentIsImage = attachment?.isImage == true,
-                )
-                _uiState.update {
-                    it.copy(
-                        isLoading = true,
-                        loadingTool = AiTool.TUTOR,
-                        streamingReasoning = null,
-                        studyProposals = emptyList(),
-                        followUps = emptyList(),
-                        error = null,
-                        messages = it.messages + userMessage,
-                    )
-                }
                 safePersistMessage(
                     AiConversationMessage(
                         id = aiMessageId(),

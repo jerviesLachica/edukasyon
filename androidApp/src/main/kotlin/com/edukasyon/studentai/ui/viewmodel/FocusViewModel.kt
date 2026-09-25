@@ -303,7 +303,7 @@ class FocusViewModel @Inject constructor(
 
     private fun advanceManualPhase(state: FocusUiState) {
         if (!manualOnBreak) {
-            val focusMinutes = state.customFocusMinutes
+            val focusMinutes = (state.totalPhaseSeconds / 60).coerceAtLeast(1)
             manualOnBreak = true
             val breakSeconds = state.customBreakMinutes * 60
             _uiState.update {
@@ -400,6 +400,7 @@ class FocusViewModel @Inject constructor(
                 preset = it.preset,
                 customFocusMinutes = it.customFocusMinutes,
                 customBreakMinutes = it.customBreakMinutes,
+                subjectLabel = it.subjectLabel,
                 subjects = it.subjects,
                 aiTotalMinutes = it.aiTotalMinutes,
                 sessionHistory = it.sessionHistory,

@@ -138,10 +138,10 @@ class ScheduleParser @Inject constructor() {
             // Try pattern: "Subject 09:00-10:00 Room 101" or "CS101 MWF 09:00-10:00 Room 101"
             val classMatch = CLASS_LINE_PATTERN.matcher(line)
             if (classMatch.matches()) {
-                val subject = classMatch.group(1)
-                val dayCode = classMatch.group(2).uppercase()
-                val startTime = classMatch.group(3)
-                val endTime = classMatch.group(4)
+                val subject = classMatch.group(1)?.trim() ?: ""
+                val dayCode = classMatch.group(2)?.uppercase(Locale.ROOT) ?: ""
+                val startTime = classMatch.group(3) ?: ""
+                val endTime = classMatch.group(4) ?: ""
                 val extra = classMatch.group(5) ?: ""
 
                 val days = parseDayCode(dayCode)
@@ -154,10 +154,10 @@ class ScheduleParser @Inject constructor() {
             // Try simpler pattern: "Subject 09:00-10:00"
             val simpleMatch = SUBJECT_LINE_PATTERN.matcher(line)
             if (simpleMatch.matches()) {
-                val subject = simpleMatch.group(1)
-                val startTime = simpleMatch.group(2)
-                val endTime = simpleMatch.group(3)
-                val extra = simpleMatch.group(4)
+                val subject = simpleMatch.group(1)?.trim() ?: ""
+                val startTime = simpleMatch.group(2) ?: ""
+                val endTime = simpleMatch.group(3) ?: ""
+                val extra = simpleMatch.group(4) ?: ""
 
                 // Try to infer day from context or default to today
                 val day = inferDayFromContext(lines)
@@ -170,14 +170,16 @@ class ScheduleParser @Inject constructor() {
     private fun extractTimeRange(text: String): Pair<String, String>? {
         val rangeMatch = TIME_RANGE_PATTERN.matcher(text)
         if (rangeMatch.find()) {
-            return rangeMatch.group(1) to rangeMatch.group(2)
+            val start = rangeMatch.group(1) ?: return null
+            val end = rangeMatch.group(2) ?: return null
+            return start to end
         }
         return null
     }
 
     private fun inferDaysFromLine(parts: List<String>, dayColumns: List<String>): List<DayOfWeek> {
         // If first part matches a day, use that
-        val firstPart = parts.first().uppercase()
+        val firstPart = parts.firstOrNull()?.uppercase(Locale.ROOT) ?: return listOf(DayOfWeek.MONDAY)
         for (dayCol in dayColumns) {
             if (firstPart.contains(dayCol)) {
                 return listOf(parseDayName(dayCol))
@@ -187,11 +189,11 @@ class ScheduleParser @Inject constructor() {
     }
 
     private fun parseDayCode(code: String): List<DayOfWeek> {
-        return DAY_MAP[code.lowercase()] ?: listOf(DayOfWeek.MONDAY)
+        return DAY_MAP[code.lowercase(Locale.ROOT)] ?: listOf(DayOfWeek.MONDAY)
     }
 
     private fun parseDayName(name: String): DayOfWeek {
-        return DayOfWeek.entries.find { it.name == name.toUpperCase(Locale.ROOT) } ?: DayOfWeek.MONDAY
+        return DayOfWeek.entries.find { it.name.equals(name, ignoreCase = true) } ?: DayOfWeek.MONDAY
     }
 
     private fun inferDayFromContext(lines: List<String>): DayOfWeek {
@@ -199,7 +201,8 @@ class ScheduleParser @Inject constructor() {
         for (line in lines) {
             val match = DAY_HEADER_PATTERN.matcher(line)
             if (match.find()) {
-                return parseDayName(match.group(1))
+                val matched = match.group(1) ?: match.group()
+                return parseDayName(matched)
             }
         }
         return DayOfWeek.MONDAY
@@ -244,8 +247,8 @@ class ScheduleParser @Inject constructor() {
     private fun normalizeTime(time: String): String {
         val matcher = Pattern.compile("(\\d{1,2}):(\\d{2})").matcher(time)
         if (matcher.find()) {
-            val hour = matcher.group(1).toInt()
-            val minute = matcher.group(2)
+            val hour = matcher.group(1)?.toIntOrNull() ?: 0
+            val minute = matcher.group(2) ?: "00"
             return String.format(Locale.US, "%02d:%s", hour, minute)
         }
         return time
