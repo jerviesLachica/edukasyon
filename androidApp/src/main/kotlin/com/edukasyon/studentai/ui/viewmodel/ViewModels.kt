@@ -2126,7 +2126,9 @@ class AiViewModel @Inject constructor(
                 )
             }
             try {
-                val quiz = aiGenerateQuiz.execute(content)
+                val wordCount = content.split("\\s+".toRegex()).size
+                val count = (wordCount / 50).coerceIn(5, 25)
+                val quiz = aiGenerateQuiz.execute(params = content, count = count)
                 if (quiz.questions.isEmpty()) {
                     _uiState.update {
                         it.copy(isLoading = false, loadingTool = null, error = "No quiz questions were generated. Try again with more content.")

@@ -861,7 +861,7 @@ class JeviQuizViewModel @Inject constructor(
             ) }
             text.take(com.edukasyon.studentai.core.document.DocumentPipeline.MAX_PAYLOAD_CHARS)
         } else text
-        _uiState.update { it.copy(topic = capped, error = null) }
+        _uiState.update { it.copy(topic = capped, source = JeviQuizSource.TOPIC, error = null) }
         generate()
     }
 
@@ -1079,7 +1079,9 @@ class JeviQuizViewModel @Inject constructor(
         deckId: String,
         subjectId: String?,
     ) {
-        val rawQuiz = aiGenerateQuiz.execute(content)
+        val wordCount = content.split("\\s+".toRegex()).size
+        val count = (wordCount / 50).coerceIn(5, 25)
+        val rawQuiz = aiGenerateQuiz.execute(params = content, count = count)
         val validated = QuizValidator.validate(rawQuiz)
         val linkedQuiz = validated.copy(
             title = title,

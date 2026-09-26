@@ -425,22 +425,24 @@ How would you like to continue?
     }
 
     override suspend fun generateFlashcards(text: String): List<Flashcard> {
-        val lines = text.lines().map { it.trim() }.filter { it.length > 5 }
+        val lines = text.lines().map { it.trim() }.filter { it.isNotBlank() }
         val cards = mutableListOf<Flashcard>()
-        for (line in lines) {
-            val clean = line.removePrefix("- ").removePrefix("• ").removePrefix("* ").trim()
-            if (clean.contains(":") || clean.contains(" - ")) {
-                val parts = if (clean.contains(":")) clean.split(":", limit = 2) else clean.split(" - ", limit = 2)
-                val q = parts[0].trim()
-                val a = parts[1].trim()
-                if (q.length in 3..100 && a.length in 3..300) {
+        val seenQuestions = mutableSetOf<String>()
+
+        fun tryAddCard(q: String, a: String, topic: String? = null) {
+            val cleanQ = q.trim().removeSurrounding("**").removeSurrounding("\"").trim()
+            val cleanA = a.trim().removeSurrounding("**").removeSurrounding("\"").trim()
+            if (cleanQ.length in 3..120 && cleanA.length in 3..400) {
+                val formattedQ = if (cleanQ.endsWith("?")) cleanQ else "What is **$cleanQ**?"
+                val normKey = formattedQ.lowercase().filter { it.isLetterOrDigit() }
+                if (normKey.isNotBlank() && seenQuestions.add(normKey)) {
                     cards.add(
                         Flashcard(
                             id = UUID.randomUUID().toString(),
-                            question = if (q.endsWith("?")) q else "What is **$q**?",
-                            answer = a,
+                            question = formattedQ,
+                            answer = cleanA,
                             subjectId = null,
-                            topic = null,
+                            topic = topic,
                             difficulty = "medium",
                             reviewCount = 0,
                             correctCount = 0,
@@ -451,70 +453,144 @@ How would you like to continue?
                     )
                 }
             }
-            if (cards.size >= 4) break
         }
+
+        // Pass 1: Delimiter-based concept definitions ("Term: Definition", "Concept - Explanation", etc.)
+        val delimiters = listOf(": ", " - ", " – ", " — ", " = ", " is defined as ", " refers to ", " means ")
+        for (line in lines) {
+            val clean = line.removePrefix("- ").removePrefix("• ").removePrefix("* ").removePrefix("> ").trim()
+            for (delim in delimiters) {
+                if (clean.contains(delim, ignoreCase = true)) {
+                    val idx = clean.indexOf(delim, ignoreCase = true)
+                    val q = clean.substring(0, idx).trim()
+                    val a = clean.substring(idx + delim.length).trim()
+                    tryAddCard(q, a)
+                    break
+                }
+            }
+            if (cards.size >= 60) break
+        }
+
+        // Pass 2: Headings and subsequent content or numbered points if more cards needed
+        if (cards.size < 20) {
+            val paragraphs = text.split("\n\n").map { it.trim() }.filter { it.length > 20 }
+            for (p in paragraphs) {
+                val pLines = p.lines().map { it.trim() }.filter { it.isNotBlank() }
+                if (pLines.size >= 2) {
+                    val heading = pLines[0].removePrefix("#").removePrefix("##").removePrefix("###").trim()
+                    val body = pLines.drop(1).joinToString(" ").take(250).trim()
+                    tryAddCard("the key concept behind $heading", body, topic = heading.take(30))
+                } else if (p.contains(".")) {
+                    val sentences = p.split(Regex("(?<=[.!?])\\s+")).filter { it.length in 20..200 }
+                    if (sentences.isNotEmpty()) {
+                        val first = sentences[0].trim()
+                        val rest = sentences.drop(1).joinToString(" ").take(200).ifBlank { first }
+                        tryAddCard("the core significance of ${first.take(50)}", rest)
+                    }
+                }
+                if (cards.size >= 60) break
+            }
+        }
+
+        // Pass 3: Fallback comprehensive deck if content was very sparse or unstructured
         if (cards.isEmpty()) {
-            val title = lines.firstOrNull()?.take(60) ?: "Key Concept"
-            cards.add(
-                Flashcard(
-                    id = UUID.randomUUID().toString(),
-                    question = "What is the core principle of **$title**?",
-                    answer = text.take(160).ifBlank { "Review your study notes to reinforce key points." },
-                    subjectId = null,
-                    topic = null,
-                    difficulty = "medium",
-                    reviewCount = 0,
-                    correctCount = 0,
-                    incorrectCount = 0,
-                    lastReviewedAt = null,
-                    nextReviewAt = null,
-                )
-            )
-            cards.add(
-                Flashcard(
-                    id = UUID.randomUUID().toString(),
-                    question = "How is this concept applied in problem-solving?",
-                    answer = "Practice worked examples and connect definitions to practical exercises.",
-                    subjectId = null,
-                    topic = null,
-                    difficulty = "easy",
-                    reviewCount = 0,
-                    correctCount = 0,
-                    incorrectCount = 0,
-                    lastReviewedAt = null,
-                    nextReviewAt = null,
-                )
-            )
+            val title = lines.firstOrNull { it.length in 3..60 }?.removePrefix("#")?.trim() ?: "Key Concept"
+            val bodyPreview = text.take(200).ifBlank { "Core principles outlined in the study notes." }
+            listOf(
+                "What is the core definition of **$title**?" to bodyPreview,
+                "What is the primary governing rule or principle of **$title**?" to "Review the foundational laws, mechanisms, and relationships established in your notes.",
+                "How is **$title** applied in practical problem solving?" to "Work through step-by-step examples and apply theoretical models to realistic scenarios.",
+                "What is a common misconception or exam pitfall regarding **$title**?" to "Verify units, boundary conditions, and sign conventions carefully to prevent common errors.",
+                "What distinguishes **$title** from related topics?" to "Analyze the specific scope, defining conditions, and unique operational parameters of $title."
+            ).forEach { (q, a) -> tryAddCard(q, a, topic = title.take(30)) }
         }
+
         return cards
     }
 
     override suspend fun generateQuiz(text: String, count: Int?, difficulty: String?): Quiz {
         val quizId = UUID.randomUUID().toString()
-        val firstLine = text.lines().firstOrNull { it.isNotBlank() }?.take(50)?.trim() ?: "Study Topic"
+        val meaningfulLines = text.lines().map { it.trim() }.filter { it.length > 10 }
+        val firstLine = meaningfulLines.firstOrNull()?.take(50)?.removePrefix("#")?.trim() ?: "Study Topic"
+        val wordCount = text.split("\\s+".toRegex()).size
+        val targetCount = count ?: (wordCount / 50).coerceIn(5, 20)
+
+        val questions = mutableListOf<QuizQuestion>()
+        val concepts = meaningfulLines.filter { it.contains(":") || it.contains(" - ") || it.contains(" is ") }
+
+        for (i in 0 until targetCount) {
+            val conceptLine = concepts.getOrNull(i % concepts.size.coerceAtLeast(1))
+            val isEven = i % 2 == 0
+            if (conceptLine != null && isEven) {
+                val parts = when {
+                    conceptLine.contains(":") -> conceptLine.split(":", limit = 2)
+                    conceptLine.contains(" - ") -> conceptLine.split(" - ", limit = 2)
+                    conceptLine.contains(" is ") -> conceptLine.split(" is ", limit = 2)
+                    else -> listOf(firstLine, conceptLine)
+                }
+                val term = parts[0].trim().take(50)
+                val definition = parts[1].trim().take(120)
+                questions.add(
+                    QuizQuestion(
+                        id = UUID.randomUUID().toString(),
+                        quizId = quizId,
+                        type = QuestionType.MULTIPLE_CHOICE,
+                        question = "Which statement best defines **$term**?",
+                        options = listOf(
+                            definition,
+                            "An unrelated historical footnote from prior curriculum",
+                            "A temporary variable that holds zero theoretical significance",
+                            "A mechanism that only functions under non-physical conditions"
+                        ).shuffled(),
+                        correctAnswer = definition,
+                    )
+                )
+            } else if (conceptLine != null) {
+                val term = conceptLine.take(60)
+                questions.add(
+                    QuizQuestion(
+                        id = UUID.randomUUID().toString(),
+                        quizId = quizId,
+                        type = QuestionType.TRUE_FALSE,
+                        question = "According to the study material: \"$term\".",
+                        options = listOf("True", "False"),
+                        correctAnswer = "True",
+                    )
+                )
+            } else {
+                val qIndex = i + 1
+                questions.add(
+                    QuizQuestion(
+                        id = UUID.randomUUID().toString(),
+                        quizId = quizId,
+                        type = if (qIndex % 3 == 0) QuestionType.TRUE_FALSE else QuestionType.MULTIPLE_CHOICE,
+                        question = if (qIndex % 3 == 0) {
+                            "True or False: $firstLine requires mastering foundational rules and practical problem-solving."
+                        } else {
+                            "Regarding $firstLine, what is essential for question $qIndex?"
+                        },
+                        options = if (qIndex % 3 == 0) {
+                            listOf("True", "False")
+                        } else {
+                            listOf(
+                                "Thoroughly understanding core principles and systematic steps",
+                                "Guessing values without checking given parameters",
+                                "Ignoring all units and governing formulas",
+                                "Skipping foundational definitions"
+                            ).shuffled()
+                        },
+                        correctAnswer = if (qIndex % 3 == 0) "True" else "Thoroughly understanding core principles and systematic steps",
+                    )
+                )
+            }
+        }
+
         return Quiz(
             id = quizId,
             title = "$firstLine Quiz",
             subjectId = null,
             sourceNoteId = null,
-            questions = listOf(
-                QuizQuestion(
-                    UUID.randomUUID().toString(),
-                    quizId,
-                    QuestionType.MULTIPLE_CHOICE,
-                    "Which of the following best describes the main focus of $firstLine?",
-                    listOf("Core concepts and definitions", "Historical background only", "Unrelated trivia", "None of the above"),
-                    "Core concepts and definitions",
-                ),
-                QuizQuestion(
-                    UUID.randomUUID().toString(),
-                    quizId,
-                    QuestionType.TRUE_FALSE,
-                    "Active recall and self-testing improve long-term retention of $firstLine.",
-                    listOf("True", "False"),
-                    "True",
-                ),
-            ),
+            questions = questions,
             createdAt = System.currentTimeMillis()
         )
     }

@@ -120,7 +120,7 @@ class DocToStudyViewModel @Inject constructor(
     }
 
     fun setQuizCount(count: Int) {
-        _uiState.update { it.copy(quizCount = count.coerceIn(3, 15)) }
+        _uiState.update { it.copy(quizCount = count.coerceIn(3, 30)) }
     }
 
     fun setDifficulty(difficulty: DocQuizDifficulty) {

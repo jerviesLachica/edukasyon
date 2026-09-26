@@ -632,8 +632,14 @@ private fun DocStudyConfigSection(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(5 to "5 Quick", 10 to "10 Standard", 15 to "15 Deep").forEach { (count, label) ->
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf(
+                        5 to "5 Quick",
+                        10 to "10 Standard",
+                        15 to "15 Deep",
+                        20 to "20 Comprehensive",
+                        25 to "25 Complete",
+                    ).forEach { (count, label) ->
                         FilterChip(
                             selected = quizCount == count,
                             onClick = { onQuizCountChange(count) },

@@ -321,24 +321,60 @@ function extractTopic(message) {
 function generateFlashcardFallback(message, subject) {
   const topic = extractTopic(message);
   const title = `${topic} Flashcards`;
-  const cards = [
-    {
-      front: `What is the core definition of ${topic}?`,
-      back: `The fundamental principle and underlying mechanism that defines ${topic} in ${subject || 'your coursework'}.`,
-    },
-    {
-      front: `What is a primary formula or rule associated with ${topic}?`,
-      back: `State the standard governing equation, law, or relationship governing ${topic}.`,
-    },
-    {
-      front: `What is a common real-world application of ${topic}?`,
-      back: `How ${topic} is utilized in real scenarios, experimental design, or examination problems.`,
-    },
-    {
-      front: `What is a common pitfall or misconception regarding ${topic}?`,
-      back: `Be careful to check units, sign conventions, or distinguishing ${topic} from closely related terms.`,
-    },
-  ];
+  const cards = [];
+
+  // Extract from message if lines or bullet points exist
+  const lines = String(message || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    const clean = line.replace(/^[-*•>]\s*/, '').trim();
+    if (clean.includes(':') || clean.includes(' - ')) {
+      const parts = clean.includes(':') ? clean.split(':', 2) : clean.split(' - ', 2);
+      const q = parts[0].trim();
+      const a = parts[1].trim();
+      if (q.length >= 3 && q.length <= 100 && a.length >= 3 && a.length <= 300) {
+        cards.push({
+          front: q.endsWith('?') ? q : `What is **${q}**?`,
+          back: a,
+        });
+      }
+    }
+    if (cards.length >= 30) break;
+  }
+
+  // If few or no formatted pairs, supply comprehensive high-yield concept cards
+  if (cards.length < 4) {
+    const defaultTemplates = [
+      {
+        front: `What is the core definition of ${topic}?`,
+        back: `The fundamental principle and underlying mechanism that defines ${topic} in ${subject || 'your coursework'}.`,
+      },
+      {
+        front: `What is a primary formula or rule associated with ${topic}?`,
+        back: `State the standard governing equation, law, or relationship governing ${topic}.`,
+      },
+      {
+        front: `What is a common real-world application of ${topic}?`,
+        back: `How ${topic} is utilized in real scenarios, experimental design, or examination problems.`,
+      },
+      {
+        front: `What is a common pitfall or misconception regarding ${topic}?`,
+        back: `Be careful to check units, sign conventions, or distinguishing ${topic} from closely related terms.`,
+      },
+      {
+        front: `What are the critical distinguishing features of ${topic}?`,
+        back: `Identify defining conditions, operational boundaries, and relationships distinguishing ${topic} from related concepts.`,
+      },
+      {
+        front: `What are the key problem-solving steps when analyzing ${topic}?`,
+        back: `Catalog known parameters, identify the governing principle, isolate the required variable, and verify boundary conditions.`,
+      },
+    ];
+    for (const t of defaultTemplates) {
+      if (!cards.some(c => c.front === t.front)) {
+        cards.push(t);
+      }
+    }
+  }
 
   const actions = {
     actions: [
@@ -350,16 +386,17 @@ function generateFlashcardFallback(message, subject) {
     ],
   };
 
+  const tableRows = cards.slice(0, 10).map((c, i) =>
+    `| ${i + 1} | ${c.front.slice(0, 45)}${c.front.length > 45 ? '…' : ''} | ${c.back.slice(0, 50)}${c.back.length > 50 ? '…' : ''} |`
+  ).join('\n');
+
   const reply = `### Flashcard Deck: ${title}
 
-Here is a 4-card active recall deck created for **${topic}**:
+Here is a ${cards.length}-card active recall deck created for **${topic}**:
 
 | # | Front (Question) | Back (Answer) |
 | :--- | :--- | :--- |
-| 1 | **Definition** | Core principle & concept definition |
-| 2 | **Governing Rule** | Key formula, rule, or standard law |
-| 3 | **Real-World Application** | Practical examples & problem solving |
-| 4 | **Common Pitfall** | Units, conventions, and exam caveats |
+${tableRows}
 
 Tap the button below to save this deck directly to your flashcards!
 
@@ -411,6 +448,23 @@ function generateQuizFallback(message, subject) {
       correctAnswer: `Its specific scope, defining conditions, and direct relationships.`,
       explanation: `Distinguishing defining conditions is essential for mastering high-yield exam questions.`,
     },
+    {
+      question: `True or False: Accurate analysis of ${topic} requires verifying units and boundary conditions.`,
+      options: [`True`, `False`],
+      correctAnswer: `True`,
+      explanation: `Unit consistency and valid boundary assumptions are critical for verifying solutions.`,
+    },
+    {
+      question: `Which approach is most effective when preparing for questions on ${topic}?`,
+      options: [
+        `Active recall through spaced practice and worked examples.`,
+        `Passive re-reading of headlines without self-testing.`,
+        `Cramming definitions without understanding practical relationships.`,
+        `Memorizing arbitrary formulas without checking applicability.`,
+      ],
+      correctAnswer: `Active recall through spaced practice and worked examples.`,
+      explanation: `Evidence-based study research demonstrates that active testing yields highest exam retention.`,
+    },
   ];
 
   const actions = {
@@ -423,13 +477,13 @@ function generateQuizFallback(message, subject) {
     ],
   };
 
+  const listItems = questions.map((q, i) => `${i + 1}. **Question ${i + 1}**: ${q.question}`).join('\n');
+
   const reply = `### Diagnostic Practice Quiz: ${title}
 
-Here is a 3-question diagnostic practice test prepared for **${topic}**:
+Here is a ${questions.length}-question diagnostic practice test prepared for **${topic}**:
 
-1. **Question 1**: Conceptual definition and mechanism
-2. **Question 2**: Problem-solving methodology
-3. **Question 3**: Distinguishing characteristics and exam mastery
+${listItems}
 
 Tap the button below to start the quiz in Quiz Arena!
 

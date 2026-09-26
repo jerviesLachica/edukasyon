@@ -953,7 +953,7 @@ async function handleFlashcards({ body, provider: ai, maxTokens, signal }) {
         { role: 'system', content: FLASHCARDS_SYSTEM_PROMPT },
         {
           role: 'user',
-          content: `Create flashcards from this study material${partLabel}. Aim for 10-15 atomic cards with even coverage across all sections. JSON shape:
+          content: `Create flashcards from this study material${partLabel}. Generate comprehensive atomic cards covering all key concepts, definitions, rules, formulas, processes, and distinct facts across the material. Scale the number of cards with the document's density and length (as many as needed, up to ${FLASHCARDS_MAX_CARDS} cards), ensuring thorough coverage without trivia padding. JSON shape:
 ${FLASHCARDS_JSON_SHAPE}
 Notes:\n${wrapUntrustedDocument(section)}`,
         },
@@ -989,8 +989,11 @@ Notes:\n${wrapUntrustedDocument(section)}`,
 
 async function handleQuiz({ body, provider: ai, maxTokens, signal }) {
   const text = body.text || '';
-  const count = Number(body.count) || 5;
-  const targetCount = Math.min(Math.max(count, 3), 15);
+  const wordCount = (text.match(/\S+/g) || []).length;
+  // Adaptive count when not specified: scale with document length, default 5, up to 25
+  const adaptiveCount = Math.min(Math.max(Math.round(wordCount / 50), 5), 25);
+  const count = Number(body.count) || adaptiveCount;
+  const targetCount = Math.min(Math.max(count, 3), 30);
   const difficulty = body.difficulty ? ` Difficulty target: ${String(body.difficulty).trim()}.` : '';
   const model = body.model ? ai.resolveTextModel(body.model) : (ai.fastTextModel || 'stepaudio-2.5-chat');
   const content = await ai.chatCompletionText(
@@ -1005,7 +1008,7 @@ Notes:
 ${wrapUntrustedDocument(text)}`,
       },
     ],
-    { temperature: 0.3, maxTokens: Math.max(maxTokens, 2048), model, signal, thinking: false, isFastText: !body.model }
+    { temperature: 0.3, maxTokens: Math.max(maxTokens, 4096), model, signal, thinking: false, isFastText: !body.model }
   );
   const parsed = ai.extractJson(content);
   const rawQuestions = Array.isArray(parsed.questions) ? parsed.questions : (Array.isArray(parsed) ? parsed : (Array.isArray(parsed.items) ? parsed.items : []));
