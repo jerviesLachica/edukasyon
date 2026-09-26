@@ -58,7 +58,7 @@ data class DocToStudyUiState(
     val isGenerating: Boolean = false,
     val generatingProgressText: String? = null,
     val target: DocStudyTarget = DocStudyTarget.BOTH,
-    val quizCount: Int = 5,
+    val quizCount: Int = 10,
     val quizDifficulty: DocQuizDifficulty = DocQuizDifficulty.BALANCED,
     val forceVision: Boolean = false,
     val decks: List<JeviDeck> = emptyList(),
@@ -161,8 +161,17 @@ class DocToStudyViewModel @Inject constructor(
         _uiState.update { it.copy(infoMessage = null) }
     }
 
+    private fun calculateAdaptiveQuizCount(words: Int): Int = when {
+        words >= 450 -> 25
+        words >= 300 -> 20
+        words >= 180 -> 15
+        words >= 80 -> 10
+        else -> 5
+    }
+
     fun loadDirectText(title: String, content: String) {
         val wordCount = content.split("\\s+".toRegex()).count { it.isNotBlank() }
+        val adaptiveCount = calculateAdaptiveQuizCount(wordCount)
         _uiState.update {
             it.copy(
                 selectedUris = emptyList(),
@@ -172,6 +181,7 @@ class DocToStudyViewModel @Inject constructor(
                 extractedMarkdown = if (title.isNotBlank()) "# $title\n\n$content" else content,
                 extractedPageCount = 1,
                 extractedWordCount = wordCount,
+                quizCount = adaptiveCount,
                 generatedCards = emptyList(),
                 generatedQuiz = null,
                 cardsSaved = false,
@@ -232,6 +242,7 @@ class DocToStudyViewModel @Inject constructor(
                 val words = ChatAttachmentUtils.usableWordCount(text)
                 val isFast = result.visionPageCount == 0
                 val speedBadge = if (isFast) "⚡ Instant OCR ($durationSec s)" else "Cloud AI ($durationSec s)"
+                val adaptiveCount = calculateAdaptiveQuizCount(words)
 
                 _uiState.update {
                     it.copy(
@@ -240,6 +251,7 @@ class DocToStudyViewModel @Inject constructor(
                         extractedMarkdown = text,
                         extractedPageCount = result.pageNotes.size,
                         extractedWordCount = words,
+                        quizCount = adaptiveCount,
                         isFastOcr = isFast,
                         infoMessage = "$speedBadge · ${result.pageNotes.size} page(s) · $words words ready for study pack",
                     )

@@ -639,6 +639,7 @@ private fun DocStudyConfigSection(
                         15 to "15 Deep",
                         20 to "20 Comprehensive",
                         25 to "25 Complete",
+                        30 to "30 Exhaustive (All)",
                     ).forEach { (count, label) ->
                         FilterChip(
                             selected = quizCount == count,

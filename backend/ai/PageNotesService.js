@@ -242,7 +242,7 @@ async function runQuizChunk(ai, chunkText, chunkIndex, pageNumber, maxTokens, si
       { role: 'system', content: 'Generate quiz questions from study material. Respond with JSON only.' },
       {
         role: 'user',
-        content: `Create ${QUIZ_QUESTIONS_PER_CHUNK} quiz questions from this section. JSON shape:
+        content: `Create ${QUIZ_QUESTIONS_PER_CHUNK} quiz questions covering the FULL detailed content of this section without summarizing. Test specific terms, definitions, formulas, and facts like Gizmo AI. JSON shape:
 {"questions":[{"type":"MULTIPLE_CHOICE|TRUE_FALSE","question":"...","options":["..."],"correctAnswer":"..."}]}
 Use MULTIPLE_CHOICE with 3-4 options, or TRUE_FALSE with options ["True","False"].
 IMPORTANT: Each option and the correctAnswer must exactly match one of the provided options.

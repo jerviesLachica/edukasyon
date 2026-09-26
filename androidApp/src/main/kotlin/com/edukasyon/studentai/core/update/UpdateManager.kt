@@ -62,12 +62,21 @@ class UpdateManager @Inject constructor(
         }
     }
 
+    @Volatile
+    private var isCurrentDownloadBackground = true
+
     /**
      * Shopee-style automatic background download: starts downloading silently
      * without interrupting the user. If the APK is already downloaded and valid,
      * immediately transitions to [UpdateUiState.ReadyToInstall].
      */
     fun startAutoDownload(updateInfo: UpdateInfo) {
+        val current = _uiState.value
+        if (current is UpdateUiState.Downloading && pendingInfo?.versionCode == updateInfo.versionCode) {
+            Log.i(TAG, "Download already in progress for v${updateInfo.versionName}, keeping active download")
+            return
+        }
+
         pendingInfo = updateInfo
         val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
         val apkFile = File(updatesDir, "schedmate-${updateInfo.versionName}.apk")
@@ -86,6 +95,7 @@ class UpdateManager @Inject constructor(
             return
         }
 
+        isCurrentDownloadBackground = true
         downloadJob?.cancel()
         downloadJob = viewModelScope.launch(Dispatchers.IO) {
             performDownload(updateInfo, isBackground = true)
@@ -99,18 +109,43 @@ class UpdateManager @Inject constructor(
     }
 
     fun startDownload(updateInfo: UpdateInfo) {
+        val current = _uiState.value
+        if (current is UpdateUiState.Downloading && pendingInfo?.versionCode == updateInfo.versionCode) {
+            Log.i(TAG, "Download already in progress for v${updateInfo.versionName}, bringing to foreground")
+            switchToForeground()
+            return
+        }
+
         pendingInfo = updateInfo
+        isCurrentDownloadBackground = false
         downloadJob?.cancel()
         downloadJob = viewModelScope.launch(Dispatchers.IO) {
             performDownload(updateInfo, isBackground = false)
         }
     }
 
+    fun switchToForeground() {
+        isCurrentDownloadBackground = false
+        val current = _uiState.value
+        if (current is UpdateUiState.Downloading) {
+            _uiState.value = current.copy(isBackground = false)
+        }
+    }
+
+    fun switchToBackground() {
+        isCurrentDownloadBackground = true
+        val current = _uiState.value
+        if (current is UpdateUiState.Downloading) {
+            _uiState.value = current.copy(isBackground = true)
+        }
+    }
+
     private suspend fun performDownload(updateInfo: UpdateInfo, isBackground: Boolean) {
+        isCurrentDownloadBackground = isBackground
         _uiState.value = UpdateUiState.Downloading(
             progress = 0f,
             versionName = updateInfo.versionName,
-            isBackground = isBackground
+            isBackground = isCurrentDownloadBackground
         )
 
         val url = updateInfo.apkUrl
@@ -164,7 +199,7 @@ class UpdateManager @Inject constructor(
                             _uiState.value = UpdateUiState.Downloading(
                                 progress = progress,
                                 versionName = updateInfo.versionName,
-                                isBackground = isBackground
+                                isBackground = isCurrentDownloadBackground
                             )
                         }
                     }

@@ -64,24 +64,31 @@ fun StudentAiAppContent(
         }
     }
 
+    var initialUpdateCheckStarted by remember { mutableStateOf(false) }
     LaunchedEffect(autoTriggerUpdate) {
-        runCatching {
-            when (val result = updateManager.checkForUpdate()) {
-                is UpdateResult.Available -> {
-                    if (autoTriggerUpdate) {
-                        // User tapped the push notification's "Install update" action
-                        onAutoTriggerConsumed()
-                        updateManager.startDownload(result.info)
-                    } else {
-                        // Shopee-style: silent background download without blocking prompts
-                        updateManager.startAutoDownload(result.info)
-                    }
+        if (autoTriggerUpdate) {
+            initialUpdateCheckStarted = true
+            onAutoTriggerConsumed()
+            runCatching {
+                when (val result = updateManager.checkForUpdate()) {
+                    is UpdateResult.Available -> updateManager.startDownload(result.info)
+                    else -> updateManager.reset()
                 }
-                else -> updateManager.reset()
+            }.onFailure {
+                Log.w(TAG, "Update check failed", it)
+                updateManager.reset()
             }
-        }.onFailure {
-            Log.w(TAG, "Update check failed", it)
-            updateManager.reset()
+        } else if (!initialUpdateCheckStarted) {
+            initialUpdateCheckStarted = true
+            runCatching {
+                when (val result = updateManager.checkForUpdate()) {
+                    is UpdateResult.Available -> updateManager.startAutoDownload(result.info)
+                    else -> updateManager.reset()
+                }
+            }.onFailure {
+                Log.w(TAG, "Update check failed", it)
+                updateManager.reset()
+            }
         }
     }
 
@@ -169,7 +176,7 @@ fun StudentAiAppContent(
             contentAlignment = Alignment.TopCenter,
         ) {
             Surface(
-                onClick = { updateManager.startPendingDownload() },
+                onClick = { updateManager.switchToForeground() },
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
                 tonalElevation = 6.dp,
@@ -204,6 +211,7 @@ fun StudentAiAppContent(
         onUpdateNow = updateManager::installApk,
         onStartDownload = updateManager::startPendingDownload,
         onRequestPermission = updateManager::openInstallPermissionSettings,
+        onSwitchToBackground = updateManager::switchToBackground,
     )
 }
 

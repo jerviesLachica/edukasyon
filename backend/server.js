@@ -953,7 +953,7 @@ async function handleFlashcards({ body, provider: ai, maxTokens, signal }) {
         { role: 'system', content: FLASHCARDS_SYSTEM_PROMPT },
         {
           role: 'user',
-          content: `Create flashcards from this study material${partLabel}. Generate comprehensive atomic cards covering all key concepts, definitions, rules, formulas, processes, and distinct facts across the material. Scale the number of cards with the document's density and length (as many as needed, up to ${FLASHCARDS_MAX_CARDS} cards), ensuring thorough coverage without trivia padding. JSON shape:
+          content: `Create flashcards from this study material${partLabel}. DO NOT summarize or omit content. Extract and test the FULL content from the material/image just like Gizmo AI. Generate comprehensive atomic cards covering all key concepts, definitions, rules, formulas, processes, and distinct facts across the material. Scale the number of cards with the document's density and length (as many as needed, up to ${FLASHCARDS_MAX_CARDS} cards), ensuring thorough coverage without trivia padding. JSON shape:
 ${FLASHCARDS_JSON_SHAPE}
 Notes:\n${wrapUntrustedDocument(section)}`,
         },
@@ -1066,7 +1066,7 @@ async function handleQuiz({ body, provider: ai, maxTokens, signal }) {
       { role: 'system', content: QUIZ_SYSTEM_PROMPT },
       {
         role: 'user',
-        content: `Create an exam-grade practice quiz with exactly ${targetCount} questions based on this study material.${difficulty}
+        content: `Create an exam-grade practice quiz with exactly ${targetCount} questions based on this study material.${difficulty} DO NOT summarize or generalize the content. Extract and test the FULL content from the material/image just like Gizmo AI, testing specific terms, definitions, rules, steps, and facts across all parts of the material.
 Follow this JSON shape:
 ${QUIZ_JSON_SHAPE}
 Notes:

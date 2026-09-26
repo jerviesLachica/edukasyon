@@ -34,6 +34,7 @@ fun UpdateDialog(
     onUpdateNow: (String) -> Unit,
     onStartDownload: () -> Unit,
     onRequestPermission: () -> Unit = {},
+    onSwitchToBackground: () -> Unit = {},
 ) {
     when (state) {
         UpdateUiState.Idle,
@@ -48,7 +49,10 @@ fun UpdateDialog(
             // Background downloads are displayed via floating status indicator in the main screen;
             // only show modal dialog if triggered interactively
             if (!state.isBackground) {
-                UpdateDownloadingCard(state = state)
+                UpdateDownloadingCard(
+                    state = state,
+                    onSwitchToBackground = onSwitchToBackground,
+                )
             }
         }
         is UpdateUiState.ReadyToInstall -> UpdateReadyCard(
@@ -147,7 +151,10 @@ private fun UpdateAvailableCard(
 }
 
 @Composable
-private fun UpdateDownloadingCard(state: UpdateUiState.Downloading) {
+private fun UpdateDownloadingCard(
+    state: UpdateUiState.Downloading,
+    onSwitchToBackground: () -> Unit = {},
+) {
     UpdateCard {
         UpdateTitle("Downloading Update")
         LinearProgressIndicator(
@@ -157,6 +164,10 @@ private fun UpdateDownloadingCard(state: UpdateUiState.Downloading) {
         val percent = (state.progress * 100).toInt()
         val versionText = if (state.versionName.isNotBlank()) "v${state.versionName}" else ""
         UpdateMessage("Downloading SchedMate $versionText update… $percent%")
+        Spacer(Modifier.height(4.dp))
+        TextButton(onClick = onSwitchToBackground) {
+            Text("Download in background", color = MaterialTheme.colorScheme.primary)
+        }
     }
 }
 
