@@ -13,7 +13,7 @@ const APP_CONFIG = {
 
   icon: "assets/app-icon.png",
 
-  version: "2.1.4",
+  version: "2.1.5",
   packageId: "com.edukasyon.studentai",
 
   downloads: {
@@ -30,7 +30,7 @@ const APP_CONFIG = {
     androidApk: {
       enabled: true,
       label: "Download APK",
-      url: "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.4/schedmate-2.1.4.apk",
+      url: "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.5/schedmate-2.1.5.apk",
       hint: "Android 8+ · Signed release build · Enable 'Install unknown apps' if prompted",
     },
     windows: {

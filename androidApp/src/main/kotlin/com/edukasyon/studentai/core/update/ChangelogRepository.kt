@@ -11,6 +11,18 @@ data class ChangelogEntry(
 object ChangelogRepository {
     val changelog = listOf(
         ChangelogEntry(
+            versionName = "2.1.5",
+            versionCode = 16,
+            releaseDate = "2026-09-26",
+            isMandatory = false,
+            notes = listOf(
+                "Multi-Image Input Support: Import multiple photos simultaneously for AI Flashcards, Quizzes, and Study Chat with OCR extraction.",
+                "Expanded Flashcard & Quiz Scaling: Removed artificial 4-item caps; card and quiz generation now dynamically scale to document density (up to 30 quiz questions & 60 flashcards).",
+                "Quiz Answer Randomizer: True multi-layer option shuffling across positions A, B, C, and D, preventing predictable answers.",
+                "Mirror Site & Ingestion Upgrades: Updated mirror download sites and expanded Doc-to-Study question chips to 20+ and 25 questions.",
+            ),
+        ),
+        ChangelogEntry(
             versionName = "2.1.4",
             versionCode = 15,
             releaseDate = "2026-09-25",
