@@ -1,11 +1,11 @@
 {
-  "versionCode": 15,
-  "versionName": "2.1.4",
-  "apkUrl": "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.4/schedmate-2.1.4.apk",
-  "releaseNotes": "SchedMate 2.1.4: In-app feedback & bug reporting button, transparent navigation dock with animated JEVI mascot, and notification dismissal fixes.",
-  "mandatoryUpdate": false,
-  "apkFile": "schedmate-2.1.4.apk",
-  "sha256": "81a9d649947de862ff2ff1f768f3b16fc35da7a65093da1496d4d463ec994167",
-  "sizeBytes": 82371379,
-  "releaseDate": "2026-09-25"
+    "versionCode":  16,
+    "versionName":  "2.1.5",
+    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.5/schedmate-2.1.5.apk",
+    "releaseNotes":  "SchedMate 2.1.5: Multi-image study \u0026 OCR input support, dynamic quiz \u0026 flashcard scaling, and randomized answer positions.",
+    "mandatoryUpdate":  false,
+    "apkFile":  "schedmate-2.1.5.apk",
+    "sha256":  "42d3c843e8ea5e6c5ce55ed0edeb3dcb09abd8f4bdf7d6ff2c328264583649db",
+    "sizeBytes":  82387763,
+    "releaseDate":  "2026-09-26"
 }
