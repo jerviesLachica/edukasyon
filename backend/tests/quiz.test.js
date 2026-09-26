@@ -67,4 +67,15 @@ describe('handleQuiz — system prompt and question options', () => {
     assert.ok(calls[0].messages[1].content.includes('HARD'));
     assert.equal(result.questions.length, 10);
   });
+
+  it('randomizes multiple-choice options so the correct answer is not stuck in position A', async () => {
+    const text = 'Cell biology: mitochondria produce ATP energy.';
+    const { ai } = providerReturning(quizJson(20));
+    const result = await handleQuiz({ body: { text, count: 20 }, provider: ai, maxTokens: 4096 });
+
+    const correctIndices = result.questions.map((q) => q.options.indexOf(q.correctAnswer));
+    assert.ok(correctIndices.every((idx) => idx >= 0), 'Every question must retain its correct answer');
+    const allAtZero = correctIndices.every((idx) => idx === 0);
+    assert.equal(allAtZero, false, 'Correct answer must be randomized across options and not always at index 0');
+  });
 });

@@ -898,7 +898,7 @@ class JeviQuizViewModel @Inject constructor(
                 if (quiz.questions.isEmpty()) {
                     throw IllegalStateException("This quiz has no questions.")
                 }
-                beginSession(quiz)
+                beginSession(QuizValidator.validate(quiz))
             } catch (e: CancellationException) {
                 _uiState.update { it.copy(isGenerating = false) }
                 throw e
@@ -983,9 +983,11 @@ class JeviQuizViewModel @Inject constructor(
 
     fun restartQuiz() {
         val quiz = _uiState.value.generatedQuiz ?: return
+        val randomized = QuizValidator.validate(quiz)
         _uiState.update {
             it.copy(
-                quizSession = QuizSessionState(quiz = quiz),
+                generatedQuiz = randomized,
+                quizSession = QuizSessionState(quiz = randomized),
                 quizSaved = false,
             )
         }
@@ -999,10 +1001,11 @@ class JeviQuizViewModel @Inject constructor(
             title = "${session.quiz.title} — Review",
             questions = wrongQuestions,
         )
+        val randomizedReview = QuizValidator.validate(reviewQuiz)
         _uiState.update {
             it.copy(
-                generatedQuiz = reviewQuiz,
-                quizSession = QuizSessionState(quiz = reviewQuiz),
+                generatedQuiz = randomizedReview,
+                quizSession = QuizSessionState(quiz = randomizedReview),
                 quizSaved = false,
                 phase = JeviQuizPhase.PLAYING,
             )

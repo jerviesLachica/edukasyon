@@ -266,7 +266,7 @@ fun FlashcardDto.toDomain() = Flashcard(
 
 fun QuizResponseDto.toDomain(): Quiz {
     val quizId = java.util.UUID.randomUUID().toString()
-    return Quiz(
+    val rawQuiz = Quiz(
         id = quizId, title = title, subjectId = null, sourceNoteId = null,
         questions = questions.map {
             QuizQuestion(
@@ -276,6 +276,7 @@ fun QuizResponseDto.toDomain(): Quiz {
         },
         createdAt = System.currentTimeMillis()
     )
+    return com.edukasyon.studentai.core.util.QuizValidator.validate(rawQuiz)
 }
 
 fun StudyPlanResponseDto.toDomain(): StudyPlan {

@@ -987,6 +987,71 @@ Notes:\n${wrapUntrustedDocument(section)}`,
   return { cards: allCards.slice(0, FLASHCARDS_MAX_CARDS) };
 }
 
+/**
+ * Randomizes options for MULTIPLE_CHOICE questions so the correct answer is uniformly
+ * distributed across positions (A, B, C, D) instead of always being option A.
+ * Cleans leading letter prefixes (e.g. "A) ", "Option B:") and ensures correctAnswer
+ * points to the exact matching option string.
+ */
+function randomizeQuizQuestions(questions) {
+  if (!Array.isArray(questions)) return [];
+  const prefixRegex = /^(?:Option\s+)?[A-Da-d][.)\-:]\s*/;
+  return questions.map((q) => {
+    if (!q || !Array.isArray(q.options) || q.options.length <= 1) return q;
+    const type = String(q.type || '').toUpperCase();
+    const isTrueFalse = type.includes('TRUE') || type.includes('FALSE') ||
+      (q.options.length === 2 && q.options.some(o => /true/i.test(o)) && q.options.some(o => /false/i.test(o)));
+
+    let rawCorrect = String(q.correctAnswer || '').trim();
+    const cleanRawCorrect = rawCorrect.replace(prefixRegex, '').trim();
+
+    // Check if correctAnswer is a letter reference ("A", "Option B", etc.)
+    const letterMatch = rawCorrect.match(/^(?:Option\s+)?([A-D])[.):\s]?$/i);
+    let resolved = cleanRawCorrect;
+    if (letterMatch) {
+      const idx = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
+      if (idx >= 0 && idx < q.options.length) {
+        resolved = String(q.options[idx]).replace(prefixRegex, '').trim();
+      }
+    } else {
+      const direct = q.options.find(o =>
+        String(o).trim().toLowerCase() === rawCorrect.toLowerCase() ||
+        String(o).replace(prefixRegex, '').trim().toLowerCase() === cleanRawCorrect.toLowerCase()
+      );
+      if (direct) {
+        resolved = String(direct).replace(prefixRegex, '').trim();
+      }
+    }
+
+    if (isTrueFalse) {
+      return {
+        ...q,
+        options: ['True', 'False'],
+        correctAnswer: /true/i.test(resolved) ? 'True' : 'False',
+      };
+    }
+
+    // Clean all options by stripping any "A) ", "B. " prefixes
+    const cleanOptions = q.options.map(o => String(o).replace(prefixRegex, '').trim());
+
+    // Shuffle options using Fisher-Yates
+    const shuffled = [...cleanOptions];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    // Ensure correctAnswer exactly matches an item in shuffled options
+    const finalCorrect = shuffled.find(o => o.toLowerCase() === resolved.toLowerCase()) || resolved;
+
+    return {
+      ...q,
+      options: shuffled,
+      correctAnswer: finalCorrect,
+    };
+  });
+}
+
 async function handleQuiz({ body, provider: ai, maxTokens, signal }) {
   const text = body.text || '';
   const wordCount = (text.match(/\S+/g) || []).length;
@@ -1012,7 +1077,8 @@ ${wrapUntrustedDocument(text)}`,
   );
   const parsed = ai.extractJson(content);
   const rawQuestions = Array.isArray(parsed.questions) ? parsed.questions : (Array.isArray(parsed) ? parsed : (Array.isArray(parsed.items) ? parsed.items : []));
-  const questions = rawQuestions.slice(0, targetCount);
+  const randomized = randomizeQuizQuestions(rawQuestions);
+  const questions = randomized.slice(0, targetCount);
   return { title: parsed.title || 'Generated Quiz', questions };
 }
 

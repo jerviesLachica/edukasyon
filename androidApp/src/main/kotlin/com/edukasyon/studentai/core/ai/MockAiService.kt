@@ -530,62 +530,85 @@ How would you like to continue?
                 }
                 val term = parts[0].trim().take(50)
                 val definition = parts[1].trim().take(120)
+                val distractors = listOf(
+                    "An unrelated historical footnote from prior curriculum",
+                    "A temporary variable that holds zero theoretical significance",
+                    "A mechanism that only functions under non-physical conditions",
+                    "An outdated hypothesis that has since been completely refuted"
+                ).shuffled().take(3)
+                val allOptions = (distractors + definition).shuffled()
                 questions.add(
                     QuizQuestion(
                         id = UUID.randomUUID().toString(),
                         quizId = quizId,
                         type = QuestionType.MULTIPLE_CHOICE,
                         question = "Which statement best defines **$term**?",
-                        options = listOf(
-                            definition,
-                            "An unrelated historical footnote from prior curriculum",
-                            "A temporary variable that holds zero theoretical significance",
-                            "A mechanism that only functions under non-physical conditions"
-                        ).shuffled(),
+                        options = allOptions,
                         correctAnswer = definition,
                     )
                 )
             } else if (conceptLine != null) {
                 val term = conceptLine.take(60)
+                val isFalse = (i / 2) % 2 == 1
+                val qText = if (isFalse) {
+                    "True or False: $term does not apply to this domain and can be safely disregarded."
+                } else {
+                    "True or False: According to the study material, $term."
+                }
                 questions.add(
                     QuizQuestion(
                         id = UUID.randomUUID().toString(),
                         quizId = quizId,
                         type = QuestionType.TRUE_FALSE,
-                        question = "According to the study material: \"$term\".",
+                        question = qText,
                         options = listOf("True", "False"),
-                        correctAnswer = "True",
+                        correctAnswer = if (isFalse) "False" else "True",
                     )
                 )
             } else {
                 val qIndex = i + 1
-                questions.add(
-                    QuizQuestion(
-                        id = UUID.randomUUID().toString(),
-                        quizId = quizId,
-                        type = if (qIndex % 3 == 0) QuestionType.TRUE_FALSE else QuestionType.MULTIPLE_CHOICE,
-                        question = if (qIndex % 3 == 0) {
-                            "True or False: $firstLine requires mastering foundational rules and practical problem-solving."
-                        } else {
-                            "Regarding $firstLine, what is essential for question $qIndex?"
-                        },
-                        options = if (qIndex % 3 == 0) {
-                            listOf("True", "False")
-                        } else {
-                            listOf(
-                                "Thoroughly understanding core principles and systematic steps",
-                                "Guessing values without checking given parameters",
-                                "Ignoring all units and governing formulas",
-                                "Skipping foundational definitions"
-                            ).shuffled()
-                        },
-                        correctAnswer = if (qIndex % 3 == 0) "True" else "Thoroughly understanding core principles and systematic steps",
+                val isTrueFalse = qIndex % 3 == 0
+                val isFalse = qIndex % 2 == 0
+                if (isTrueFalse) {
+                    val qText = if (isFalse) {
+                        "True or False: $firstLine requires no conceptual review and relies entirely on random chance."
+                    } else {
+                        "True or False: $firstLine requires mastering foundational rules and practical problem-solving."
+                    }
+                    questions.add(
+                        QuizQuestion(
+                            id = UUID.randomUUID().toString(),
+                            quizId = quizId,
+                            type = QuestionType.TRUE_FALSE,
+                            question = qText,
+                            options = listOf("True", "False"),
+                            correctAnswer = if (isFalse) "False" else "True",
+                        )
                     )
-                )
+                } else {
+                    val correct = "Thoroughly understanding core principles and systematic steps"
+                    val distractors = listOf(
+                        "Guessing values without checking given parameters",
+                        "Ignoring all units and governing formulas",
+                        "Skipping foundational definitions",
+                        "Relying solely on intuition without verifying constraints"
+                    ).shuffled().take(3)
+                    val allOptions = (distractors + correct).shuffled()
+                    questions.add(
+                        QuizQuestion(
+                            id = UUID.randomUUID().toString(),
+                            quizId = quizId,
+                            type = QuestionType.MULTIPLE_CHOICE,
+                            question = "Regarding $firstLine, what is essential for question $qIndex?",
+                            options = allOptions,
+                            correctAnswer = correct,
+                        )
+                    )
+                }
             }
         }
 
-        return Quiz(
+        val rawQuiz = Quiz(
             id = quizId,
             title = "$firstLine Quiz",
             subjectId = null,
@@ -593,6 +616,7 @@ How would you like to continue?
             questions = questions,
             createdAt = System.currentTimeMillis()
         )
+        return com.edukasyon.studentai.core.util.QuizValidator.validate(rawQuiz)
     }
 
     override suspend fun generateStudyPlan(context: StudyPlanContext): StudyPlan {

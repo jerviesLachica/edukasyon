@@ -467,17 +467,29 @@ function generateQuizFallback(message, subject) {
     },
   ];
 
+  const randomizedQuestions = questions.map((q) => {
+    if (q.options.length === 2 && q.options.includes('True') && q.options.includes('False')) {
+      return q;
+    }
+    const shuffled = [...q.options];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return { ...q, options: shuffled };
+  });
+
   const actions = {
     actions: [
       {
         type: 'launch_practice_quiz',
         title,
-        questions,
+        questions: randomizedQuestions,
       },
     ],
   };
 
-  const listItems = questions.map((q, i) => `${i + 1}. **Question ${i + 1}**: ${q.question}`).join('\n');
+  const listItems = randomizedQuestions.map((q, i) => `${i + 1}. **Question ${i + 1}**: ${q.question}`).join('\n');
 
   const reply = `### Diagnostic Practice Quiz: ${title}
 
