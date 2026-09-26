@@ -1653,6 +1653,7 @@ class AiViewModel @Inject constructor(
                 }
                 val attachmentText = when {
                     attachment == null -> null
+                    !attachment.textContent.isNullOrBlank() -> attachment.textContent
                     !attachment.isImage -> attachment.textContent
                     else -> {
                         val ocr = mlKitTextRecognizer.recognizeFromBytes(attachment.bytes)

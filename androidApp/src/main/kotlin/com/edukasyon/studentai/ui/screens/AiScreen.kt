@@ -337,8 +337,48 @@ private fun AiTutorTab(
         }
     }
 
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        handlePickedUri(uri)
+    fun handlePickedUris(uris: List<Uri>) {
+        attachError = null
+        if (uris.isEmpty()) return
+        if (uris.size == 1) {
+            handlePickedUri(uris.first())
+            return
+        }
+        scope.launch {
+            val payloads = uris.mapNotNull { readChatAttachment(context, it) }
+            if (payloads.isEmpty()) {
+                attachError = "Could not read attachments (max 4 MB each)."
+                return@launch
+            }
+            val mlKit = runCatching {
+                com.edukasyon.studentai.di.HiltEntryPoint.mlKitTextRecognizer(context)
+            }.getOrNull()
+
+            val textParts = mutableListOf<String>()
+            payloads.forEachIndexed { index, p ->
+                val label = p.fileName.ifBlank { "Image ${index + 1}" }
+                val content = p.textContent ?: run {
+                    if (p.isImage && mlKit != null) {
+                        val ocr = runCatching { mlKit.recognizeFromBytes(p.bytes) }.getOrNull()
+                        ocr?.text?.takeIf { ocr.hasUsableText }
+                    } else null
+                } ?: "[Visual study note / diagram]"
+                textParts.add("--- Photo ${index + 1}: $label ---\n$content")
+            }
+            val combinedText = textParts.joinToString("\n\n")
+            val primary = payloads.first()
+            pendingAttachment = ChatAttachmentPayload(
+                fileName = "${payloads.size} Study Images",
+                mimeType = primary.mimeType,
+                isImage = true,
+                bytes = primary.bytes,
+                textContent = combinedText,
+            )
+        }
+    }
+
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        handlePickedUris(uris)
     }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         handlePickedUri(uri)

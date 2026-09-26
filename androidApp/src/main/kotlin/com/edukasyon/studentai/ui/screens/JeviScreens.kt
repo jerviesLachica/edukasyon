@@ -1127,15 +1127,26 @@ fun JeviCreateScreen(
     }
 
     val imagePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent(),
-    ) { uri ->
-        uri ?: return@rememberLauncherForActivityResult
+        ActivityResultContracts.GetMultipleContents(),
+    ) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
+            val names = uris.mapIndexed { index, uri ->
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIdx >= 0) cursor.getString(nameIdx) else null
+                    } else null
+                } ?: "photo_${index + 1}.jpg"
+            }
             viewModel.beginExtraction()
-            val result = runCatching { documentPipeline.processDocument(context, uri, "photo.jpg") }
+            val result = runCatching { documentPipeline.processDocuments(context, uris, names) }
                 .onFailure { viewModel.finishExtraction(null) }
                 .getOrNull()
-            viewModel.finishExtraction(result?.mergedMarkdown?.takeIf { it.isNotBlank() })
+            val coverageNote = result?.takeIf { it.skippedPageCount > 0 }?.let {
+                "Read ${it.pageNotes.size} of ${it.pageNotes.size + it.skippedPageCount} photos/pages — remaining were trimmed."
+            }
+            viewModel.finishExtraction(result?.mergedMarkdown?.takeIf { it.isNotBlank() }, coverageNote)
         }
     }
 
@@ -1228,7 +1239,7 @@ fun JeviCreateScreen(
                                 ) {
                                     Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(4.dp))
-                                    Text("Import Photo", style = MaterialTheme.typography.labelMedium)
+                                    Text("Import Photos", style = MaterialTheme.typography.labelMedium)
                                 }
                             }
                         }
@@ -1822,15 +1833,26 @@ fun JeviQuizArenaScreen(
     }
 
     val imagePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent(),
-    ) { uri ->
-        uri ?: return@rememberLauncherForActivityResult
+        ActivityResultContracts.GetMultipleContents(),
+    ) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
+            val names = uris.mapIndexed { index, uri ->
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIdx >= 0) cursor.getString(nameIdx) else null
+                    } else null
+                } ?: "photo_${index + 1}.jpg"
+            }
             viewModel.beginExtraction()
-            val result = runCatching { documentPipeline.processDocument(context, uri, "photo.jpg") }
+            val result = runCatching { documentPipeline.processDocuments(context, uris, names) }
                 .onFailure { viewModel.finishExtraction(null) }
                 .getOrNull()
-            viewModel.finishExtraction(result?.mergedMarkdown?.takeIf { it.isNotBlank() })
+            val coverageNote = result?.takeIf { it.skippedPageCount > 0 }?.let {
+                "Read ${it.pageNotes.size} of ${it.pageNotes.size + it.skippedPageCount} photos/pages — remaining were trimmed."
+            }
+            viewModel.finishExtraction(result?.mergedMarkdown?.takeIf { it.isNotBlank() }, coverageNote)
         }
     }
 
@@ -2022,7 +2044,7 @@ fun JeviQuizArenaScreen(
                                     ) {
                                         Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("Import Photo", style = MaterialTheme.typography.labelMedium)
+                                        Text("Import Photos", style = MaterialTheme.typography.labelMedium)
                                     }
                                 }
                             }

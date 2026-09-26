@@ -125,8 +125,9 @@ function buildChatUserContent({ message, attachmentName, attachmentMimeType, ima
   if (imageBase64) {
     const textParts = [text];
     if (attachmentName) textParts.push(`[Attached image: ${attachmentName}]`);
+    if (attachmentText) textParts.push(`[Extracted notes from attached image(s)]:\n${attachmentText}`);
     return [
-      { type: 'text', text: textParts.join('\n') },
+      { type: 'text', text: textParts.join('\n\n') },
       {
         type: 'image_url',
         image_url: {

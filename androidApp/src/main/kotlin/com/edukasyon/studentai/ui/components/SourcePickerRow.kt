@@ -19,6 +19,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Checkbox
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -219,6 +223,35 @@ fun SourcesBottomSheet(
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(0) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isProcessingPhotos by remember { mutableStateOf(false) }
+
+    val photoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetMultipleContents(),
+    ) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            isProcessingPhotos = true
+            try {
+                val mlKit = com.edukasyon.studentai.di.HiltEntryPoint.mlKitTextRecognizer(context)
+                val textParts = mutableListOf<String>()
+                uris.forEachIndexed { index, uri ->
+                    val ocr = runCatching { mlKit.recognizeFromUri(context, uri) }.getOrNull()
+                    if (ocr != null && ocr.hasUsableText) {
+                        textParts.add("--- Page ${index + 1} ---\n${ocr.text}")
+                    }
+                }
+                if (textParts.isNotEmpty()) {
+                    val combined = textParts.joinToString("\n\n")
+                    val title = if (uris.size == 1) "Photo Notes" else "${uris.size} Photo Notes"
+                    onAddSource(title, combined)
+                }
+            } finally {
+                isProcessingPhotos = false
+            }
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -277,7 +310,7 @@ fun SourcesBottomSheet(
                 Spacer(Modifier.height(8.dp))
 
                 if (selectedTab == 0) {
-                // Action buttons row: Add Source & Select All
+                // Action buttons row: Add Source & From Photos
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -290,7 +323,17 @@ fun SourcesBottomSheet(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("+ Add source")
+                        Text("+ Add text")
+                    }
+                    TextButton(
+                        onClick = { photoPicker.launch("image/*") },
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.weight(1f),
+                        enabled = !isProcessingPhotos,
+                    ) {
+                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (isProcessingPhotos) "Reading…" else "+ From photos")
                     }
                 }
 
