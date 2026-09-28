@@ -1,11 +1,11 @@
 {
-    "versionCode":  16,
-    "versionName":  "2.1.5",
-    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.5/schedmate-2.1.5.apk",
-    "releaseNotes":  "SchedMate 2.1.5: Multi-image study \u0026 OCR input support, dynamic quiz \u0026 flashcard scaling, and randomized answer positions.",
+    "versionCode":  17,
+    "versionName":  "2.1.6",
+    "apkUrl":  "https://github.com/jerviesLachica/edukasyon/releases/download/v2.1.6/schedmate-2.1.6.apk",
+    "releaseNotes":  "SchedMate 2.1.6: Gizmo AI direct image vision for full-content quizzes and flashcards without OCR summarization, resolved download conflict between background pill and foreground modal, and improved quiz option randomization.",
     "mandatoryUpdate":  false,
-    "apkFile":  "schedmate-2.1.5.apk",
-    "sha256":  "42d3c843e8ea5e6c5ce55ed0edeb3dcb09abd8f4bdf7d6ff2c328264583649db",
+    "apkFile":  "schedmate-2.1.6.apk",
+    "sha256":  "74bce68eae135c6f25ae73ebec3abc4ba7e6b4093475c51b569c2ef63b595537",
     "sizeBytes":  82387763,
-    "releaseDate":  "2026-09-26"
+    "releaseDate":  "2026-09-28"
 }
