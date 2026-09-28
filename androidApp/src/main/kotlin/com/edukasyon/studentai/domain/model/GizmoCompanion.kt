@@ -10,6 +10,7 @@ enum class GizmoMood(val emoji: String, val greeting: String) {
 }
 
 data class GizmoChatMessage(
+    val id: String = java.util.UUID.randomUUID().toString(),
     val sender: String,
     val content: String,
     val isUser: Boolean,

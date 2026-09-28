@@ -44,10 +44,10 @@ object GradeCalculator {
 object ScheduleValidator {
     fun hasOverlap(a: ScheduleItem, b: ScheduleItem): Boolean {
         if (a.dayOfWeek != b.dayOfWeek || a.id == b.id) return false
-        val aStart = parseTime(a.startTime)
-        val aEnd = parseTime(a.endTime)
-        val bStart = parseTime(b.startTime)
-        val bEnd = parseTime(b.endTime)
+        val aStart = DateUtils.parseTimeToMinutes(a.startTime)
+        val aEnd = DateUtils.parseTimeToMinutes(a.endTime)
+        val bStart = DateUtils.parseTimeToMinutes(b.startTime)
+        val bEnd = DateUtils.parseTimeToMinutes(b.endTime)
         return aStart < bEnd && bStart < aEnd
     }
 
@@ -60,21 +60,6 @@ object ScheduleValidator {
         }
         return overlaps
     }
-
-    private fun parseTime(time: String): Int {
-        val trimmed = time.trim()
-        val parts = trimmed.split(":")
-        val rawHour = parts.getOrNull(0)?.trim()?.filter { it.isDigit() }?.toIntOrNull() ?: 0
-        val rawMinute = parts.getOrNull(1)?.trim()?.filter { it.isDigit() }?.toIntOrNull() ?: 0
-        val isPm = trimmed.contains("PM", ignoreCase = true)
-        val isAm = trimmed.contains("AM", ignoreCase = true)
-        val hour = when {
-            isPm && rawHour < 12 -> rawHour + 12
-            isAm && rawHour == 12 -> 0
-            else -> rawHour
-        }
-        return (hour * 60 + rawMinute).coerceIn(0, 24 * 60)
-    }
 }
 
 object TaskSorter {
@@ -83,7 +68,12 @@ object TaskSorter {
     )
 
     fun sortByPriorityAndDueDate(tasks: List<Task>): List<Task> =
-        tasks.sortedWith(compareBy({ priorityOrder[it.priority] ?: 4 }, { it.dueDate ?: Long.MAX_VALUE }))
+        tasks.sortedWith(
+            compareBy(
+                { priorityOrder[it.priority] ?: 4 },
+                { DateUtils.effectiveDueMillis(it.dueDate, it.dueTime) ?: Long.MAX_VALUE }
+            )
+        )
 }
 
 object DateUtils {
@@ -165,6 +155,24 @@ object DateUtils {
 
     fun formatTimeRange(startTime: String, endTime: String): String =
         "${formatTime12h(startTime)} - ${formatTime12h(endTime)}"
+
+    fun parseTimeToMinutes(time: String): Int {
+        val trimmed = time.trim()
+        val upper = trimmed.uppercase(java.util.Locale.US)
+        val isExplicitPm = upper.contains("PM")
+        val isExplicitAm = upper.contains("AM")
+        val cleanTime = trimmed.replace("(?i)[a-z\\s]+".toRegex(), "")
+        val parts = cleanTime.split(":")
+        val rawHour = parts.getOrNull(0)?.toIntOrNull() ?: 0
+        val rawMinute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        val hour24 = when {
+            isExplicitPm && rawHour < 12 -> rawHour + 12
+            isExplicitAm && rawHour == 12 -> 0
+            else -> rawHour
+        }.coerceIn(0, 23)
+        val minute = rawMinute.coerceIn(0, 59)
+        return hour24 * 60 + minute
+    }
 
     fun startOfDay(timestamp: Long): Long {
         val cal = java.util.Calendar.getInstance().apply {

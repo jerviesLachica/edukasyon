@@ -709,14 +709,9 @@ private fun isCurrentClass(item: ScheduleItem, selectedDay: DayOfWeek): Boolean 
     if (selectedDay != DateUtils.getTodayDayOfWeek()) return false
     val now = Calendar.getInstance()
     val nowMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-    val start = parseTimeMinutes(item.startTime)
-    val end = parseTimeMinutes(item.endTime)
+    val start = DateUtils.parseTimeToMinutes(item.startTime)
+    val end = DateUtils.parseTimeToMinutes(item.endTime)
     return nowMinutes in start until end
-}
-
-private fun parseTimeMinutes(time: String): Int {
-    val parts = time.split(":")
-    return (parts.getOrNull(0)?.toIntOrNull() ?: 0) * 60 + (parts.getOrNull(1)?.toIntOrNull() ?: 0)
 }
 
 private fun dayOfWeekFromCalendar(calendarDow: Int): DayOfWeek = when (calendarDow) {

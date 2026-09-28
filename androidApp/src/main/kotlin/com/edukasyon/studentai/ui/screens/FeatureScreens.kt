@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edukasyon.studentai.ui.adaptive.AdaptiveContentContainer
@@ -440,6 +441,7 @@ private fun FlashcardFace(
     Box(
         modifier = modifier
             .graphicsLayer { this.alpha = if (visible) 1f else 0f }
+            .zIndex(if (visible) 1f else 0f)
             .clip(RoundedCornerShape(20.dp))
             .background(gradient)
             .padding(20.dp),

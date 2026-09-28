@@ -133,10 +133,10 @@ class HomeViewModel @Inject constructor(
                     val today = DateUtils.getTodayDayOfWeek()
                     val todaySchedule = snapshot.allSchedule
                         .filter { it.dayOfWeek == today }
-                        .sortedBy { it.startTime }
+                        .sortedBy { DateUtils.parseTimeToMinutes(it.startTime) }
                     val selectedSchedule = snapshot.allSchedule
                         .filter { it.dayOfWeek == selectedDay }
-                        .sortedBy { it.startTime }
+                        .sortedBy { DateUtils.parseTimeToMinutes(it.startTime) }
                     val subjectNames = snapshot.subjects.associate { it.id to it.name }
                     val next = todaySchedule.firstOrNull { isUpcoming(it.startTime) }
                     val suggestion = snapshot.exams.firstOrNull()?.let { exam ->
@@ -181,9 +181,8 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun isUpcoming(startTime: String): Boolean {
-        val parts = startTime.split(":")
         val now = java.util.Calendar.getInstance()
-        val classMinutes = parts[0].toInt() * 60 + parts.getOrElse(1) { "0" }.toInt()
+        val classMinutes = DateUtils.parseTimeToMinutes(startTime)
         val nowMinutes = now.get(java.util.Calendar.HOUR_OF_DAY) * 60 + now.get(java.util.Calendar.MINUTE)
         return classMinutes >= nowMinutes
     }
@@ -445,11 +444,13 @@ class ScheduleViewModel @Inject constructor(
     }
 
     fun itemsForSelectedDay(): List<ScheduleItem> =
-        _uiState.value.allItems.filter { it.dayOfWeek == _uiState.value.selectedDay }.sortedBy { it.startTime }
+        _uiState.value.allItems.filter { it.dayOfWeek == _uiState.value.selectedDay }
+            .sortedBy { DateUtils.parseTimeToMinutes(it.startTime) }
 
     fun itemsGroupedByDay(): Map<DayOfWeek, List<ScheduleItem>> =
         DayOfWeek.entries.associateWith { day ->
-            _uiState.value.allItems.filter { it.dayOfWeek == day }.sortedBy { it.startTime }
+            _uiState.value.allItems.filter { it.dayOfWeek == day }
+                .sortedBy { DateUtils.parseTimeToMinutes(it.startTime) }
         }
 
     fun setDayTemplate(day: DayOfWeek, template: ScheduleDayTemplate) {

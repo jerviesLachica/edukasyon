@@ -354,8 +354,9 @@ private fun DueDateLabel(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
             )
+            val effective = DateUtils.effectiveDueMillis(dueDate, dueTime) ?: dueDate
             Text(
-                text = DateUtils.formatCountdown(dueDate),
+                text = DateUtils.formatCountdown(effective),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

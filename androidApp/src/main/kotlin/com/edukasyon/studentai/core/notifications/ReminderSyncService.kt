@@ -197,9 +197,9 @@ class ReminderSyncService @Inject constructor(
     }
 
     private fun nextOccurrenceMillis(day: DayOfWeek, startTime: String): Long {
-        val parts = startTime.split(":")
-        val hour = parts.getOrElse(0) { "8" }.toInt()
-        val minute = parts.getOrElse(1) { "0" }.toInt()
+        val totalMinutes = DateUtils.parseTimeToMinutes(startTime)
+        val hour = totalMinutes / 60
+        val minute = totalMinutes % 60
         val cal = Calendar.getInstance()
         val targetDow = when (day) {
             DayOfWeek.SUNDAY -> Calendar.SUNDAY

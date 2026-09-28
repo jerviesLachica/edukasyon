@@ -46,12 +46,20 @@ object QuizValidator {
         val shuffledOptions = cleanOptions.shuffled()
 
         // 4. Ensure cleanCorrect is in shuffledOptions (fallback to original option match if needed)
-        val finalCorrect = shuffledOptions.firstOrNull { it.equals(cleanCorrect, ignoreCase = true) }
+        val matchedCorrect = shuffledOptions.firstOrNull { it.equals(cleanCorrect, ignoreCase = true) }
             ?: shuffledOptions.firstOrNull { it.equals(resolvedCorrect, ignoreCase = true) }
             ?: cleanCorrect
 
+        // 5. Guarantee the correct answer is actually present in the options list
+        val finalOptions = if (shuffledOptions.any { it.equals(matchedCorrect, ignoreCase = true) }) {
+            shuffledOptions
+        } else {
+            (shuffledOptions.dropLast(1) + matchedCorrect).shuffled()
+        }
+        val finalCorrect = finalOptions.firstOrNull { it.equals(matchedCorrect, ignoreCase = true) } ?: matchedCorrect
+
         return question.copy(
-            options = shuffledOptions,
+            options = finalOptions,
             correctAnswer = finalCorrect,
         )
     }

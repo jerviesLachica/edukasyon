@@ -459,7 +459,7 @@ private fun AiTutorTab(
                             )
                         }
                     }
-                    items(state.messages, key = { "${it.timestamp}-${it.content.hashCode()}" }) { msg ->
+                    items(state.messages, key = { it.id }) { msg ->
                         GizmoChatBubble(
                             message = msg.content,
                             isUser = msg.isUser,
