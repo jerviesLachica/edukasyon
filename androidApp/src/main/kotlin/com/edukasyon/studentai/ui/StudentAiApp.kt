@@ -64,30 +64,35 @@ fun StudentAiAppContent(
         }
     }
 
-    var initialUpdateCheckStarted by remember { mutableStateOf(false) }
-    LaunchedEffect(autoTriggerUpdate) {
-        if (autoTriggerUpdate) {
-            initialUpdateCheckStarted = true
-            onAutoTriggerConsumed()
-            runCatching {
-                when (val result = updateManager.checkForUpdate()) {
-                    is UpdateResult.Available -> updateManager.startDownload(result.info)
-                    else -> updateManager.reset()
-                }
-            }.onFailure {
-                Log.w(TAG, "Update check failed", it)
-                updateManager.reset()
-            }
-        } else if (!initialUpdateCheckStarted) {
-            initialUpdateCheckStarted = true
+    var initialAutoCheckDone by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (!initialAutoCheckDone && !autoTriggerUpdate) {
+            initialAutoCheckDone = true
             runCatching {
                 when (val result = updateManager.checkForUpdate()) {
                     is UpdateResult.Available -> updateManager.startAutoDownload(result.info)
                     else -> updateManager.reset()
                 }
             }.onFailure {
-                Log.w(TAG, "Update check failed", it)
+                Log.w(TAG, "Background update check failed", it)
                 updateManager.reset()
+            }
+        }
+    }
+
+    LaunchedEffect(autoTriggerUpdate) {
+        if (autoTriggerUpdate) {
+            try {
+                when (val result = updateManager.checkForUpdate()) {
+                    is UpdateResult.Available -> updateManager.startDownload(result.info)
+                    else -> updateManager.reset()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Foreground update check failed", e)
+                updateManager.reset()
+            } finally {
+                onAutoTriggerConsumed()
             }
         }
     }

@@ -76,6 +76,10 @@ class UpdateManager @Inject constructor(
             Log.i(TAG, "Download already in progress for v${updateInfo.versionName}, keeping active download")
             return
         }
+        if (current is UpdateUiState.ReadyToInstall && current.info?.versionCode == updateInfo.versionCode) {
+            Log.i(TAG, "Update v${updateInfo.versionName} already downloaded and ready to install")
+            return
+        }
 
         pendingInfo = updateInfo
         val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
@@ -113,6 +117,10 @@ class UpdateManager @Inject constructor(
         if (current is UpdateUiState.Downloading && pendingInfo?.versionCode == updateInfo.versionCode) {
             Log.i(TAG, "Download already in progress for v${updateInfo.versionName}, bringing to foreground")
             switchToForeground()
+            return
+        }
+        if (current is UpdateUiState.ReadyToInstall && current.info?.versionCode == updateInfo.versionCode) {
+            Log.i(TAG, "Update v${updateInfo.versionName} already downloaded and ready to install")
             return
         }
 
