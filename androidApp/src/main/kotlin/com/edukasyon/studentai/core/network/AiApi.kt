@@ -172,9 +172,11 @@ data class FeedbackResponseDto(
 @Serializable data class EmbedRequest(val texts: List<String>, val taskType: String = "RETRIEVAL_DOCUMENT")
 @Serializable data class EmbedResponseDto(val vectors: List<List<Double>>, val model: String, val dims: Int)
 @Serializable data class TextRequest(
-    val text: String,
+    val text: String? = null,
     val count: Int? = null,
     val difficulty: String? = null,
+    val imageBase64: String? = null,
+    val imagesBase64: List<String> = emptyList(),
 )
 @Serializable data class TextResponseDto(val result: String)
 @Serializable data class FlashcardDto(val question: String, val answer: String, val topic: String? = null)

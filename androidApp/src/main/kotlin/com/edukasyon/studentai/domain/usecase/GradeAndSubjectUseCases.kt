@@ -119,6 +119,9 @@ class AiGenerateFlashcardsUseCase @Inject constructor(
     private val aiService: AiService
 ) : UseCase<String, List<Flashcard>> {
     override suspend fun execute(params: String): List<Flashcard> = aiService.generateFlashcards(params)
+
+    suspend fun execute(params: String, imageBase64: String? = null): List<Flashcard> =
+        aiService.generateFlashcards(params, imageBase64)
 }
 
 class AiGenerateQuizUseCase @Inject constructor(
@@ -126,8 +129,8 @@ class AiGenerateQuizUseCase @Inject constructor(
 ) : UseCase<String, Quiz> {
     override suspend fun execute(params: String): Quiz = aiService.generateQuiz(params)
 
-    suspend fun execute(params: String, count: Int? = null, difficulty: String? = null): Quiz =
-        aiService.generateQuiz(params, count, difficulty)
+    suspend fun execute(params: String, count: Int? = null, difficulty: String? = null, imageBase64: String? = null): Quiz =
+        aiService.generateQuiz(params, count, difficulty, imageBase64)
 }
 
 class AiGenerateStudyPlanUseCase @Inject constructor(

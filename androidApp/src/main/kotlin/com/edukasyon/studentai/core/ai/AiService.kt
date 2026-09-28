@@ -82,8 +82,8 @@ interface AiService {
     suspend fun chat(request: AiChatRequest): AiChatResponse
     suspend fun analyzeSchedule(input: ScheduleScanInput): ScheduleAnalysisResult
     suspend fun summarize(text: String): String
-    suspend fun generateFlashcards(text: String): List<Flashcard>
-    suspend fun generateQuiz(text: String, count: Int? = null, difficulty: String? = null): Quiz
+    suspend fun generateFlashcards(text: String, imageBase64: String? = null): List<Flashcard>
+    suspend fun generateQuiz(text: String, count: Int? = null, difficulty: String? = null, imageBase64: String? = null): Quiz
     suspend fun generateStudyPlan(context: StudyPlanContext): StudyPlan
     suspend fun analyzeAssignment(input: AssignmentAnalysisInput): AssignmentBreakdown
     suspend fun generateFocusPlan(context: FocusPlanContext): FocusPlan

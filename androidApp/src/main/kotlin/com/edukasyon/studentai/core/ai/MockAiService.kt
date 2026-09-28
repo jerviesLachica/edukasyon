@@ -424,8 +424,9 @@ How would you like to continue?
         return "Summary: ${words.joinToString(" ")}${if (text.split("\\s+".toRegex()).size > 30) "..." else ""}"
     }
 
-    override suspend fun generateFlashcards(text: String): List<Flashcard> {
-        val lines = text.lines().map { it.trim() }.filter { it.isNotBlank() }
+    override suspend fun generateFlashcards(text: String, imageBase64: String?): List<Flashcard> {
+        val effectiveText = text.ifBlank { "Image Study Material: Key Visual Concept" }
+        val lines = effectiveText.lines().map { it.trim() }.filter { it.isNotBlank() }
         val cards = mutableListOf<Flashcard>()
         val seenQuestions = mutableSetOf<String>()
 
@@ -508,11 +509,12 @@ How would you like to continue?
         return cards
     }
 
-    override suspend fun generateQuiz(text: String, count: Int?, difficulty: String?): Quiz {
+    override suspend fun generateQuiz(text: String, count: Int?, difficulty: String?, imageBase64: String?): Quiz {
         val quizId = UUID.randomUUID().toString()
-        val meaningfulLines = text.lines().map { it.trim() }.filter { it.length > 10 }
+        val effectiveText = text.ifBlank { "Image Study Material: Key Visual Concept" }
+        val meaningfulLines = effectiveText.lines().map { it.trim() }.filter { it.length > 10 }
         val firstLine = meaningfulLines.firstOrNull()?.take(50)?.removePrefix("#")?.trim() ?: "Study Topic"
-        val wordCount = text.split("\\s+".toRegex()).size
+        val wordCount = effectiveText.split("\\s+".toRegex()).size
         val targetCount = count ?: (wordCount / 50).coerceIn(5, 20)
 
         val questions = mutableListOf<QuizQuestion>()

@@ -84,6 +84,20 @@ describe('handleFlashcards — single whole-document call', () => {
     const result = await handleFlashcards({ body: { text: 'A long list of vocabulary terms.' }, provider: ai, maxTokens: ROUTE_MAX_TOKENS });
     assert.equal(result.cards.length, 60);
   });
+
+  it('directly inspects imageBase64 with vision mode when image is provided', async () => {
+    const { ai, calls } = providerReturning(cardsJson(4));
+    const dummyImageBase64 = Buffer.from('fake-image-bytes').toString('base64');
+    const result = await handleFlashcards({
+      body: { imageBase64: dummyImageBase64 },
+      provider: ai,
+      maxTokens: ROUTE_MAX_TOKENS,
+    });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].options.isVision, true);
+    assert.equal(calls[0].messages[0].content, FLASHCARDS_SYSTEM_PROMPT);
+    assert.equal(result.cards.length, 4);
+  });
 });
 
 describe('handleFlashcards — chunked fallback above the single-call threshold', () => {

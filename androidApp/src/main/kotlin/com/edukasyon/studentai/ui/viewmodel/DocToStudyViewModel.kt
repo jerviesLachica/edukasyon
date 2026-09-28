@@ -3,6 +3,8 @@ package com.edukasyon.studentai.ui.viewmodel
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Base64
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.edukasyon.studentai.core.document.DocumentPipeline
@@ -69,6 +71,7 @@ data class DocToStudyUiState(
     val quizSaved: Boolean = false,
     val error: String? = null,
     val infoMessage: String? = null,
+    val imageBase64: String? = null,
 )
 
 @HiltViewModel
@@ -202,6 +205,29 @@ class DocToStudyViewModel @Inject constructor(
             } ?: (uri.lastPathSegment?.substringAfterLast('/') ?: "document")
         }
 
+        val isSingleImage = uris.size == 1 && (
+            context.contentResolver.getType(uris.first())?.startsWith("image/") == true ||
+            names.firstOrNull()?.let { n ->
+                n.endsWith(".jpg", true) || n.endsWith(".jpeg", true) ||
+                n.endsWith(".png", true) || n.endsWith(".webp", true)
+            } == true
+        )
+
+        var singleImageBase64: String? = null
+        if (isSingleImage) {
+            try {
+                val rawBytes = context.contentResolver.openInputStream(uris.first())?.use { it.readBytes() }
+                if (rawBytes != null && rawBytes.isNotEmpty()) {
+                    val (compressed, _) = ChatAttachmentUtils.compressImageBytes(rawBytes, "image/jpeg")
+                    if (compressed.isNotEmpty()) {
+                        singleImageBase64 = Base64.encodeToString(compressed, Base64.NO_WRAP)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("DocToStudy", "Failed to prepare single image Base64", e)
+            }
+        }
+
         _uiState.update {
             it.copy(
                 selectedUris = uris,
@@ -209,6 +235,7 @@ class DocToStudyViewModel @Inject constructor(
                 isExtracting = true,
                 extractionProgressText = "Preparing ${uris.size} document(s)…",
                 extractedMarkdown = null,
+                imageBase64 = singleImageBase64,
                 generatedCards = emptyList(),
                 generatedQuiz = null,
                 cardsSaved = false,
@@ -229,6 +256,23 @@ class DocToStudyViewModel @Inject constructor(
                 val durationSec = "%.1f".format((System.currentTimeMillis() - startTime) / 1000f)
                 val text = result.mergedMarkdown.trim()
                 if (text.isBlank()) {
+                    if (singleImageBase64 != null) {
+                        val displayName = names.firstOrNull() ?: "Image"
+                        _uiState.update {
+                            it.copy(
+                                isExtracting = false,
+                                extractionProgressText = null,
+                                extractedMarkdown = "Image Study Source: $displayName",
+                                imageBase64 = singleImageBase64,
+                                extractedPageCount = 1,
+                                extractedWordCount = 0,
+                                quizCount = 10,
+                                isFastOcr = false,
+                                infoMessage = "📷 Image loaded · AI Vision will directly read and extract full terms without summarization",
+                            )
+                        }
+                        return@launch
+                    }
                     _uiState.update {
                         it.copy(
                             isExtracting = false,
@@ -249,6 +293,7 @@ class DocToStudyViewModel @Inject constructor(
                         isExtracting = false,
                         extractionProgressText = null,
                         extractedMarkdown = text,
+                        imageBase64 = singleImageBase64,
                         extractedPageCount = result.pageNotes.size,
                         extractedWordCount = words,
                         quizCount = adaptiveCount,
@@ -278,10 +323,12 @@ class DocToStudyViewModel @Inject constructor(
 
     fun generate() {
         val markdown = _uiState.value.extractedMarkdown
-        if (markdown.isNullOrBlank()) {
+        val imageBase64 = _uiState.value.imageBase64
+        if (markdown.isNullOrBlank() && imageBase64.isNullOrBlank()) {
             _uiState.update { it.copy(error = "Please upload or snap a document first.") }
             return
         }
+        val effectiveText = markdown.orEmpty()
 
         val target = _uiState.value.target
         val count = _uiState.value.quizCount
@@ -306,7 +353,7 @@ class DocToStudyViewModel @Inject constructor(
             try {
                 when (target) {
                     DocStudyTarget.FLASHCARDS -> {
-                        val cards = aiGenerateFlashcards.execute(markdown)
+                        val cards = aiGenerateFlashcards.execute(params = effectiveText, imageBase64 = imageBase64)
                         if (cards.isEmpty()) {
                             _uiState.update {
                                 it.copy(
@@ -330,9 +377,10 @@ class DocToStudyViewModel @Inject constructor(
 
                     DocStudyTarget.QUIZ -> {
                         val rawQuiz = aiGenerateQuiz.execute(
-                            params = markdown,
+                            params = effectiveText,
                             count = count,
                             difficulty = difficulty,
+                            imageBase64 = imageBase64,
                         )
                         val validated = QuizValidator.validate(rawQuiz).withDeckId(deckId)
                         gizmoManager.addXp(JeviConstants.XP_GENERATE_QUIZ)
@@ -347,12 +395,13 @@ class DocToStudyViewModel @Inject constructor(
                     }
 
                     DocStudyTarget.BOTH -> {
-                        val cardsDeferred = async { aiGenerateFlashcards.execute(markdown) }
+                        val cardsDeferred = async { aiGenerateFlashcards.execute(params = effectiveText, imageBase64 = imageBase64) }
                         val quizDeferred = async {
                             aiGenerateQuiz.execute(
-                                params = markdown,
+                                params = effectiveText,
                                 count = count,
                                 difficulty = difficulty,
+                                imageBase64 = imageBase64,
                             )
                         }
 

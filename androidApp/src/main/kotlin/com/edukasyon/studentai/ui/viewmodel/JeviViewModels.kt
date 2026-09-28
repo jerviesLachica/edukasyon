@@ -533,6 +533,7 @@ data class JeviCreateUiState(
     val error: String? = null,
     val decks: List<JeviDeck> = emptyList(),
     val selectedDeckId: String = JeviConstants.DEFAULT_DECK_ID,
+    val pendingImageBase64: String? = null,
 )
 
 @HiltViewModel
@@ -564,7 +565,7 @@ class JeviCreateViewModel @Inject constructor(
     }
 
     fun updateTopic(topic: String) {
-        _uiState.update { it.copy(topic = topic, error = null) }
+        _uiState.update { it.copy(topic = topic, pendingImageBase64 = null, error = null) }
     }
 
     fun selectDeck(deckId: String) {
@@ -573,14 +574,15 @@ class JeviCreateViewModel @Inject constructor(
 
     fun generate() {
         val topic = _uiState.value.topic.trim()
-        if (topic.isBlank()) {
+        val imageBase64 = _uiState.value.pendingImageBase64
+        if (topic.isBlank() && imageBase64.isNullOrBlank()) {
             _uiState.update { it.copy(error = "Enter a topic or paste note content.") }
             return
         }
         viewModelScope.launch {
             _uiState.update { it.copy(isGenerating = true, error = null, generatedCards = emptyList(), saved = false) }
             try {
-                val cards = aiGenerateFlashcards.execute(topic)
+                val cards = aiGenerateFlashcards.execute(params = topic, imageBase64 = imageBase64)
                 if (cards.isEmpty()) {
                     _uiState.update { it.copy(isGenerating = false, error = "No flashcards generated. Try more content.") }
                     return@launch
@@ -612,6 +614,14 @@ class JeviCreateViewModel @Inject constructor(
             text.take(com.edukasyon.studentai.core.document.DocumentPipeline.MAX_PAYLOAD_CHARS)
         } else text
         _uiState.update { it.copy(topic = capped, error = null) }
+        generate()
+    }
+
+    /**
+     * Use visual image bytes directly to generate cards with AI vision.
+     */
+    fun generateFromImage(imageBase64: String, note: String = "") {
+        _uiState.update { it.copy(topic = note.ifBlank { "Visual Study Material" }, pendingImageBase64 = imageBase64, error = null) }
         generate()
     }
 

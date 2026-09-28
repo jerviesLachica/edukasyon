@@ -262,10 +262,27 @@ class RemoteAiService @Inject constructor(
     }
 
     override suspend fun summarize(text: String): String = apiCall { api.summarize(com.edukasyon.studentai.core.network.TextRequest(text)).result }
-    override suspend fun generateFlashcards(text: String): List<Flashcard> =
-        apiCall { api.generateFlashcards(com.edukasyon.studentai.core.network.TextRequest(text)).cards.map { it.toDomain() } }
-    override suspend fun generateQuiz(text: String, count: Int?, difficulty: String?): Quiz =
-        apiCall { api.generateQuiz(com.edukasyon.studentai.core.network.TextRequest(text, count, difficulty)).toDomain() }
+    override suspend fun generateFlashcards(text: String, imageBase64: String?): List<Flashcard> =
+        apiCall {
+            api.generateFlashcards(
+                com.edukasyon.studentai.core.network.TextRequest(
+                    text = text.takeIf { it.isNotBlank() },
+                    imageBase64 = imageBase64
+                )
+            ).cards.map { it.toDomain() }
+        }
+
+    override suspend fun generateQuiz(text: String, count: Int?, difficulty: String?, imageBase64: String?): Quiz =
+        apiCall {
+            api.generateQuiz(
+                com.edukasyon.studentai.core.network.TextRequest(
+                    text = text.takeIf { it.isNotBlank() },
+                    count = count,
+                    difficulty = difficulty,
+                    imageBase64 = imageBase64
+                )
+            ).toDomain()
+        }
     override suspend fun generateStudyPlan(context: StudyPlanContext): StudyPlan =
         apiCall {
             api.generateStudyPlan(

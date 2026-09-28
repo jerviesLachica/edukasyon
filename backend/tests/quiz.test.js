@@ -78,4 +78,18 @@ describe('handleQuiz — system prompt and question options', () => {
     const allAtZero = correctIndices.every((idx) => idx === 0);
     assert.equal(allAtZero, false, 'Correct answer must be randomized across options and not always at index 0');
   });
+
+  it('directly inspects imageBase64 with vision mode when image is provided', async () => {
+    const { ai, calls } = providerReturning(quizJson(5));
+    const dummyImageBase64 = Buffer.from('fake-image-bytes').toString('base64');
+    const result = await handleQuiz({
+      body: { imageBase64: dummyImageBase64, count: 5 },
+      provider: ai,
+      maxTokens: 2048,
+    });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].options.isVision, true);
+    assert.equal(calls[0].messages[0].content, QUIZ_SYSTEM_PROMPT);
+    assert.equal(result.questions.length, 5);
+  });
 });

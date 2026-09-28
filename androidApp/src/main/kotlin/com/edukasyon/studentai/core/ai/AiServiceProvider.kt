@@ -49,8 +49,8 @@ class AiServiceProvider @Inject constructor(
     }
 
     override suspend fun summarize(text: String): String = execute { it.summarize(text) }
-    override suspend fun generateFlashcards(text: String) = execute { it.generateFlashcards(text) }
-    override suspend fun generateQuiz(text: String, count: Int?, difficulty: String?) = execute { it.generateQuiz(text, count, difficulty) }
+    override suspend fun generateFlashcards(text: String, imageBase64: String?) = execute { it.generateFlashcards(text, imageBase64) }
+    override suspend fun generateQuiz(text: String, count: Int?, difficulty: String?, imageBase64: String?) = execute { it.generateQuiz(text, count, difficulty, imageBase64) }
     override suspend fun generateStudyPlan(context: StudyPlanContext) = execute { it.generateStudyPlan(context) }
     override suspend fun analyzeAssignment(input: AssignmentAnalysisInput) = execute { it.analyzeAssignment(input) }
     override suspend fun generateFocusPlan(context: FocusPlanContext) = execute { it.generateFocusPlan(context) }

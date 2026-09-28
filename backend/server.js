@@ -945,6 +945,39 @@ function splitFlashcardsChunks(text) {
 
 async function handleFlashcards({ body, provider: ai, maxTokens, signal }) {
   const text = body.text || '';
+  const imageBase64 = body.imageBase64 || (Array.isArray(body.imagesBase64) ? body.imagesBase64[0] : null);
+  const imagesBase64 = Array.isArray(body.imagesBase64) ? body.imagesBase64 : (imageBase64 ? [imageBase64] : []);
+  const hasImages = imagesBase64.length > 0;
+
+  if (hasImages) {
+    const visionModel = ai.resolveVisionModel ? ai.resolveVisionModel(body.model) : body.model;
+    const imageParts = imagesBase64.slice(0, 5).map(img => {
+      const mime = detectImageMimeFromBase64(img);
+      return buildVisionImagePart(img, mime);
+    });
+
+    const userPromptText = `Inspect the study material shown directly in the attached ${imagesBase64.length === 1 ? 'image' : 'images'} (which may contain handwritten notes, diagrams, mathematical formulas, lecture slides, problem sets, textbook pages, or technical charts with varied lettering and symbols). DO NOT summarize, generalize, or omit any details. Directly read all visual and textual elements and generate comprehensive atomic flashcards covering ALL concepts, definitions, formulas, steps, labels, and distinct facts across the entire image just like Gizmo AI. Scale the number of cards with the image's content density (as many as needed, up to ${FLASHCARDS_MAX_CARDS} cards). JSON shape:
+${FLASHCARDS_JSON_SHAPE}
+${text ? `Additional student context:\n${wrapUntrustedDocument(text)}` : ''}`;
+
+    const content = await ai.chatCompletionText(
+      [
+        { role: 'system', content: FLASHCARDS_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: userPromptText },
+            ...imageParts,
+          ],
+        },
+      ],
+      { temperature: 0.2, maxTokens: Math.max(maxTokens, 4096), model: visionModel, signal, isVision: true }
+    );
+    const parsed = ai.extractJson(content);
+    const rawCards = Array.isArray(parsed.cards) ? parsed.cards : (Array.isArray(parsed) ? parsed : (Array.isArray(parsed.items) ? parsed.items : []));
+    return { cards: rawCards.slice(0, FLASHCARDS_MAX_CARDS) };
+  }
+
   const model = body.model ? ai.resolveTextModel(body.model) : (ai.fastTextModel || 'stepaudio-2.5-chat');
 
   const runCall = async (section, partLabel, callMaxTokens) => {
@@ -1054,12 +1087,49 @@ function randomizeQuizQuestions(questions) {
 
 async function handleQuiz({ body, provider: ai, maxTokens, signal }) {
   const text = body.text || '';
+  const imageBase64 = body.imageBase64 || (Array.isArray(body.imagesBase64) ? body.imagesBase64[0] : null);
+  const imagesBase64 = Array.isArray(body.imagesBase64) ? body.imagesBase64 : (imageBase64 ? [imageBase64] : []);
+  const hasImages = imagesBase64.length > 0;
+
   const wordCount = (text.match(/\S+/g) || []).length;
   // Adaptive count when not specified: scale with document length, default 5, up to 25
   const adaptiveCount = Math.min(Math.max(Math.round(wordCount / 50), 5), 25);
-  const count = Number(body.count) || adaptiveCount;
+  const count = Number(body.count) || (hasImages ? 10 : adaptiveCount);
   const targetCount = Math.min(Math.max(count, 3), 30);
   const difficulty = body.difficulty ? ` Difficulty target: ${String(body.difficulty).trim()}.` : '';
+
+  if (hasImages) {
+    const visionModel = ai.resolveVisionModel ? ai.resolveVisionModel(body.model) : body.model;
+    const imageParts = imagesBase64.slice(0, 5).map(img => {
+      const mime = detectImageMimeFromBase64(img);
+      return buildVisionImagePart(img, mime);
+    });
+
+    const userPromptText = `Inspect the study material shown directly in the attached ${imagesBase64.length === 1 ? 'image' : 'images'} (which may contain handwritten notes, diagrams, mathematical formulas, lecture slides, problem sets, textbook pages, or technical charts with varied lettering and symbols). Create an exam-grade practice quiz with exactly ${targetCount} questions directly based on this material.${difficulty} DO NOT summarize or generalize the content. Directly read and test the FULL content from the image just like Gizmo AI, testing specific terms, definitions, equations, steps, labels, and facts across all parts of the image.
+Follow this JSON shape:
+${QUIZ_JSON_SHAPE}
+${text ? `Additional student context:\n${wrapUntrustedDocument(text)}` : ''}`;
+
+    const content = await ai.chatCompletionText(
+      [
+        { role: 'system', content: QUIZ_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: userPromptText },
+            ...imageParts,
+          ],
+        },
+      ],
+      { temperature: 0.2, maxTokens: Math.max(maxTokens, 4096), model: visionModel, signal, isVision: true }
+    );
+    const parsed = ai.extractJson(content);
+    const rawQuestions = Array.isArray(parsed.questions) ? parsed.questions : (Array.isArray(parsed) ? parsed : (Array.isArray(parsed.items) ? parsed.items : []));
+    const randomized = randomizeQuizQuestions(rawQuestions);
+    const questions = randomized.slice(0, targetCount);
+    return { title: parsed.title || 'Generated Quiz', questions };
+  }
+
   const model = body.model ? ai.resolveTextModel(body.model) : (ai.fastTextModel || 'stepaudio-2.5-chat');
   const content = await ai.chatCompletionText(
     [
@@ -1426,10 +1496,12 @@ app.post('/api/ai/summarize', (req, res) =>
 app.post('/api/ai/flashcards', (req, res) =>
   gateway.handle(req, res, {
     endpoint: 'flashcards',
-    extractInputText: (body) => body.text || '',
+    extractInputText: (body) => body.text || (body.imageBase64 || (Array.isArray(body.imagesBase64) && body.imagesBase64.length > 0) ? '[IMAGE]' : ''),
     validate: (body) => {
-      if (!body.text || !String(body.text).trim()) {
-        return { ok: false, code: 'MISSING_TEXT', message: 'text is required.' };
+      const hasText = body.text && String(body.text).trim().length > 0;
+      const hasImage = Boolean(body.imageBase64 || (Array.isArray(body.imagesBase64) && body.imagesBase64.length > 0));
+      if (!hasText && !hasImage) {
+        return { ok: false, code: 'MISSING_TEXT', message: 'text or imageBase64 is required.' };
       }
       return { ok: true };
     },
@@ -1456,10 +1528,12 @@ app.post('/api/ai/embed', (req, res) =>
 app.post('/api/ai/quiz', (req, res) =>
   gateway.handle(req, res, {
     endpoint: 'quiz',
-    extractInputText: (body) => body.text || '',
+    extractInputText: (body) => body.text || (body.imageBase64 || (Array.isArray(body.imagesBase64) && body.imagesBase64.length > 0) ? '[IMAGE]' : ''),
     validate: (body) => {
-      if (!body.text || !String(body.text).trim()) {
-        return { ok: false, code: 'MISSING_TEXT', message: 'text is required.' };
+      const hasText = body.text && String(body.text).trim().length > 0;
+      const hasImage = Boolean(body.imageBase64 || (Array.isArray(body.imagesBase64) && body.imagesBase64.length > 0));
+      if (!hasText && !hasImage) {
+        return { ok: false, code: 'MISSING_TEXT', message: 'text or imageBase64 is required.' };
       }
       return { ok: true };
     },
