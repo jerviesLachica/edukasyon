@@ -192,12 +192,74 @@ a { color: inherit; }
   font-weight: 700 !important;
   padding: 10px 16px !important;
   border-radius: 10px !important;
-  transition: background .15s ease;
+  transition: background .15s ease, transform .15s ease;
 }
-.nav-cta:hover { background: var(--accent-strong); }
+.nav-cta:hover { background: var(--accent-strong); transform: translateY(-1px); }
+
+.mobile-menu-btn {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: border-color .2s ease, background .2s ease;
+}
+.mobile-menu-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--muted);
+}
+.mobile-menu-btn .icon-close { display: none; }
+.mobile-menu-btn.active .icon-close { display: block; }
+.mobile-menu-btn.active .icon-hamburger { display: none; }
+
+.mobile-drawer {
+  display: none;
+  max-height: 0;
+  overflow: hidden;
+  background: rgba(11, 15, 23, .96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid transparent;
+  transition: max-height .3s cubic-bezier(0.16, 1, 0.3, 1), border-color .25s ease;
+}
+.mobile-drawer.open {
+  max-height: 280px;
+  border-bottom-color: var(--border-soft);
+}
+.mobile-nav {
+  padding: 16px var(--pad-x) 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mobile-nav a {
+  color: var(--text);
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 10px;
+  transition: background .15s ease, color .15s ease;
+}
+.mobile-nav a:hover {
+  background: var(--surface-2);
+  color: var(--accent);
+}
+.btn-mobile-cta {
+  width: 100%;
+  text-align: center;
+  margin-top: 6px;
+  min-height: 44px;
+}
 
 @media (max-width: 620px) {
-  .main-nav a:not(.nav-cta) { display: none; }
+  .main-nav { display: none; }
+  .mobile-menu-btn { display: inline-flex; }
+  .mobile-drawer { display: block; }
 }
 
 /* ---------- Buttons ---------- */
@@ -215,20 +277,41 @@ a { color: inherit; }
   border-radius: 12px;
   padding: 15px 26px;
   min-height: 52px;
-  transition: transform .15s ease, background .15s ease, border-color .15s ease;
+  position: relative;
+  overflow: hidden;
+  transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
 .btn:active { transform: translateY(1px); }
 .btn-primary {
   background: var(--accent);
   color: #fff;
+  box-shadow: 0 4px 18px rgba(255, 122, 26, 0.28);
 }
-.btn-primary:hover { background: var(--accent-strong); }
+.btn-primary:hover {
+  background: var(--accent-strong);
+  box-shadow: 0 6px 24px rgba(255, 122, 26, 0.42);
+  transform: translateY(-1px);
+}
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
+  transform: skewX(-20deg);
+  transition: left .7s ease;
+  pointer-events: none;
+}
+.btn-primary:hover::after {
+  left: 140%;
+}
 .btn-secondary {
   background: transparent;
   color: var(--text);
   border: 1px solid var(--border);
 }
-.btn-secondary:hover { border-color: var(--muted); }
+.btn-secondary:hover { border-color: var(--muted); background: rgba(255,255,255,0.03); transform: translateY(-1px); }
 .btn svg { flex: 0 0 auto; }
 
 /* ---------- Hero ---------- */
@@ -323,8 +406,14 @@ a { color: inherit; }
   padding: 8px;
   box-shadow: 0 24px 60px -24px rgba(0, 0, 0, .7);
   transition: transform 0.6s cubic-bezier(.2,.8,.2,1), box-shadow 0.6s ease;
+  animation: phoneFloat 6s ease-in-out infinite;
+}
+@keyframes phoneFloat {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-7px); }
 }
 .phone-wrap:hover .phone {
+  animation-play-state: paused;
   transform: rotateY(8deg) rotateX(3deg) scale(1.03);
   box-shadow: 0 32px 80px -20px rgba(255, 122, 26, 0.25), 0 24px 60px -24px rgba(0, 0, 0, .7);
 }
@@ -431,6 +520,17 @@ a { color: inherit; }
   border-radius: .9em;
   padding: .8em .9em;
   margin-bottom: .7em;
+  cursor: pointer;
+  user-select: none;
+  transition: transform .18s ease, background .18s ease, border-color .18s ease;
+}
+.task:hover {
+  background: rgba(255,255,255,.07);
+  border-color: #33436B;
+  transform: translateX(3px);
+}
+.task:active {
+  transform: scale(0.97);
 }
 .task .box {
   width: 1.25em;
@@ -577,20 +677,92 @@ a { color: inherit; }
   background: var(--accent);
   margin-top: .55em;
 }
-.checksum {
-  display: block;
+.checksum-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
   margin-top: 18px;
-  padding: 12px 16px;
   background: #0A0E16;
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: 12px;
+  padding: 14px 18px;
+  flex-wrap: wrap;
+}
+.checksum {
+  display: block;
   font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
   font-size: .78rem;
   color: var(--muted);
   word-break: break-all;
   line-height: 1.5;
+  flex: 1 1 260px;
 }
 .checksum b { color: var(--text); font-weight: 600; }
+.btn-copy-sha {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all .2s ease;
+  white-space: nowrap;
+}
+.btn-copy-sha:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.btn-copy-sha.copied {
+  background: var(--ok);
+  color: #07130d;
+  border-color: var(--ok);
+}
+
+/* ---------- Floating back to top ---------- */
+.back-to-top {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 80;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(16, 22, 34, .88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(12px);
+  transition: all .25s ease;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .4);
+}
+.back-to-top.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+.back-to-top:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px var(--accent-glow);
+}
 
 /* ---------- Download band ---------- */
 .download-band {
@@ -696,6 +868,18 @@ html.js .reveal.in { opacity: 1; transform: none; }
       <a href="#install">Install notes</a>
       <a href="#download" class="nav-cta">Get the app</a>
     </nav>
+    <button type="button" class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle navigation menu" aria-expanded="false">
+      <svg class="icon-hamburger" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <svg class="icon-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="mobile-drawer" id="mobileDrawer">
+    <nav class="mobile-nav" aria-label="Mobile Navigation">
+      <a href="#features">Features</a>
+      <a href="#how-it-works">Setup</a>
+      <a href="#install">Install notes</a>
+      <a href="#download" class="btn btn-primary btn-mobile-cta">Get the app</a>
+    </nav>
   </div>
 </header>
 
@@ -725,7 +909,7 @@ html.js .reveal.in { opacity: 1; transform: none; }
     </div>
 
     <div class="phone-wrap">
-      <div class="phone" role="img" aria-label="Preview of the SchedMate app: today's schedule, upcoming tasks, and the ask-a-question bar">
+      <div class="phone" role="img" aria-label="Interactive preview of SchedMate: tap tasks to check them off">
         <div class="screen">
           <div class="notch" aria-hidden="true"></div>
           <div class="sc-top">
@@ -740,21 +924,21 @@ html.js .reveal.in { opacity: 1; transform: none; }
             <span>10:30 – 11:45 · Room 204</span>
           </div>
 
-          <div class="sc-label">Due this week</div>
-          <div class="task done">
+          <div class="sc-label">Due this week <span style="font-size: .85em; opacity: .7; text-transform: none; font-weight: 500;">· tap to check off</span></div>
+          <div class="task done" role="button" tabindex="0" aria-label="Toggle task: Problem set 5">
             <span class="box" aria-hidden="true"></span>
             <span class="task-name">Problem set 5 · Calculus</span>
-            <span class="task-due">done</span>
+            <span class="task-due" data-original="done">done</span>
           </div>
-          <div class="task">
+          <div class="task" role="button" tabindex="0" aria-label="Toggle task: Lab report">
             <span class="box" aria-hidden="true"></span>
             <span class="task-name">Lab report · Chemistry</span>
-            <span class="task-due soon">Fri</span>
+            <span class="task-due soon" data-original="Fri">Fri</span>
           </div>
-          <div class="task">
+          <div class="task" role="button" tabindex="0" aria-label="Toggle task: Ch. 4 reading">
             <span class="box" aria-hidden="true"></span>
             <span class="task-name">Ch. 4 reading · History</span>
-            <span class="task-due">Mon</span>
+            <span class="task-due" data-original="Mon">Mon</span>
           </div>
 
           <div class="ask-bar">
@@ -839,7 +1023,7 @@ html.js .reveal.in { opacity: 1; transform: none; }
         <article class="step reveal">
           <div class="step-num" aria-hidden="true"></div>
           <h3>Install the APK</h3>
-          <p>Download the <span data-apk-size-mb>68 MB</span> file and open it. Android asks for one-time permission to install from your browser — normal for apps outside the Play Store.</p>
+          <p>Download the <span data-apk-size-mb>79 MB</span> file and open it. Android asks for one-time permission to install from your browser — normal for apps outside the Play Store.</p>
         </article>
         <article class="step reveal">
           <div class="step-num" aria-hidden="true"></div>
@@ -871,10 +1055,16 @@ html.js .reveal.in { opacity: 1; transform: none; }
           <li>Your data is stored locally. Uninstalling the app deletes it, so keep device backups if the notes matter to you.</li>
           <li>The APK is served from GitHub Releases (CDN). If the download is slow, you can also grab any version from the <a href="https://github.com/jerviesLachica/edukasyon/releases" rel="noopener">Releases page</a>.</li>
         </ul>
-        <code class="checksum">
-          <b>SHA-256</b>&nbsp; <span data-apk-sha256>81a9d649947de862ff2ff1f768f3b16fc35da7a65093da1496d4d463ec994167</span><br>
-          <b>Size</b>&nbsp; <span data-apk-size>82,371,379 bytes</span> &nbsp;·&nbsp; <b><span data-apk-file>schedmate-2.1.4.apk</span></b> &nbsp;·&nbsp; versionName <span data-app-version>2.1.4</span> (versionCode <span data-version-code>15</span>)
-        </code>
+        <div class="checksum-wrap">
+          <code class="checksum">
+            <b>SHA-256</b>&nbsp; <span data-apk-sha256 id="shaValue">42d3c843e8ea5e6c5ce55ed0edeb3dcb09abd8f4bdf7d6ff2c328264583649db</span><br>
+            <b>Size</b>&nbsp; <span data-apk-size>82,387,763 bytes</span> &nbsp;·&nbsp; <b><span data-apk-file>schedmate-2.1.5.apk</span></b> &nbsp;·&nbsp; versionName <span data-app-version>2.1.5</span> (versionCode <span data-version-code>16</span>)
+          </code>
+          <button type="button" class="btn-copy-sha" id="copyShaBtn" aria-label="Copy SHA-256 hash">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <span>Copy hash</span>
+          </button>
+        </div>
       </div>
     </div>
   </section>
@@ -907,6 +1097,10 @@ html.js .reveal.in { opacity: 1; transform: none; }
   </div>
 </footer>
 
+<button type="button" class="back-to-top" id="backToTop" aria-label="Back to top">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
+</button>
+
 <script>
 document.documentElement.classList.add('js');
 
@@ -927,6 +1121,95 @@ const header = document.querySelector('.site-header');
 addEventListener('scroll', () => {
   header.classList.toggle('scrolled', scrollY > 8);
 }, { passive: true });
+
+// Mobile navigation drawer
+const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+const mobileDrawer = document.getElementById('mobileDrawer');
+if (mobileMenuBtn && mobileDrawer) {
+  mobileMenuBtn.addEventListener('click', () => {
+    const isOpen = mobileMenuBtn.classList.toggle('active');
+    mobileDrawer.classList.toggle('open', isOpen);
+    mobileMenuBtn.setAttribute('aria-expanded', String(isOpen));
+  });
+  mobileDrawer.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      mobileMenuBtn.classList.remove('active');
+      mobileDrawer.classList.remove('open');
+      mobileMenuBtn.setAttribute('aria-expanded', 'false');
+    });
+  });
+}
+
+// Interactive mockup tasks in phone preview
+document.querySelectorAll('.screen .task').forEach(task => {
+  const toggle = () => {
+    const isDone = task.classList.toggle('done');
+    const dueEl = task.querySelector('.task-due');
+    if (dueEl) {
+      const orig = dueEl.getAttribute('data-original') || 'done';
+      if (isDone) {
+        dueEl.textContent = 'done';
+        dueEl.classList.remove('soon');
+      } else {
+        dueEl.textContent = orig;
+        if (orig === 'Fri') dueEl.classList.add('soon');
+      }
+    }
+  };
+  task.addEventListener('click', toggle);
+  task.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggle();
+    }
+  });
+});
+
+// Copy SHA-256 button
+const copyShaBtn = document.getElementById('copyShaBtn');
+const shaValueEl = document.getElementById('shaValue');
+if (copyShaBtn && shaValueEl) {
+  copyShaBtn.addEventListener('click', async () => {
+    const text = shaValueEl.textContent.trim();
+    const span = copyShaBtn.querySelector('span');
+    const originalText = span ? span.textContent : 'Copy hash';
+    try {
+      await navigator.clipboard.writeText(text);
+      copyShaBtn.classList.add('copied');
+      if (span) span.textContent = '✓ Copied!';
+      setTimeout(() => {
+        copyShaBtn.classList.remove('copied');
+        if (span) span.textContent = originalText;
+      }, 2000);
+    } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      copyShaBtn.classList.add('copied');
+      if (span) span.textContent = '✓ Copied!';
+      setTimeout(() => {
+        copyShaBtn.classList.remove('copied');
+        if (span) span.textContent = originalText;
+      }, 2000);
+    }
+  });
+}
+
+// Back to top floating button
+const backToTopBtn = document.getElementById('backToTop');
+if (backToTopBtn) {
+  addEventListener('scroll', () => {
+    backToTopBtn.classList.toggle('visible', window.scrollY > 350);
+  }, { passive: true });
+  backToTopBtn.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
 
 // Reveal on scroll
 const io = new IntersectionObserver((entries) => {
