@@ -10,23 +10,35 @@ import java.util.Calendar
 object GradeCalculator {
     fun calculateWeightedGrade(entries: List<GradeEntry>): Double {
         if (entries.isEmpty()) return 0.0
+        val subjectGroups = entries.groupBy { it.subjectId }
+        if (subjectGroups.size > 1) {
+            val subjectAverages = subjectGroups.values.mapNotNull { subEntries ->
+                val valid = subEntries.filter { it.maxScore > 0 }
+                if (valid.isEmpty()) null else calculateSubjectWeightedGrade(valid)
+            }
+            return if (subjectAverages.isNotEmpty()) subjectAverages.average() else 0.0
+        }
+        return calculateSubjectWeightedGrade(entries)
+    }
+
+    private fun calculateSubjectWeightedGrade(entries: List<GradeEntry>): Double {
         val categoryGroups = entries.groupBy { it.category }
         var totalWeight = 0.0
         var weightedSum = 0.0
         categoryGroups.forEach { (_, categoryEntries) ->
-            val categoryWeight = categoryEntries.first().weight
-            val validPercentages = categoryEntries
-                .filter { it.maxScore > 0 }
-                .map { (it.score / it.maxScore) * 100 }
-            val avgPercentage = if (validPercentages.isNotEmpty()) validPercentages.average() else 0.0
-            weightedSum += avgPercentage * categoryWeight
-            totalWeight += categoryWeight
+            val valid = categoryEntries.filter { it.maxScore > 0 }
+            if (valid.isNotEmpty()) {
+                val categoryWeight = valid.map { it.weight }.average().coerceAtLeast(0.0)
+                val avgPercentage = valid.map { (it.score.coerceAtLeast(0.0) / it.maxScore) * 100 }.average()
+                weightedSum += avgPercentage * categoryWeight
+                totalWeight += categoryWeight
+            }
         }
         return if (totalWeight > 0) weightedSum / totalWeight else 0.0
     }
 
     fun calculatePercentage(score: Double, maxScore: Double): Double =
-        if (maxScore > 0) (score / maxScore) * 100 else 0.0
+        if (maxScore > 0) (score.coerceAtLeast(0.0) / maxScore) * 100 else 0.0
 }
 
 object ScheduleValidator {
@@ -127,14 +139,26 @@ object DateUtils {
     }
 
     fun formatTime12h(time: String): String {
-        val parts = time.split(":")
-        val hour = parts.getOrNull(0)?.toIntOrNull() ?: return time
-        val minute = parts.getOrElse(1) { "00" }.padStart(2, '0')
-        val amPm = if (hour < 12) "AM" else "PM"
+        val trimmed = time.trim()
+        if (trimmed.isEmpty()) return ""
+        val upper = trimmed.uppercase(java.util.Locale.US)
+        val isExplicitPm = upper.contains("PM")
+        val isExplicitAm = upper.contains("AM")
+        val cleanTime = trimmed.replace("(?i)[a-z\\s]+".toRegex(), "")
+        val parts = cleanTime.split(":")
+        val rawHour = parts.getOrNull(0)?.toIntOrNull() ?: return time
+        val rawMinute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        val minute = String.format(java.util.Locale.US, "%02d", rawMinute.coerceIn(0, 59))
+        val hour24 = when {
+            isExplicitPm && rawHour < 12 -> rawHour + 12
+            isExplicitAm && rawHour == 12 -> 0
+            else -> rawHour
+        }.coerceIn(0, 23)
+        val amPm = if (hour24 < 12) "AM" else "PM"
         val displayHour = when {
-            hour == 0 -> 12
-            hour > 12 -> hour - 12
-            else -> hour
+            hour24 == 0 -> 12
+            hour24 > 12 -> hour24 - 12
+            else -> hour24
         }
         return "$displayHour:$minute $amPm"
     }
@@ -154,12 +178,23 @@ object DateUtils {
     }
 
     fun combineDateAndTime(dateMillis: Long, time: String): Long {
-        val parts = time.split(":")
-        val hour = parts.getOrNull(0)?.toIntOrNull() ?: 23
-        val minute = parts.getOrNull(1)?.toIntOrNull() ?: 59
+        val trimmed = time.trim()
+        val upper = trimmed.uppercase(java.util.Locale.US)
+        val isExplicitPm = upper.contains("PM")
+        val isExplicitAm = upper.contains("AM")
+        val cleanTime = trimmed.replace("(?i)[a-z\\s]+".toRegex(), "")
+        val parts = cleanTime.split(":")
+        val rawHour = parts.getOrNull(0)?.toIntOrNull() ?: 23
+        val rawMinute = parts.getOrNull(1)?.toIntOrNull() ?: 59
+        val hour24 = when {
+            isExplicitPm && rawHour < 12 -> rawHour + 12
+            isExplicitAm && rawHour == 12 -> 0
+            else -> rawHour
+        }.coerceIn(0, 23)
+        val minute = rawMinute.coerceIn(0, 59)
         val cal = java.util.Calendar.getInstance().apply {
             timeInMillis = dateMillis
-            set(java.util.Calendar.HOUR_OF_DAY, hour)
+            set(java.util.Calendar.HOUR_OF_DAY, hour24)
             set(java.util.Calendar.MINUTE, minute)
             set(java.util.Calendar.SECOND, 0)
             set(java.util.Calendar.MILLISECOND, 0)

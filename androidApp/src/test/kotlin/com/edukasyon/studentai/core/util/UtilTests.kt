@@ -76,3 +76,37 @@ class TaskSorterTest {
         assertEquals("Low", sorted[2].title)
     }
 }
+
+class DateUtilsTest {
+    @Test
+    fun formatTime12h_24hFormat_convertsCorrectly() {
+        assertEquals("2:30 PM", DateUtils.formatTime12h("14:30"))
+        assertEquals("8:05 AM", DateUtils.formatTime12h("08:05"))
+        assertEquals("12:00 AM", DateUtils.formatTime12h("00:00"))
+        assertEquals("12:00 PM", DateUtils.formatTime12h("12:00"))
+    }
+
+    @Test
+    fun formatTime12h_already12hFormat_doesNotDuplicateAmPm() {
+        assertEquals("9:30 AM", DateUtils.formatTime12h("9:30 AM"))
+        assertEquals("2:15 PM", DateUtils.formatTime12h("02:15 PM"))
+        assertEquals("12:00 AM", DateUtils.formatTime12h("12:00 AM"))
+    }
+
+    @Test
+    fun combineDateAndTime_handlesBoth12hAnd24h() {
+        val cal = java.util.Calendar.getInstance()
+        cal.set(2026, java.util.Calendar.OCTOBER, 1, 0, 0, 0)
+        val dateMillis = cal.timeInMillis
+
+        val combined24 = DateUtils.combineDateAndTime(dateMillis, "14:30")
+        val cal24 = java.util.Calendar.getInstance().apply { timeInMillis = combined24 }
+        assertEquals(14, cal24.get(java.util.Calendar.HOUR_OF_DAY))
+        assertEquals(30, cal24.get(java.util.Calendar.MINUTE))
+
+        val combined12 = DateUtils.combineDateAndTime(dateMillis, "2:30 PM")
+        val cal12 = java.util.Calendar.getInstance().apply { timeInMillis = combined12 }
+        assertEquals(14, cal12.get(java.util.Calendar.HOUR_OF_DAY))
+        assertEquals(30, cal12.get(java.util.Calendar.MINUTE))
+    }
+}

@@ -2225,9 +2225,11 @@ class AiViewModel @Inject constructor(
 
     fun restartQuiz() {
         val quiz = _uiState.value.generatedQuiz ?: return
+        val randomized = com.edukasyon.studentai.core.util.QuizValidator.validate(quiz)
         _uiState.update {
             it.copy(
-                quizSession = QuizSessionState(quiz = quiz),
+                generatedQuiz = randomized,
+                quizSession = QuizSessionState(quiz = randomized),
                 quizSaved = false,
                 statusMessage = null
             )

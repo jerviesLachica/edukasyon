@@ -628,9 +628,7 @@ private fun buildSubjectGroups(
         .groupBy { it.subjectId }
         .map { (subjectId, groupEntries) ->
             val subject = subjectById[subjectId]
-            val average = groupEntries
-                .map { GradeCalculator.calculatePercentage(it.score, it.maxScore) }
-                .average()
+            val average = GradeCalculator.calculateWeightedGrade(groupEntries)
             SubjectGradeGroup(
                 subjectId = subjectId,
                 subjectName = subject?.name ?: "General",

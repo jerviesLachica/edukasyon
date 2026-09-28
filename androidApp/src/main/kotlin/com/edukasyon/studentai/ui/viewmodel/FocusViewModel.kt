@@ -429,7 +429,7 @@ class FocusViewModel @Inject constructor(
                     subjectLabel = state.subjectLabel.takeIf { it.isNotBlank() },
                     focusMinutes = if (state.mode == FocusMode.MANUAL) state.customFocusMinutes else state.totalFocusMinutesLogged,
                     breakMinutes = state.customBreakMinutes,
-                    completedCycles = state.completedCycles.coerceAtLeast(1),
+                    completedCycles = if (state.completedCycles > 0) state.completedCycles else if (state.totalFocusMinutesLogged >= state.customFocusMinutes) 1 else 0,
                     totalFocusMinutes = state.totalFocusMinutesLogged.coerceAtLeast(1),
                     completedAt = System.currentTimeMillis(),
                 )
