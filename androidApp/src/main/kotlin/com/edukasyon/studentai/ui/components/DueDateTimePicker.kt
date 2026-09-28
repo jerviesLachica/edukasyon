@@ -228,9 +228,10 @@ fun PlannerScheduleFields(
                         modifier = Modifier.padding(start = 8.dp)
                     )
                 }
+                val reminderTime = schedule.reminderAtForSave()
                 Text(
-                    text = if (schedule.reminderCustomized) {
-                        "Custom reminder: ${DateUtils.formatReminderAt(schedule.reminderAtForSave()!!)}"
+                    text = if (schedule.reminderCustomized && reminderTime != null) {
+                        "Custom reminder: ${DateUtils.formatReminderAt(reminderTime)}"
                     } else {
                         "Default: 1 day before due at 9:00 AM (or same-day at 8:00 AM if sooner)"
                     },

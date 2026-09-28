@@ -34,11 +34,21 @@ class HolidayRepository @Inject constructor(
     private val json = Json { ignoreUnknownKeys = true }
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
 
+    private fun formatDate(millis: Long): String = synchronized(dateFormat) {
+        dateFormat.format(millis)
+    }
+
+    private fun parseDateMillis(date: String): Long = synchronized(dateFormat) {
+        runCatching { dateFormat.parse(date)?.time }.getOrNull()
+    } ?: runCatching {
+        java.time.LocalDate.parse(date).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+    }.getOrDefault(0L)
+
     private var bundledCache: List<Holiday>? = null
 
     suspend fun getHolidays(fromMillis: Long, toMillis: Long): List<Holiday> = withContext(Dispatchers.IO) {
-        val fromDate = dateFormat.format(fromMillis)
-        val toDate = dateFormat.format(toMillis)
+        val fromDate = formatDate(fromMillis)
+        val toDate = formatDate(toMillis)
         val cached = cachedHolidayDao.getByDateRange(fromDate, toDate).map { it.toDomain() }
         if (cached.isNotEmpty()) return@withContext cached
 
@@ -62,12 +72,12 @@ class HolidayRepository @Inject constructor(
                 val now = System.currentTimeMillis()
                 val fetchedAt = now
                 val mapped = dtoList.mapNotNull { dto ->
-                    val time = runCatching { dateFormat.parse(dto.date)?.time }.getOrNull() ?: return@mapNotNull null
+                    val time = parseDateMillis(dto.date).takeIf { it > 0 } ?: return@mapNotNull null
                     Holiday(
                         name = dto.name,
-                        localName = dto.localName.takeIf { it.isNotBlank() },
+                        localName = dto.localName?.takeIf { it.isNotBlank() },
                         dateMillis = time,
-                        type = mapNagerType(dto.types)
+                        type = mapNagerType(dto.types.orEmpty())
                     )
                 }
                 if (mapped.isNotEmpty()) return@withContext mapped
@@ -85,14 +95,14 @@ class HolidayRepository @Inject constructor(
         try {
             val dtoList = holidayApi.getLongWeekends(year, countryCode)
             dtoList.mapNotNull { dto ->
-                val start = runCatching { dateFormat.parse(dto.startDate)?.time }.getOrNull() ?: return@mapNotNull null
-                val end = runCatching { dateFormat.parse(dto.endDate)?.time }.getOrNull() ?: return@mapNotNull null
+                val start = parseDateMillis(dto.startDate).takeIf { it > 0 } ?: return@mapNotNull null
+                val end = parseDateMillis(dto.endDate).takeIf { it > 0 } ?: return@mapNotNull null
                 LongWeekend(
                     startDateMillis = start,
                     endDateMillis = end,
                     dayCount = dto.dayCount,
                     needBridgeDay = dto.needBridgeDay,
-                    bridgeDays = dto.bridgeDays
+                    bridgeDays = dto.bridgeDays.orEmpty()
                 )
             }
         } catch (e: Exception) {
@@ -156,15 +166,15 @@ class HolidayRepository @Inject constructor(
     private fun CachedHolidayEntity.toDomain(): Holiday = Holiday(
         name = name,
         localName = localName.takeIf { it.isNotBlank() },
-        dateMillis = requireNotNull(dateFormat.parse(date)?.time),
+        dateMillis = parseDateMillis(date),
         type = if (type == HolidayType.REGULAR.name) HolidayType.REGULAR else HolidayType.SPECIAL
     )
 
     private fun NagerHolidayDto.toEntity(year: Int, fetchedAt: Long): CachedHolidayEntity = CachedHolidayEntity(
         date = date,
         name = name,
-        localName = localName,
-        type = mapNagerType(types).name,
+        localName = localName.orEmpty(),
+        type = mapNagerType(types.orEmpty()).name,
         year = year,
         fetchedAt = fetchedAt
     )

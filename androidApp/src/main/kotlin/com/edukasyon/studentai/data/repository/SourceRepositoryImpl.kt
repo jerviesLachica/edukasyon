@@ -124,8 +124,9 @@ class SourceRepositoryImpl @Inject constructor(
             .filter { row ->
                 (sourceIds == null || row.sourceId in sourceIds) && row.vector != null
             }
-            .map { row ->
-                val score = VectorCodecs.cosine(qvec, VectorCodecs.bytesToFloats(row.vector!!))
+            .mapNotNull { row ->
+                val vectorBytes = row.vector ?: return@mapNotNull null
+                val score = VectorCodecs.cosine(qvec, VectorCodecs.bytesToFloats(vectorBytes))
                 RankedChunk(
                     chunkId = row.id, sourceId = row.sourceId,
                     sourceName = names[row.sourceId] ?: "Source",

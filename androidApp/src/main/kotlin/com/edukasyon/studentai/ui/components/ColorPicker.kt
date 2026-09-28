@@ -207,7 +207,7 @@ private fun ThemeColorPreview(
     secondaryColorHex: String?,
     darkTheme: Boolean
 ) {
-    val primary = parseHexColor(primaryColorHex) ?: parseHexColor(ThemePresets.DEFAULT_PRIMARY)!!
+    val primary = parseHexColor(primaryColorHex) ?: parseHexColor(ThemePresets.DEFAULT_PRIMARY) ?: Color(0xFF1E88E5)
     val secondary = secondaryColorHex?.let { parseHexColor(it) }
     val previewScheme = remember(primary, secondary, darkTheme) {
         buildColorScheme(primary, secondary, darkTheme)

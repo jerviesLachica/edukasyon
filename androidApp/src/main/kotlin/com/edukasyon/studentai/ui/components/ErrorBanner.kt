@@ -91,7 +91,7 @@ fun ErrorBanner(
             ) {
                 if (showTitle) {
                     Text(
-                        text = title!!,
+                        text = title.orEmpty(),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Medium,
                         color = contentColor,

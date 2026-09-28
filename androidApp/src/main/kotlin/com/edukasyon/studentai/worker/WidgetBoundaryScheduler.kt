@@ -67,8 +67,8 @@ object WidgetBoundaryScheduler {
                 }
             }
         }
-        if (nextMinutes != null) {
-            return (nextMinutes!! - nowMinutes).toLong() * 60_000L
+        nextMinutes?.let { target ->
+            return (target - nowMinutes).toLong() * 60_000L
         }
         // Nothing left today: wake just after midnight for the date rollover.
         val midnight = (now.clone() as Calendar).apply {

@@ -57,7 +57,7 @@ fun FeedbackDialog(
     var contact by remember { mutableStateOf("") }
     var honeypotField by remember { mutableStateOf("") } // Anti-bot guardrail
 
-    var cooldownRemaining by remember { mutableStateOf(initialCooldownSeconds) }
+    var cooldownRemaining by remember(initialCooldownSeconds) { mutableStateOf(initialCooldownSeconds) }
 
     // Cooldown countdown timer
     LaunchedEffect(cooldownRemaining) {

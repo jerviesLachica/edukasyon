@@ -31,14 +31,14 @@ interface HolidayApi {
 @Serializable
 data class NagerHolidayDto(
     val date: String,
-    val localName: String,
+    val localName: String? = null,
     val name: String,
     val countryCode: String,
     val fixed: Boolean = false,
     val global: Boolean = true,
     val counties: List<String>? = null,
     val launchYear: Int? = null,
-    val types: List<String> = emptyList()
+    val types: List<String>? = emptyList()
 )
 
 @Serializable
@@ -47,5 +47,5 @@ data class NagerLongWeekendDto(
     val endDate: String,
     val dayCount: Int,
     val needBridgeDay: Boolean = false,
-    val bridgeDays: List<String> = emptyList()
+    val bridgeDays: List<String>? = emptyList()
 )

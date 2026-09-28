@@ -1306,21 +1306,15 @@ fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {
     }
 
     val displayedEvents = remember(events, selectedDateMillis) {
-        if (selectedDateMillis == null) events
-        else {
-            val start = selectedDateMillis!!
-            val end = start + (24L * 60 * 60 * 1000)
-            events.filter { it.startAt in start until end }
-        }
+        val start = selectedDateMillis ?: return@remember events
+        val end = start + (24L * 60 * 60 * 1000)
+        events.filter { it.startAt in start until end }
     }
 
     val displayedHolidays = remember(holidays, selectedDateMillis) {
-        if (selectedDateMillis == null) holidays
-        else {
-            val start = selectedDateMillis!!
-            val end = start + (24L * 60 * 60 * 1000)
-            holidays.filter { it.dateMillis in start until end }
-        }
+        val start = selectedDateMillis ?: return@remember holidays
+        val end = start + (24L * 60 * 60 * 1000)
+        holidays.filter { it.dateMillis in start until end }
     }
 
     AdaptiveContentContainer {
@@ -1685,8 +1679,9 @@ fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(18.dp),
                                     )
+                                    val headerText = selectedDateMillis?.let { dayHeaderFormat.format(java.util.Date(it)) } ?: ""
                                     Text(
-                                        dayHeaderFormat.format(java.util.Date(selectedDateMillis!!)),
+                                        headerText,
                                         style = MaterialTheme.typography.bodySmall,
                                         fontWeight = FontWeight.SemiBold,
                                     )

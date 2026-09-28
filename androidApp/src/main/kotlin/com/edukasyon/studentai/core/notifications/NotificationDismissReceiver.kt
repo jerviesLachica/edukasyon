@@ -16,26 +16,30 @@ class NotificationDismissReceiver : BroadcastReceiver() {
         Log.d(TAG, "Notification dismissed: type=$typeName, refId=$referenceId, notifId=$notificationId")
 
         if (notificationId != -1) {
-            NotificationManagerCompat.from(context).cancel(notificationId)
+            runCatching { NotificationManagerCompat.from(context).cancel(notificationId) }
         }
 
         if (referenceId != null && typeName != null) {
             val type = runCatching { ReminderType.valueOf(typeName) }.getOrNull()
             if (type != null) {
-                val dismissManager = ReminderDismissManager(context.applicationContext)
-                dismissManager.markDismissed(type, referenceId)
+                runCatching {
+                    val dismissManager = ReminderDismissManager(context.applicationContext)
+                    dismissManager.markDismissed(type, referenceId)
 
-                val scheduler = ReminderScheduler(context.applicationContext)
-                val uniqueWorkName = when (type) {
-                    ReminderType.CLASS -> "class_$referenceId"
-                    ReminderType.TASK -> "task_$referenceId"
-                    ReminderType.ASSIGNMENT -> "assignment_$referenceId"
-                    ReminderType.EXAM -> "exam_$referenceId"
-                    ReminderType.FOCUS -> "focus_$referenceId"
-                    ReminderType.SCHEDULE_SCAN -> "schedule_scan_$referenceId"
-                    ReminderType.REVIEW -> "review_$referenceId"
+                    val scheduler = ReminderScheduler(context.applicationContext)
+                    val uniqueWorkName = when (type) {
+                        ReminderType.CLASS -> "class_$referenceId"
+                        ReminderType.TASK -> "task_$referenceId"
+                        ReminderType.ASSIGNMENT -> "assignment_$referenceId"
+                        ReminderType.EXAM -> "exam_$referenceId"
+                        ReminderType.FOCUS -> "focus_$referenceId"
+                        ReminderType.SCHEDULE_SCAN -> "schedule_scan_$referenceId"
+                        ReminderType.REVIEW -> "review_$referenceId"
+                    }
+                    scheduler.cancelReminder(uniqueWorkName)
+                }.onFailure { e ->
+                    Log.w(TAG, "Failed to cancel reminder on dismiss", e)
                 }
-                scheduler.cancelReminder(uniqueWorkName)
             }
         }
     }

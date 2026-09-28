@@ -344,7 +344,7 @@ fun ScheduleScannerScreen(
                                         modifier = Modifier.padding(24.dp),
                                     ) {
                                         Text(
-                                            text = cameraBindFailed!!,
+                                            text = cameraBindFailed.orEmpty(),
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )

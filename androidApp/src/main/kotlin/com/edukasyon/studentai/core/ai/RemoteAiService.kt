@@ -123,7 +123,7 @@ class RemoteAiService @Inject constructor(
                     // timeout (180s) cancels this loop if it never settles.
                 }
             }
-            val response = lastStatus!!
+            val response = lastStatus ?: throw AiException("Scan completed without status response from server.")
             ScheduleAnalysisResult(
                 classes = response.classes.mapNotNull { dto ->
                     // Drop entries the AI left blank instead of failing the whole scan.

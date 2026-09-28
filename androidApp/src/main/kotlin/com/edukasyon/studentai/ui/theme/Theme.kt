@@ -144,7 +144,7 @@ fun StudentAiTheme(
     }
 
     val primarySeed = remember(primaryColorHex) {
-        parseHexColor(primaryColorHex) ?: parseHexColor(ThemePresets.DEFAULT_PRIMARY)!!
+        parseHexColor(primaryColorHex) ?: parseHexColor(ThemePresets.DEFAULT_PRIMARY) ?: androidx.compose.ui.graphics.Color(0xFF1E88E5)
     }
     val secondarySeed = remember(secondaryColorHex) {
         secondaryColorHex?.let { parseHexColor(it) }

@@ -81,7 +81,10 @@ fun ContextualStudySuggestionsRow(
     ) {
         quickFollowUps.forEach { chip ->
             SuggestionChip(
-                onClick = { onPick(chip.substring(3).trim()) },
+                onClick = {
+                    val cleanPrompt = chip.dropWhile { !it.isLetterOrDigit() }.trim()
+                    onPick(cleanPrompt)
+                },
                 label = {
                     Text(
                         chip,

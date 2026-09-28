@@ -177,8 +177,9 @@ fun NoteEditorScreen(
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(11.dp),
                                     )
+                                    val savedTime = state.lastSavedAt?.let { formatSavedTime(it) } ?: ""
                                     Text(
-                                        "Saved ${formatSavedTime(state.lastSavedAt!!)}",
+                                        "Saved $savedTime",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )

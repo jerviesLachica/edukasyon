@@ -3975,9 +3975,10 @@ class CalendarViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             combine(taskRepo.observeTasks(), examRepo.observeExams(), assignmentRepo.observeAssignments()) { tasks, exams, assignments ->
-                tasks.filter { it.dueDate != null }.forEach { task ->
+                tasks.forEach { task ->
+                    val dueDate = task.dueDate ?: return@forEach
                     saveCalendarEvent.execute(
-                        CalendarEvent("task-${task.id}", task.title, task.description, task.dueDate!!, task.dueDate, "TASK", task.id, "#00897B")
+                        CalendarEvent("task-${task.id}", task.title, task.description, dueDate, dueDate, "TASK", task.id, "#00897B")
                     )
                 }
                 exams.forEach { exam ->
@@ -3985,9 +3986,10 @@ class CalendarViewModel @Inject constructor(
                         CalendarEvent("exam-${exam.id}", exam.title, exam.coverage, exam.examDate, exam.examDate, "EXAM", exam.id, "#B00020")
                     )
                 }
-                assignments.filter { it.dueDate != null }.forEach { assignment ->
+                assignments.forEach { assignment ->
+                    val dueDate = assignment.dueDate ?: return@forEach
                     saveCalendarEvent.execute(
-                        CalendarEvent("assignment-${assignment.id}", assignment.title, assignment.description, assignment.dueDate!!, assignment.dueDate, "ASSIGNMENT", assignment.id, "#1A237E")
+                        CalendarEvent("assignment-${assignment.id}", assignment.title, assignment.description, dueDate, dueDate, "ASSIGNMENT", assignment.id, "#1A237E")
                     )
                 }
             }.collect { }

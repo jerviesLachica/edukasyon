@@ -108,13 +108,16 @@ fun AssignmentIntelligenceScreen(
                         )
                     }
                     state.breakdown != null && state.showBreakdownReview -> {
-                        BreakdownReviewContent(
-                            breakdown = state.breakdown!!,
-                            horizontalPadding = horizontalPadding,
-                            isSaving = state.isSaving,
-                            onBackToInput = viewModel::backToInput,
-                            onAddToPlanner = viewModel::addToPlanner,
-                        )
+                        val reviewBreakdown = state.breakdown
+                        if (reviewBreakdown != null) {
+                            BreakdownReviewContent(
+                                breakdown = reviewBreakdown,
+                                horizontalPadding = horizontalPadding,
+                                isSaving = state.isSaving,
+                                onBackToInput = viewModel::backToInput,
+                                onAddToPlanner = viewModel::addToPlanner,
+                            )
+                        }
                     }
                     else -> {
                         InputContent(

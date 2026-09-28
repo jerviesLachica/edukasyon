@@ -50,8 +50,18 @@ object ScheduleValidator {
     }
 
     private fun parseTime(time: String): Int {
-        val parts = time.split(":")
-        return parts[0].toInt() * 60 + parts.getOrElse(1) { "0" }.toInt()
+        val trimmed = time.trim()
+        val parts = trimmed.split(":")
+        val rawHour = parts.getOrNull(0)?.trim()?.filter { it.isDigit() }?.toIntOrNull() ?: 0
+        val rawMinute = parts.getOrNull(1)?.trim()?.filter { it.isDigit() }?.toIntOrNull() ?: 0
+        val isPm = trimmed.contains("PM", ignoreCase = true)
+        val isAm = trimmed.contains("AM", ignoreCase = true)
+        val hour = when {
+            isPm && rawHour < 12 -> rawHour + 12
+            isAm && rawHour == 12 -> 0
+            else -> rawHour
+        }
+        return (hour * 60 + rawMinute).coerceIn(0, 24 * 60)
     }
 }
 

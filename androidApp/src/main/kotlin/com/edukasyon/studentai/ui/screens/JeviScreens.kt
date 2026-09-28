@@ -1941,7 +1941,7 @@ fun JeviQuizArenaScreen(
                     }
 
                     items(
-                        state.generatedQuiz!!.questions,
+                        state.generatedQuiz?.questions.orEmpty(),
                         key = { it.id },
                     ) { question ->
                         EditableQuizQuestionPreview(
@@ -1979,7 +1979,7 @@ fun JeviQuizArenaScreen(
                         BouncyButton(
                             onClick = viewModel::startQuizFromReview,
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = state.generatedQuiz!!.questions.isNotEmpty(),
+                            enabled = state.generatedQuiz?.questions?.isNotEmpty() == true,
                         ) {
                             Icon(Icons.Default.PlayArrow, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
