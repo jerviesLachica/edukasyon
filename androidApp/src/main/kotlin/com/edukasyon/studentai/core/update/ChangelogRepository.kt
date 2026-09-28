@@ -11,6 +11,18 @@ data class ChangelogEntry(
 object ChangelogRepository {
     val changelog = listOf(
         ChangelogEntry(
+            versionName = "2.1.6",
+            versionCode = 17,
+            releaseDate = "2026-09-28",
+            isMandatory = false,
+            notes = listOf(
+                "Gizmo AI Full-Content Vision: Directly reads images and handwritten notes with multimodal AI vision to generate quizzes and flashcards covering every term, formula, and detail without OCR summarization.",
+                "Seamless Update Downloads: Resolved download conflict between the background progress pill and foreground modal, allowing smooth switching without canceling or restarting.",
+                "Smarter Quiz Randomizer: True multi-layer option shuffling so answers are evenly distributed across all choices.",
+                "Reliability & Grade Tracking: Improved subject grade weight calculations, chronological schedule sorting, and reminder notifications.",
+            ),
+        ),
+        ChangelogEntry(
             versionName = "2.1.5",
             versionCode = 16,
             releaseDate = "2026-09-26",
