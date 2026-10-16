@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.edukasyon.studentai.domain.model.GizmoCompanionState
+import com.edukasyon.studentai.domain.model.GizmoConstants
 import com.edukasyon.studentai.domain.model.GizmoMood
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -78,7 +79,7 @@ class GizmoGamificationManager @Inject constructor(
         )
     }
 
-    private fun computeLevel(xp: Int): Int = (xp / 100) + 1
+    private fun computeLevel(xp: Int): Int = GizmoConstants.levelForXp(xp)
 
     private fun computeMood(streak: Int, level: Int): GizmoMood = when {
         streak >= 7 -> GizmoMood.EXCITED

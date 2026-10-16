@@ -50,6 +50,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.edukasyon.studentai.core.ai.StepModelQuotaTracker
+import com.edukasyon.studentai.core.ai.TutorMode
 import com.edukasyon.studentai.domain.model.AiModel
 import com.edukasyon.studentai.domain.model.CitedSource
 import com.edukasyon.studentai.domain.model.ThinkingLevel
@@ -76,6 +77,8 @@ fun JeviChatInputBar(
     onModelSelected: (AiModel) -> Unit,
     thinkingLevel: ThinkingLevel,
     onThinkingLevelSelected: (ThinkingLevel) -> Unit,
+    tutorMode: TutorMode = TutorMode.EXPLAIN,
+    onTutorModeSelected: (TutorMode) -> Unit = {},
     stepQuotaRemaining: Int,
     stepQuotaLabel: String,
     stepQuotaExhausted: Boolean,
@@ -96,6 +99,7 @@ fun JeviChatInputBar(
 ) {
     var showAttachMenu by remember { mutableStateOf(false) }
     var showModelDropdown by remember { mutableStateOf(false) }
+    var showTutorMenu by remember { mutableStateOf(false) }
     var showAddSourceDialog by remember { mutableStateOf(false) }
 
     if (showAddSourceDialog && onAddSource != null) {
@@ -157,8 +161,8 @@ fun JeviChatInputBar(
         val scheme = MaterialTheme.colorScheme
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            color = scheme.surface,
+            shape = RoundedCornerShape(26.dp),
+            color = scheme.surfaceContainer,
             tonalElevation = 0.dp,
             shadowElevation = 0.dp,
             border = androidx.compose.foundation.BorderStroke(1.dp, scheme.outlineVariant),
@@ -234,6 +238,46 @@ fun JeviChatInputBar(
                         }
                     },
                 )
+
+                // Tutor-mode selector: Explain (default) / Quiz me / Socratic.
+                // Active non-default mode highlights in the primary color.
+                Box {
+                    IconButton(
+                        onClick = { showTutorMenu = true },
+                        enabled = enabled,
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            Icons.Outlined.Psychology,
+                            contentDescription = "Tutor mode",
+                            tint = if (tutorMode != TutorMode.EXPLAIN) scheme.primary else scheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showTutorMenu,
+                        onDismissRequest = { showTutorMenu = false },
+                    ) {
+                        TutorMode.entries.forEach { mode ->
+                            DropdownMenuItem(
+                                text = { Text(mode.displayName) },
+                                leadingIcon = {
+                                    if (mode == tutorMode) {
+                                        Icon(
+                                            Icons.Filled.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    showTutorMenu = false
+                                    onTutorModeSelected(mode)
+                                },
+                            )
+                        }
+                    }
+                }
 
                 // Model selector dropdown (compact, next to send)
                 Box {

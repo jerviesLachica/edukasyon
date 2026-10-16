@@ -49,6 +49,7 @@ class RemoteAiService @Inject constructor(
                 model = request.model,
                 effort = request.effort,
                 deckMode = request.deckMode,
+                tutorMode = request.tutorMode.wireName,
                 sources = request.sources.map {
                     com.edukasyon.studentai.core.network.CitedChunkDto(
                         id = it.chunkId.toString(),

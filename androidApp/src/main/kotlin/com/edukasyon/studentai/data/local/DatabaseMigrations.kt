@@ -147,3 +147,44 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
         db.execSQL("ALTER TABLE conversations ADD COLUMN deckId TEXT")
     }
 }
+
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // subtasks & note_tags are v1 tables; their entities later gained
+        // tombstone columns for soft-delete sync without a matching migration,
+        // crashing Room schema validation on upgraded installs (DEBUG builds
+        // silently destructed the DB instead). Fresh v13 installs already have
+        // the columns, so every ALTER/CREATE here is guarded & idempotent.
+        addColumnIfMissing(db, "subtasks", "updatedAt", "INTEGER NOT NULL DEFAULT 0")
+        addColumnIfMissing(db, "subtasks", "deletedAt", "INTEGER")
+        addColumnIfMissing(db, "note_tags", "updatedAt", "INTEGER NOT NULL DEFAULT 0")
+        addColumnIfMissing(db, "note_tags", "deletedAt", "INTEGER")
+        addColumnIfMissing(db, "note_tags", "syncState", "TEXT NOT NULL DEFAULT 'LOCAL_ONLY'")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_subtasks_taskId ON subtasks(taskId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_note_tags_noteId ON note_tags(noteId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_note_tags_tag ON note_tags(tag)")
+    }
+
+    private fun addColumnIfMissing(
+        db: SupportSQLiteDatabase,
+        table: String,
+        column: String,
+        definition: String,
+    ) {
+        val exists = db.query("PRAGMA table_info($table)").use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            var found = false
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameIndex) == column) {
+                    found = true
+                    break
+                }
+            }
+            found
+        }
+        if (!exists) {
+            db.execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
+        }
+    }
+}
+

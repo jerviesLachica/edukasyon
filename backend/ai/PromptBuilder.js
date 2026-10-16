@@ -95,11 +95,21 @@ function buildJarvisSystemMessage({
   clientSystemPrompt,
   hasVisionAttachment,
   hasTextAttachment,
+  tutorMode,
 }) {
   if (clientSystemPrompt) {
     console.warn('Ignoring client-supplied systemPrompt; using server-controlled Jarvis prompt.');
   }
   const parts = [JARVIS_SYSTEM_PROMPT];
+  if (tutorMode === 'socratic') {
+    parts.push(
+      'Socratic tutor mode: NEVER give the final answer directly. Ask one guiding question at a time, wait for the student, acknowledge their reasoning, then probe deeper. Only summarize the solution after the student derives it. Keep each reply to 1-2 questions max.'
+    );
+  } else if (tutorMode === 'quiz_me') {
+    parts.push(
+      'Quiz-me mode: ask exactly one question per reply from the grounded sources, wait for the answer, then grade it with a citation before asking the next. Do not lecture; keep the loop tight.'
+    );
+  }
   if (subject) parts.push(`Current subject focus: ${subject}.`);
   if (contextSummary) {
     parts.push(

@@ -12,7 +12,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -60,37 +59,25 @@ private data class JeviSpinnerColors(
     val pillBorder: Color,
     val label: Color,
     val ringBase: Color,
-    val ringTangerine: Color,
-    val ringGold: Color,
+    val ringPrimary: Color,
+    val ringSecondary: Color,
     val spark: Color,
     val dot: Color,
 )
 
 @Composable
 private fun jeviSpinnerColors(): JeviSpinnerColors {
-    return if (isSystemInDarkTheme()) {
-        JeviSpinnerColors(
-            pillBackground = Color(0xFF2A2218),
-            pillBorder = Color(0xFFFBF6EA).copy(alpha = 0.18f),
-            label = Color(0xFFFBF6EA),
-            ringBase = Color(0xFFFBF6EA).copy(alpha = 0.14f),
-            ringTangerine = Color(0xFFF06A32),
-            ringGold = Color(0xFFF5D060),
-            spark = Color(0xFFF06A32),
-            dot = Color(0xFFF5D060),
-        )
-    } else {
-        JeviSpinnerColors(
-            pillBackground = Color(0xFFFBF6EA),
-            pillBorder = Color(0xFF3A2418).copy(alpha = 0.15f),
-            label = Color(0xFF3A2418),
-            ringBase = Color(0xFF3A2418).copy(alpha = 0.12f),
-            ringTangerine = Color(0xFFE0521A),
-            ringGold = Color(0xFFF2C545),
-            spark = Color(0xFFE0521A),
-            dot = Color(0xFFE0521A),
-        )
-    }
+    val scheme = MaterialTheme.colorScheme
+    return JeviSpinnerColors(
+        pillBackground = scheme.surfaceContainerHigh,
+        pillBorder = scheme.outlineVariant.copy(alpha = 0.5f),
+        label = scheme.onSurface,
+        ringBase = scheme.onSurface.copy(alpha = 0.12f),
+        ringPrimary = scheme.primary,
+        ringSecondary = scheme.secondary,
+        spark = scheme.primary,
+        dot = scheme.primary,
+    )
 }
 
 @Composable
@@ -209,7 +196,7 @@ private fun JeviSpinnerRing(
                     style = Stroke(width = strokeWidth),
                 )
                 drawArc(
-                    color = colors.ringTangerine,
+                    color = colors.ringPrimary,
                     startAngle = -90f,
                     sweepAngle = 90f,
                     useCenter = false,
@@ -218,7 +205,7 @@ private fun JeviSpinnerRing(
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
                 )
                 drawArc(
-                    color = colors.ringGold,
+                    color = colors.ringSecondary,
                     startAngle = 0f,
                     sweepAngle = 90f,
                     useCenter = false,

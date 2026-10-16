@@ -36,7 +36,7 @@ import com.edukasyon.studentai.data.local.entity.*
         SourceChunkEntity::class,
         PageNoteCacheEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class StudentAiDatabase : RoomDatabase() {

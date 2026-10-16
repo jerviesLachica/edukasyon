@@ -120,6 +120,7 @@ data class FeedbackResponseDto(
     val effort: String? = null,
     val sources: List<CitedChunkDto> = emptyList(),
     val deckMode: Boolean = false,
+    val tutorMode: String? = null,
 )
 @Serializable data class ChatResponseDto(
     val reply: String,

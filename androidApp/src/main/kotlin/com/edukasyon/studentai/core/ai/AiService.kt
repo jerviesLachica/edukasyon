@@ -28,7 +28,20 @@ data class AiChatRequest(
     val effort: String? = null,
     val sources: List<com.edukasyon.studentai.domain.model.RankedChunk> = emptyList(),
     val deckMode: Boolean = false,
+    val tutorMode: TutorMode = TutorMode.EXPLAIN,
 )
+
+enum class TutorMode(val wireName: String, val displayName: String) {
+    EXPLAIN("explain", "Explain"),
+    QUIZ_ME("quiz_me", "Quiz me"),
+    SOCRATIC("socratic", "Socratic");
+
+    companion object {
+        /** Absent/unknown stored ids fall back to EXPLAIN (default pedagogy). */
+        fun fromWireName(raw: String?): TutorMode =
+            entries.firstOrNull { it.wireName == raw } ?: EXPLAIN
+    }
+}
 
 data class ToolActionResult(
     val type: String,

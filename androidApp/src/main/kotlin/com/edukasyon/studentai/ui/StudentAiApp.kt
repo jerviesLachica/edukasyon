@@ -233,8 +233,10 @@ fun MainNavigation(
     val currentRoute = navBackStackEntry?.destination?.route
     var forceHideBottomBar by remember { mutableStateOf(false) }
 
+    val isJeviActive = routeToSelectedTab(currentRoute) == MainTab.JEVI || currentRoute == Routes.JEVI_TUTOR
+
     LaunchedEffect(currentRoute) {
-        if (routeToSelectedTab(currentRoute) != MainTab.JEVI) {
+        if (!isJeviActive) {
             forceHideBottomBar = false
         }
     }
@@ -250,11 +252,6 @@ fun MainNavigation(
             navController.navigateToTab(tab)
         } ?: run {
             routeToSelectedTab(route)?.let { tab -> navController.navigateToTab(tab) }
-            // NavController THROWS IllegalArgumentException when the route
-            // doesn't match any destination (this crashed the app whenever a
-            // non-route string arrived here). The tab mapping above already
-            // landed the user somewhere sensible; stacking the detail screen
-            // on top is best-effort only.
             try {
                 navController.navigate(route) { launchSingleTop = true }
             } catch (_: IllegalArgumentException) {
@@ -267,7 +264,7 @@ fun MainNavigation(
     AdaptiveScaffold(
         currentRoute = currentRoute,
         tabs = tabs,
-        forceHideBottomBar = forceHideBottomBar,
+        forceHideBottomBar = isJeviActive || forceHideBottomBar,
         onTabSelected = { tab ->
             navController.navigateToTab(tab, resetHomeRoot = tab == MainTab.HOME)
         }
@@ -306,7 +303,7 @@ fun MainNavigation(
                 )
             }
             mainTabComposable(MainTab.JEVI) {
-                JeviHubScreen(
+                NotebookLmWorkspaceScreen(
                     onOpenDecks = { navController.navigate(Routes.JEVI_DECKS) },
                     onOpenReview = { navController.navigate(Routes.JEVI_REVIEW) },
                     onOpenCreate = { navController.navigate(Routes.JEVI_CREATE) },
@@ -315,6 +312,10 @@ fun MainNavigation(
                     onOpenDeckDetail = { deckId -> navController.navigate(Routes.jeviDeckDetail(deckId)) },
                     onOpenHistory = { filter -> navController.navigate(Routes.aiConversationHistory(filter)) },
                     onChatInputActive = { active -> forceHideBottomBar = active },
+                    onNavigateHome = { navController.navigateToTab(MainTab.HOME) },
+                    onNavigateSchedule = { navController.navigateToTab(MainTab.SCHEDULE) },
+                    onNavigatePlanner = { navController.navigateToTab(MainTab.PLANNER) },
+                    onNavigateProfile = { navController.navigateToTab(MainTab.PROFILE) },
                 )
             }
             mainTabComposable(MainTab.PROFILE) {
@@ -428,10 +429,14 @@ fun MainNavigation(
                 JeviQuizArenaScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.JEVI_TUTOR) {
-                AiScreen(
-                    onOpenHistory = { filter ->
-                        navController.navigate(Routes.aiConversationHistory(filter))
-                    },
+                NotebookLmWorkspaceScreen(
+                    onOpenDecks = { navController.navigate(Routes.JEVI_DECKS) },
+                    onOpenReview = { navController.navigate(Routes.JEVI_REVIEW) },
+                    onOpenCreate = { navController.navigate(Routes.JEVI_CREATE) },
+                    onOpenTutor = { },
+                    onOpenQuiz = { navController.navigate(Routes.JEVI_QUIZ) },
+                    onOpenDeckDetail = { deckId -> navController.navigate(Routes.jeviDeckDetail(deckId)) },
+                    onOpenHistory = { filter -> navController.navigate(Routes.aiConversationHistory(filter)) },
                     onChatInputActive = { active -> forceHideBottomBar = active },
                 )
             }

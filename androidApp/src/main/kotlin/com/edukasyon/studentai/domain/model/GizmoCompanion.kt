@@ -64,7 +64,9 @@ object GizmoConstants {
     const val XP_SAVE_FLASHCARDS = 20
     const val XP_DAILY_STREAK = 25
 
-    fun xpForLevel(level: Int): Int = (level - 1) * 100
+    fun xpForLevel(level: Int): Int = (level - 1).coerceAtLeast(0) * 100
+
+    fun levelForXp(xp: Int): Int = (xp.coerceAtLeast(0) / 100) + 1
 
     val QUICK_PROMPTS = listOf(
         "Explain photosynthesis simply",

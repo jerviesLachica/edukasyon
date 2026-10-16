@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.edukasyon.studentai.core.ai.TutorMode
 import com.edukasyon.studentai.domain.model.AiModel
 import com.edukasyon.studentai.domain.model.ThinkingLevel
 import com.edukasyon.studentai.domain.model.DayOfWeek
@@ -68,6 +69,7 @@ class UserPreferences @Inject constructor(
         val USE_MOCK_AI = booleanPreferencesKey("use_mock_ai")
         val AI_MODEL = stringPreferencesKey("ai_model")
         val THINKING_LEVEL = stringPreferencesKey("thinking_level")
+        val TUTOR_MODE = stringPreferencesKey("tutor_mode")
         val SOURCES_SEEDED = booleanPreferencesKey("sources_seeded")
         val STEP_MODEL_USAGE_TIMESTAMPS = stringPreferencesKey("step_model_usage_timestamps")
         val SCHEDULE_DAY_TEMPLATES = stringPreferencesKey("schedule_day_templates")
@@ -135,6 +137,10 @@ class UserPreferences @Inject constructor(
 
     val thinkingLevel: Flow<ThinkingLevel> = context.dataStore.data.map { prefs ->
         ThinkingLevel.fromSlug(prefs[Keys.THINKING_LEVEL])
+    }
+
+    val tutorMode: Flow<TutorMode> = context.dataStore.data.map { prefs ->
+        TutorMode.fromWireName(prefs[Keys.TUTOR_MODE])
     }
 
     val sourcesSeeded: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -319,6 +325,10 @@ class UserPreferences @Inject constructor(
 
     suspend fun setThinkingLevel(level: ThinkingLevel) {
         context.dataStore.edit { it[Keys.THINKING_LEVEL] = level.slug }
+    }
+
+    suspend fun setTutorMode(mode: TutorMode) {
+        context.dataStore.edit { it[Keys.TUTOR_MODE] = mode.wireName }
     }
 
     suspend fun setSourcesSeeded() {

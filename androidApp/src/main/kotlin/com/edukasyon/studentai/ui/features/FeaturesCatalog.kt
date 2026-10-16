@@ -52,6 +52,17 @@ data class FeatureItem(
 
 object FeaturesCatalog {
     val all: List<FeatureItem> = listOf(
+        FeatureItem(
+            id = "battle_plan",
+            title = "Today's Battle Plan",
+            description = "One autopilot card: next class, overdue + due tasks, weakest exam readiness, and the single best next action.",
+            filterCategory = FeatureFilterCategory.STUDY,
+            section = FeatureSection.SCHEDULE_PLANNING,
+            icon = Icons.Default.Bolt,
+            destination = FeatureDestination.Tab(MainTab.HOME),
+            newInVersion = "2.2",
+            dashboardLabel = "Battle Plan",
+        ),
         // Core tabs
         FeatureItem(
             id = "home",

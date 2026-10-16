@@ -150,6 +150,19 @@ fun HomeScreen(
                 }
             }
 
+            if (state.battlePlan.headline.isNotBlank()) {
+                item {
+                    BattlePlanCard(
+                        plan = state.battlePlan,
+                        onOpenSchedule = { onNavigateToTab(MainTab.SCHEDULE) },
+                        onOpenPlanner = { onNavigateToTab(MainTab.PLANNER) },
+                        onOpenReview = { onNavigateToRoute(Routes.JEVI_REVIEW) },
+                        onOpenFocus = onNavigateFocus,
+                        modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 4.dp),
+                    )
+                }
+            }
+
             item {
                 HomeWeekStrip(
                     weekDays = state.weekDays,

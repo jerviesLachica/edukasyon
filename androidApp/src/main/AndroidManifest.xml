@@ -104,6 +104,11 @@
             android:name=".core.notifications.NotificationDismissReceiver"
             android:exported="false" />
 
+        <!-- Exact-alarm reminder target; WorkManager stays as the durable fallback. -->
+        <receiver
+            android:name=".core.notifications.ReminderAlarmReceiver"
+            android:exported="false" />
+
         <!-- V2 restoration receiver (own entry, same system broadcasts). -->
         <receiver
             android:name=".widget.lifecycle.WidgetV2BootReceiver"

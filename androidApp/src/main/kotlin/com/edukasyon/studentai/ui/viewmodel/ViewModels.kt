@@ -68,6 +68,7 @@ data class HomeUiState(
     val isOnline: Boolean = true,
     val showNotificationDot: Boolean = false,
     val academicOverview: AcademicOverview = AcademicOverview(),
+    val battlePlan: BattlePlan = BattlePlan(),
 )
 
 @HiltViewModel
@@ -79,6 +80,7 @@ class HomeViewModel @Inject constructor(
     private val subjectRepo: SubjectRepository,
     private val gradeRepo: GradeRepository,
     private val observeExamReadinessMap: ObserveExamReadinessMapUseCase,
+    private val battlePlan: GetTodaysBattlePlanUseCase,
     private val connectivity: com.edukasyon.studentai.core.network.ConnectivityMonitor
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -129,7 +131,7 @@ class HomeViewModel @Inject constructor(
                         allExams = academicData.third,
                     )
                 }
-                combine(dashboardFlow, _selectedDay, observeExamReadinessMap()) { snapshot, selectedDay, readinessMap ->
+                combine(dashboardFlow, _selectedDay, observeExamReadinessMap(), battlePlan.observe()) { snapshot, selectedDay, readinessMap, plan ->
                     val today = DateUtils.getTodayDayOfWeek()
                     val todaySchedule = snapshot.allSchedule
                         .filter { it.dayOfWeek == today }
@@ -168,6 +170,7 @@ class HomeViewModel @Inject constructor(
                         isOnline = snapshot.online,
                         showNotificationDot = snapshot.tasks.isNotEmpty() || snapshot.exams.isNotEmpty(),
                         academicOverview = academicOverview,
+                        battlePlan = plan,
                     )
                 }.collect { _uiState.value = it }
             } catch (_: Exception) {
@@ -903,6 +906,8 @@ data class AiUiState(
     val toolsPdf: ToolsPdfState? = null,
     val selectedChatModel: AiModel = AiModel.AUTO,
     val thinkingLevel: ThinkingLevel = ThinkingLevel.LOW,
+    // Pedagogical tutor mode for chat: EXPLAIN (default), QUIZ_ME, SOCRATIC.
+    val tutorMode: com.edukasyon.studentai.core.ai.TutorMode = com.edukasyon.studentai.core.ai.TutorMode.EXPLAIN,
     val sources: List<CitedSource> = emptyList(),
     val selectedSourceIds: Set<String>? = null,
     val viewerChunks: List<RankedChunk> = emptyList(),
@@ -1002,6 +1007,11 @@ class AiViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            preferences.tutorMode.collect { mode ->
+                _uiState.update { it.copy(tutorMode = mode) }
+            }
+        }
+        viewModelScope.launch {
             sourceRepository.observeSources().collect { list ->
                 _uiState.update { st ->
                     val valid = st.selectedSourceIds?.intersect(list.map { it.id }.toSet())
@@ -1055,6 +1065,12 @@ class AiViewModel @Inject constructor(
         }
     }
 
+    fun setTutorMode(mode: com.edukasyon.studentai.core.ai.TutorMode) {
+        viewModelScope.launch {
+            preferences.setTutorMode(mode)
+        }
+    }
+
     fun toggleSource(id: String) {
         val current = _uiState.value.selectedSourceIds
         val all = _uiState.value.sources.map { it.id }.toSet()
@@ -1073,9 +1089,24 @@ class AiViewModel @Inject constructor(
         }
     }
 
+    fun selectAllSources(selectAll: Boolean) {
+        val next = if (selectAll) _uiState.value.sources.map { it.id }.toSet() else emptySet()
+        _uiState.update { it.copy(selectedSourceIds = next) }
+    }
+
     fun deleteSource(id: String) {
         viewModelScope.launch {
             runCatching { sourceRepository.deleteSource(id) }
+        }
+    }
+
+    fun deleteSources(ids: Set<String>) {
+        viewModelScope.launch {
+            ids.forEach { runCatching { sourceRepository.deleteSource(it) } }
+            _uiState.update {
+                val rem = (it.selectedSourceIds ?: emptySet()) - ids
+                it.copy(selectedSourceIds = rem)
+            }
         }
     }
 
@@ -1687,6 +1718,7 @@ class AiViewModel @Inject constructor(
                         effort = effort,
                         sources = groundedSources,
                         deckMode = deckMode,
+                        tutorMode = _uiState.value.tutorMode,
                     )
                 )
                 val reply = response.reply.trim().replace("\\n", "\n").replace("\\r", "\r")

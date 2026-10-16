@@ -97,10 +97,10 @@ private fun rememberPillTabColors(): PillTabColors {
             )
         } else {
             PillTabColors(
-                container = Color(0xFFE8EAEE), // Sleek gray container behind logos in light mode
+                container = scheme.surfaceContainerHigh,
                 glider = scheme.primaryContainer.copy(alpha = 0.55f),
                 selectedContent = scheme.primary,
-                unselectedContent = Color(0xFF1A1A1A),
+                unselectedContent = scheme.onSurface,
                 badgeDefault = scheme.primaryContainer.copy(alpha = 0.55f),
                 badgeSelected = scheme.primary,
                 badgeText = scheme.onPrimary,

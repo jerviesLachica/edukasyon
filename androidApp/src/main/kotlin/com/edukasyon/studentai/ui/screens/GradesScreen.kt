@@ -200,6 +200,13 @@ fun GradesScreen(viewModel: GradesViewModel = hiltViewModel()) {
                     }
                 }
             } else {
+                    item { SectionHeader("WHAT-IF") }
+                    item {
+                        GpaWhatIfCard(
+                            entries = filteredEntries,
+                            modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 6.dp),
+                        )
+                    }
                     item { SectionHeader("BY SUBJECT") }
                     // Rows of N cards chunked from the subject list — heights come
                     // from the tallest card in each row (no estimates), so subjects
@@ -644,9 +651,9 @@ private fun buildSubjectGroups(
 private fun gradeColorForPercent(percent: Double): Color {
     val scheme = MaterialTheme.colorScheme
     return when {
-        percent >= 90 -> Color(0xFF2E7D32)
+        percent >= 90 -> scheme.tertiary
         percent >= 75 -> scheme.primary
-        percent >= 60 -> Color(0xFFF57C00)
+        percent >= 60 -> scheme.secondary
         else -> scheme.error
     }
 }

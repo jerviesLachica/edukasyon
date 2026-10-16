@@ -185,7 +185,7 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE deletedAt IS NULL ORDER BY isPinned DESC, updatedAt DESC")
     fun observeAll(): Flow<List<NoteEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insert(note: NoteEntity)
 
     @Query("UPDATE notes SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE id = :id")
@@ -209,7 +209,7 @@ interface NoteTagDao {
     @Query("SELECT * FROM note_tags WHERE noteId = :noteId")
     fun observeByNote(noteId: String): Flow<List<NoteTagEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insert(tag: NoteTagEntity)
 
     @Query("DELETE FROM note_tags WHERE noteId = :noteId")

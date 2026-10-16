@@ -465,11 +465,17 @@ async function handleChat({ body, provider: ai, webSearch: searchService, maxTok
     historyMessages,
     messages: clientMessagesAlias,
     deckMode: clientDeckMode,
+    tutorMode: requestedTutorMode,
   } = body;
   // Deck-local tutor: answers come from deck cards only — never trigger
   // automatic web research and never pad citations with web results.
   // (An explicit /search command still works: deliberate per-message opt-in.)
   const deckMode = clientDeckMode === true;
+  // Pedagogical tutor mode from the app: explain (default), quiz_me, socratic.
+  // Whitelisted against the values PromptBuilder appends instructions for.
+  const tutorMode = ['explain', 'quiz_me', 'socratic'].includes(requestedTutorMode)
+    ? requestedTutorMode
+    : null;
 
   const webSearchRequest = parseWebSearchCommand(message);
   if (webSearchRequest.requested && !searchService.isConfigured) {
@@ -502,6 +508,7 @@ async function handleChat({ body, provider: ai, webSearch: searchService, maxTok
     clientSystemPrompt: clientSystemPrompt || clientSystemAlias,
     hasVisionAttachment,
     hasTextAttachment: Boolean(attachmentText),
+    tutorMode,
   });
 
   let userContent = buildChatUserContent({
