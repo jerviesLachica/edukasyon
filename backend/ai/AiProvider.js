@@ -35,10 +35,11 @@ const DEFAULT_VISION_MODEL = 'nemotron-3.5-lightning-free';
 const ORCA_VISION_MODEL = process.env.ORCA_MODEL || 'z-ai/glm-5.3-flash-free';
 
 const LEGACY_VISION_ALIASES = {
-  'agnes-2.5-flash': 'step-3.7-flash',
+  'agnes-2.5-flash': 'MiniCPM-V-4.7-35B-A3B',
+  'step-3.7-flash': 'DeepSeek-V4-Flash',
 };
 
-const FAST_TEXT_MODEL = process.env.FAST_TEXT_MODEL || 'stepaudio-2.5-chat';
+const FAST_TEXT_MODEL = process.env.FAST_TEXT_MODEL || 'DeepSeek-V4-Flash';
 
 function normalizeModelSlug(slug) {
   if (typeof slug !== 'string') return slug;
@@ -558,10 +559,21 @@ function createAiProvider(config = {}) {
       const chain = [];
       const primary = thinking ? 'auto' : (model || (isVision ? VISION_MODEL : TEXT_MODEL));
 
-      // Thinking always routes to hcnsec textFallback (glm-4.5-air / step-3.7-flash)
+      // Thinking routes to hcnsec textFallback (DeepSeek-V4-Flash)
+      // and fails over to Groq, Gemini, OpenRouter so outages never drop users to mock offline fallback
       if (thinking) {
         const wire = toWireModelSlug('auto', { isVision: false });
-        return [{ model: wire, provider: 'hcnsec' }];
+        chain.push({ model: wire, provider: 'hcnsec' });
+        if (GROQ_API_KEY) {
+          chain.push({ model: GROQ_TEXT_MODEL, provider: 'groq' });
+        }
+        if (GEMINI_API_KEY) {
+          chain.push({ model: GEMINI_TEXT_MODEL, provider: 'gemini' });
+        }
+        if (OPENROUTER_API_KEY) {
+          chain.push({ model: OPENROUTER_TEXT_MODEL, provider: 'openrouter' });
+        }
+        return chain;
       }
 
       // Vision requests follow vision hierarchy: Zen vision -> Gemini -> Orca -> Groq -> hcnsec

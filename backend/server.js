@@ -131,7 +131,7 @@ const scanProviderConfig = require('./config/ScanProviderConfig');
 // (503 model_not_found, verified 2026-09-04) — `auto` routes to a working
 // vision channel, so it is the scan default. Explicit slugs are wire-mapped
 // to `auto` in AiProvider regardless of this default.
-const SCAN_VISION_MODEL_DEFAULT = 'step-3.7-flash';
+const SCAN_VISION_MODEL_DEFAULT = 'MiniCPM-V-4.7-35B-A3B';
 const SCAN_BASE_URL_DEFAULT = 'https://api.hcnsec.cn/v1';
 
 async function resolveScanProvider() {
