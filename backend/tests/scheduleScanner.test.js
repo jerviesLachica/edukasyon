@@ -184,4 +184,54 @@ describe('Schedule Scanner Fast Path', () => {
     assert.equal(app.__isUsefulDedicatedScanProvider({ baseUrl: 'https://api.hcnsec.cn/v1' }), false);
     assert.equal(app.__isUsefulDedicatedScanProvider({ baseUrl: 'https://integrate.api.nvidia.com/v1' }), true);
   });
+
+  it('accepts completed inline scans and keeps Vercel scans inside the request', async () => {
+    const result = {
+      status: 'done',
+      classes: [{ subject: 'Math', teacher: null, room: null, day: 'MONDAY', startTime: '08:00', endTime: '09:00' }],
+      uncertainFields: [],
+    };
+    assert.deepEqual(app.__validateScheduleScanOutput(result), { valid: true, data: result });
+    assert.equal(app.__validateScheduleScanOutput({ status: 'done' }).valid, false);
+
+    const originalVercel = process.env.VERCEL;
+    const originalHandler = app.handleScheduleAnalysis;
+    process.env.VERCEL = '1';
+    app.handleScheduleAnalysis = async () => ({ classes: result.classes, uncertainFields: [] });
+    try {
+      assert.deepEqual(
+        await app.__handleScheduleScanRequest({ body: { imageBase64: 'test-image' }, provider: {}, maxTokens: 100 }),
+        result,
+      );
+    } finally {
+      app.handleScheduleAnalysis = originalHandler;
+      if (originalVercel === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = originalVercel;
+    }
+  });
+
+  it('records a sanitized terminal error for failed async jobs', async () => {
+    const originalVercel = process.env.VERCEL;
+    const originalHandler = app.handleScheduleAnalysis;
+    delete process.env.VERCEL;
+    try {
+      const provider = {
+        resolveVisionModel: () => 'test-vision-model',
+        chatCompletion: async () => { throw new Error('AI provider groq timeout after 28000ms'); },
+      };
+      const started = await app.__handleScheduleScanRequest({ body: { imageBase64: 'test-image' }, provider, maxTokens: 100 });
+      for (let i = 0; i < 10 && app.__scheduleScanJobs.get(started.jobId)?.status === 'processing'; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      const job = app.__scheduleScanJobs.get(started.jobId);
+      assert.equal(job.status, 'error');
+      assert.match(job.error, /timed out/i);
+      assert.equal(job.errorIsSafe, true);
+      app.__scheduleScanJobs.delete(started.jobId);
+    } finally {
+      app.handleScheduleAnalysis = originalHandler;
+      if (originalVercel === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = originalVercel;
+    }
+  });
 });

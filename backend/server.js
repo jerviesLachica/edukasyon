@@ -905,7 +905,8 @@ function startScheduleScanJob({ body, provider: fallbackProvider, maxTokens }) {
       scheduleScanJobs.set(jobId, {
         ...scheduleScanJobs.get(jobId),
         status: 'error',
-        error: message,
+        error: safe.message,
+        errorIsSafe: true,
         createdAt: Date.now(),
       });
     })
@@ -944,9 +945,18 @@ async function runInlineScheduleScan({ body, provider: fallbackProvider, maxToke
 }
 
 function handleScheduleScanRequest(options) {
-  return options.body?.responseMode === 'inline'
+  // Vercel does not share in-memory jobs across serverless instances.
+  return process.env.VERCEL === '1' || options.body?.responseMode === 'inline'
     ? runInlineScheduleScan(options)
     : startScheduleScanJob(options);
+}
+
+function validateScheduleScanOutput(result) {
+  if (result && typeof result.jobId === 'string') return { valid: true, data: result };
+  if (result?.status === 'done' && Array.isArray(result.classes) && Array.isArray(result.uncertainFields)) {
+    return { valid: true, data: result };
+  }
+  return { valid: false, error: 'Missing scan result' };
 }
 
 async function handleEmbed({ body, signal }) {
@@ -1530,10 +1540,7 @@ app.post('/api/ai/schedule-analysis', (req, res) =>
       return { ok: true };
     },
     handler: handleScheduleScanRequest,
-    validateOutput: (result) =>
-      result && typeof result.jobId === 'string'
-        ? { valid: true, data: result }
-        : { valid: false, error: 'Missing jobId' },
+    validateOutput: validateScheduleScanOutput,
   })
 );
 
@@ -2012,6 +2019,7 @@ app.__scheduleScanTimeouts = Object.freeze({
   dedicatedVisionMs: SCAN_DEDICATED_VISION_TIMEOUT_MS,
   fallbackVisionMs: SCAN_FALLBACK_VISION_TIMEOUT_MS,
 });
+app.__validateScheduleScanOutput = validateScheduleScanOutput;
 app.__isUsefulDedicatedScanProvider = isUsefulDedicatedScanProvider;
 app.app = app;
 
