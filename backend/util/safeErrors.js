@@ -63,4 +63,30 @@ function sanitizeErrorForClient(err) {
   return { status: 502, code: 'AI_ERROR', message: 'AI request failed. Please try again.' };
 }
 
-module.exports = { sanitizeErrorForClient, containsSecret };
+// Application-authored scan-job messages that are safe to show to a polling
+// client. Everything else (provider bodies, upstream URLs, keys) is mapped by
+// sanitizeErrorForClient before it can leave the process.
+const SAFE_SCAN_JOB_ERRORS = [
+  /^The schedule scan timed out\. Try again later; if it keeps happening, contact support\.$/,
+  /^Scan failed on the server\.$/,
+  /^Scan result invalid: /,
+  /^AI returned no parsable JSON$/,
+  /^imageBase64 is required$/,
+];
+
+function sanitizeScanJobError(err) {
+  if (err && err.name === 'AbortError') {
+    return { code: 'REQUEST_TIMEOUT', message: 'The schedule scan timed out. Try again later; if it keeps happening, contact support.' };
+  }
+  const raw = String((err && err.message) || err || '');
+  if (/timeout|timed out/i.test(raw)) {
+    return { code: 'REQUEST_TIMEOUT', message: 'The schedule scan timed out. Try again later; if it keeps happening, contact support.' };
+  }
+  if (!raw) return { code: 'SCAN_FAILED', message: 'Scan failed on the server.' };
+  if (SAFE_SCAN_JOB_ERRORS.some((re) => re.test(raw))) {
+    return { code: 'SCAN_FAILED', message: raw };
+  }
+  return sanitizeErrorForClient(err);
+}
+
+module.exports = { sanitizeErrorForClient, sanitizeScanJobError, containsSecret };

@@ -35,6 +35,7 @@ const {
 } = require('./ai/PromptBuilder');
 const { generateSmartStudyFallback } = require('./ai/SmartStudyFallback');
 const { loadSafetyPolicy } = require('./safety/SafetyPolicy');
+const { sanitizeScanJobError } = require('./util/safeErrors');
 const { AuthenticationService } = require('./auth/AuthenticationService');
 const { RateLimiter } = require('./abuse/RateLimiter');
 const { QuotaService } = require('./abuse/QuotaService');
@@ -127,12 +128,23 @@ const usageTracker = gateway.usageTracker;
 // Firestore → null (fall back to the default provider). Base URL and model
 // have safe defaults.
 const scanProviderConfig = require('./config/ScanProviderConfig');
-// hcnsec.cn distributor has no channel for the explicit agnes slug
-// (503 model_not_found, verified 2026-09-04) — `auto` routes to a working
-// vision channel, so it is the scan default. Explicit slugs are wire-mapped
-// to `auto` in AiProvider regardless of this default.
-const SCAN_VISION_MODEL_DEFAULT = 'MiniCPM-V-4.7-35B-A3B';
-const SCAN_BASE_URL_DEFAULT = 'https://api.hcnsec.cn/v1';
+const SCAN_VISION_MODEL_DEFAULT = 'meta/llama-3.2-11b-vision-instruct';
+const SCAN_BASE_URL_DEFAULT = 'https://integrate.api.nvidia.com/v1';
+// Keep a dedicated first attempt short so the configured fallback provider has
+// time to finish inside the 50s inline request budget.
+const SCAN_DEDICATED_VISION_TIMEOUT_MS = 12_000;
+const SCAN_FALLBACK_VISION_TIMEOUT_MS = 28_000;
+
+function isUsefulDedicatedScanProvider(scan) {
+  if (!scan?.baseUrl) return true;
+  try {
+    // The normal fallback chain already covers HCNSEC and can fail over to
+    // faster configured vision providers; pinning it here blocks that chain.
+    return !/(^|\.)hcnsec\.cn$/i.test(new URL(scan.baseUrl).hostname);
+  } catch (_) {
+    return true;
+  }
+}
 
 async function resolveScanProvider() {
   if (process.env.SCAN_AI_API_KEY || process.env.SCAN_AI_BASE_URL) {
@@ -140,7 +152,9 @@ async function resolveScanProvider() {
       provider: createAiProvider({
         baseUrl: process.env.SCAN_AI_BASE_URL || SCAN_BASE_URL_DEFAULT,
         apiKey: process.env.SCAN_AI_API_KEY || process.env.AI_API_KEY,
+        visionTimeoutMs: SCAN_DEDICATED_VISION_TIMEOUT_MS,
       }),
+      baseUrl: process.env.SCAN_AI_BASE_URL || SCAN_BASE_URL_DEFAULT,
       model: process.env.SCAN_VISION_MODEL || SCAN_VISION_MODEL_DEFAULT,
     };
   }
@@ -150,7 +164,9 @@ async function resolveScanProvider() {
       provider: createAiProvider({
         baseUrl: remote.baseUrl || SCAN_BASE_URL_DEFAULT,
         apiKey: remote.apiKey,
+        visionTimeoutMs: SCAN_DEDICATED_VISION_TIMEOUT_MS,
       }),
+      baseUrl: remote.baseUrl || SCAN_BASE_URL_DEFAULT,
       model: remote.model || SCAN_VISION_MODEL_DEFAULT,
     };
   }
@@ -716,10 +732,16 @@ ${numbered}`;
   };
 }
 
-async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTokens, signal }) {
+async function handleScheduleAnalysis({
+  body,
+  provider: fallbackProvider,
+  maxTokens,
+  signal,
+  scanProviderOverride,
+}) {
   // Prefer the dedicated scan provider (NVIDIA NIM) when configured.
-  const scan = await resolveScanProvider();
-  const ai = scan ? scan.provider : fallbackProvider;
+  const configuredScan = scanProviderOverride === undefined ? await resolveScanProvider() : scanProviderOverride;
+  const scan = isUsefulDedicatedScanProvider(configuredScan) ? configuredScan : null;
   const { imageBase64, extractedText, model: requestedModel, systemPrompt: clientSystemPrompt } = body;
   if (clientSystemPrompt) {
     console.warn('[schedule-analysis] Ignoring client-supplied systemPrompt.');
@@ -729,7 +751,8 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
   // resolveVisionModel guards the hcnsec-facing slug; on the NIM scan lane the
   // configured SCAN_VISION_MODEL is authoritative (mirror PageNotesService) —
   // the NIM slug is not in this provider's VISION_CAPABLE_MODELS list.
-  const model = scan ? scan.model : ai.resolveVisionModel(requestedModel);
+  const fallbackModel = fallbackProvider.resolveVisionModel(requestedModel);
+  const scanModel = scan?.model;
   // Keep up to ~900 chars of OCR context — on-device OCR often catches day
   // columns and times the vision model misreads. Image stays source of truth.
   const ocrContext = extractedText?.trim() && extractedText.trim().length < 900
@@ -753,7 +776,7 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
   // {"classes":[],"uncertainFields":[...]} even for clearly-readable schedules
   // (verified 2026-09-05 against the live distributor). The scanner prompt
   // already demands raw JSON and extractJson() handles fenced/prose output.
-  async function runCompletion(wireModel) {
+  async function runCompletion(ai, model, wireModel) {
     return ai.chatCompletion(messages, {
       temperature: 0,
       maxTokens,
@@ -763,20 +786,22 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
       ...(wireModel ? { wireModelOverride: wireModel } : {}),
     });
   }
-  function parseCompletion(completion) {
+  function parseCompletion(ai, completion) {
+    let emptyResult = null;
     // Try reasoning first (models like agnes-2.5-flash put the full JSON there),
     // then content reply as fallback.
     for (const src of [completion.reasoning, completion.reply].filter(Boolean)) {
       try {
         const p = ai.extractJson(src);
-        if (p && Array.isArray(p.classes) && p.classes.length > 0) {
-          return { parsed: p, completion };
+        if (!p || !Array.isArray(p.classes)) continue;
+        const validated = scheduleValidator.validate(p);
+        if (validated.data.classes.length > 0) {
+          return { parsed: validated.data, completion };
         }
-        if (!p) continue;
-        return { parsed: p, completion }; // valid JSON, empty/odd shape
+        if (p.classes.length === 0 && emptyResult === null) emptyResult = validated.data;
       } catch (_e) { /* try next source */ }
     }
-    return { parsed: null, completion };
+    return { parsed: emptyResult, completion };
   }
 
   // With the dedicated scan lane (NIM) active, pin the wire model so the
@@ -785,9 +810,26 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
   // unconditionally (2-3k chars of reasoning_content) and adds 20-40s.
   // Wire format: NIM slug 'meta/llama-3.2-11b-vision-instruct' goes to the
   // scan provider as-is via wireModelOverride (see PageNotesService, same fix).
-  let { parsed, completion } = parseCompletion(
-    await runCompletion(scan ? model : null),
-  );
+  let parsed;
+  let completion;
+  try {
+    const ai = scan ? scan.provider : fallbackProvider;
+    const model = scan ? scanModel : fallbackModel;
+    ({ parsed, completion } = parseCompletion(
+      ai,
+      await runCompletion(ai, model, scan ? scanModel : null),
+    ));
+  } catch (err) {
+    if (!scan || signal?.aborted) throw err;
+    console.warn(`[schedule-analysis] Dedicated scan provider failed (${String(err.message || err).slice(0, 100)}); trying configured vision fallbacks.`);
+  }
+  if (scan && (!parsed || parsed.classes.length === 0) && !signal?.aborted) {
+    console.warn('[schedule-analysis] Dedicated scan provider returned no usable result; trying configured vision fallbacks.');
+    const fallbackCompletion = await runCompletion(fallbackProvider, fallbackModel, null);
+    const fallbackResult = parseCompletion(fallbackProvider, fallbackCompletion);
+    if (fallbackResult.parsed) parsed = fallbackResult.parsed;
+    completion = fallbackCompletion;
+  }
 
   if (!parsed) {
     const full = (completion.reply || completion.reasoning || '');
@@ -797,10 +839,7 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
   }
   // Log success with class count for observability
   console.log(`[schedule-analysis] OK: extracted ${parsed.classes.length} classes. Model: ${completion.model}, reasoning length: ${(completion.reasoning || '').length}, reply length: ${(completion.reply || '').length}`);
-  return {
-    classes: parsed.classes || [],
-    uncertainFields: parsed.uncertainFields || [],
-  };
+  return parsed;
 }
 
 // ---------------------------------------------------------------------------
@@ -812,14 +851,17 @@ async function handleScheduleAnalysis({ body, provider: fallbackProvider, maxTok
 const scheduleScanJobs = new Map();
 const SCHEDULE_SCAN_JOB_TTL_MS = 5 * 60_000;
 const SCHEDULE_SCAN_MAX_ACTIVE = 8;
+const SCHEDULE_SCAN_INLINE_TIMEOUT_MS = 50_000;
 // Matches the schedule-analysis endpoint's requestTimeoutMs policy: the
 // background work gets the same budget the synchronous route used to have.
-const SCHEDULE_SCAN_JOB_TIMEOUT_MS = 600_000;
+const SCHEDULE_SCAN_JOB_TIMEOUT_MS = 180_000;
 
 function pruneScanJobs() {
   const now = Date.now();
   for (const [id, job] of scheduleScanJobs) {
-    if (now - job.createdAt > SCHEDULE_SCAN_JOB_TTL_MS) scheduleScanJobs.delete(id);
+    if (job.status !== 'processing' && now - job.createdAt > SCHEDULE_SCAN_JOB_TTL_MS) {
+      scheduleScanJobs.delete(id);
+    }
   }
 }
 
@@ -858,9 +900,7 @@ function startScheduleScanJob({ body, provider: fallbackProvider, maxTokens }) {
       });
     })
     .catch((err) => {
-      const message = err?.name === 'AbortError'
-        ? 'The scan took too long on the server. Try again.'
-        : err.message || 'Scan failed on the server.';
+      const safe = sanitizeScanJobError(err);
       console.error(`[schedule-analysis] job ${jobId} failed:`, String(err.message || err).slice(0, 200));
       scheduleScanJobs.set(jobId, {
         ...scheduleScanJobs.get(jobId),
@@ -871,6 +911,42 @@ function startScheduleScanJob({ body, provider: fallbackProvider, maxTokens }) {
     })
     .finally(() => clearTimeout(timeout));
   return { jobId, status: 'processing' };
+}
+
+async function runInlineScheduleScan({ body, provider: fallbackProvider, maxTokens, signal, timeoutMs = SCHEDULE_SCAN_INLINE_TIMEOUT_MS }) {
+  const controller = new AbortController();
+  let rejectDeadline;
+  const deadline = new Promise((_, reject) => { rejectDeadline = reject; });
+  const timeout = setTimeout(() => {
+    controller.abort();
+    const error = new Error('Schedule scan timed out');
+    error.name = 'AbortError';
+    rejectDeadline(error);
+  }, timeoutMs);
+  const abortParent = () => controller.abort(signal.reason);
+  if (signal?.aborted) abortParent();
+  else signal?.addEventListener('abort', abortParent, { once: true });
+
+  try {
+    const result = await Promise.race([app.handleScheduleAnalysis({
+      body,
+      provider: fallbackProvider,
+      maxTokens,
+      signal: controller.signal,
+    }), deadline]);
+    const check = scheduleValidator.validate(result);
+    if (!check.valid) throw new Error(`Scan result invalid: ${check.error}`);
+    return { status: 'done', ...check.data };
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', abortParent);
+  }
+}
+
+function handleScheduleScanRequest(options) {
+  return options.body?.responseMode === 'inline'
+    ? runInlineScheduleScan(options)
+    : startScheduleScanJob(options);
 }
 
 async function handleEmbed({ body, signal }) {
@@ -1453,12 +1529,7 @@ app.post('/api/ai/schedule-analysis', (req, res) =>
       }
       return { ok: true };
     },
-    // Starts a background job and returns { jobId } instantly (Render's proxy
-    // caps requests at ~100s; the vision scan needs longer). The real result
-    // is validated when the job finishes, not here. NOTE: validateOutput must
-    // hand the response back via `data` — the gateway returns validated.data,
-    // so a bare {valid:true} would replace the response with undefined.
-    handler: startScheduleScanJob,
+    handler: handleScheduleScanRequest,
     validateOutput: (result) =>
       result && typeof result.jobId === 'string'
         ? { valid: true, data: result }
@@ -1480,7 +1551,10 @@ app.get('/api/ai/schedule-analysis/:jobId', (req, res) => {
     return res.json({ status: 'done', ...job.result });
   }
   if (job.status === 'error') {
-    return res.status(200).json({ status: 'error', error: job.error, classes: [] });
+    // Polls are unauthenticated, so never echo a raw provider message here.
+    // Older jobs (or a future write path) may not carry errorIsSafe; map them.
+    const message = job.errorIsSafe ? job.error : sanitizeScanJobError(job.error).message;
+    return res.status(200).json({ status: 'error', error: message, classes: [] });
   }
   res.json({ status: 'processing' });
 });
@@ -1928,7 +2002,17 @@ if (require.main === module) {
 app.handleChat = handleChat;
 app.handleFlashcards = handleFlashcards;
 app.handleQuiz = handleQuiz;
+app.handleScheduleAnalysis = handleScheduleAnalysis;
 app.isLearningTopic = isLearningTopic;
+// Test seam: lets route tests seed job states without mocking the vision provider.
+app.__scheduleScanJobs = scheduleScanJobs;
+app.__handleScheduleScanRequest = handleScheduleScanRequest;
+app.__scheduleScanTimeouts = Object.freeze({
+  inlineMs: SCHEDULE_SCAN_INLINE_TIMEOUT_MS,
+  dedicatedVisionMs: SCAN_DEDICATED_VISION_TIMEOUT_MS,
+  fallbackVisionMs: SCAN_FALLBACK_VISION_TIMEOUT_MS,
+});
+app.__isUsefulDedicatedScanProvider = isUsefulDedicatedScanProvider;
 app.app = app;
 
 module.exports = app;

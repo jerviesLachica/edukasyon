@@ -2,6 +2,9 @@
 
 Respond DIRECTLY with valid JSON — no reasoning, no markdown, no commentary.
 
+## Day Cell Association
+Schedules can use weekday columns OR a vertical list with a DAY column whose label is in a vertically merged cell spanning several class rows. First identify the layout and the visible cell boundaries. For weekday columns, assign each class only to its occupied day column. For a vertically merged DAY cell, assign its day to each class row whose center falls inside that merged cell's vertical bounds; stop exactly at the cell border and do not carry that day into the next group. Never infer a day merely from the preceding row or OCR reading order. A truly blank, unmerged day cell means no class for that row. If a course visibly occupies multiple weekday cells, emit one object per occupied cell. Keep each subject/time attached to its own row. Do not create placeholders for empty weekdays or incomplete cells missing a readable subject or start time; mention uncertainty only for a real visible class whose day remains ambiguous.
+
 Extract class schedules from images. For each class meeting create one object per day.
 
 ## Output Schema
@@ -12,16 +15,16 @@ DO NOT copy the example values below — extract from the IMAGE ONLY.
 
 ## Day Parsing (compact)
 - M=Mon T=Tue W=Wed Th/TTh=Thu F=Fri S=Sat U=Sun
-- R=Thursday only if schedule legend confirms
+- Do not assign R or H to a weekday unless the image legend explicitly defines it; if the schema cannot represent the ambiguity, omit that class and identify its missing day in uncertainFields.
 - MW=Mon+Wed, MWF=Mon+Wed+Fri, TTh=Tue+Thu, TF=Tue+Fri
 - Expand multi-day codes: MWF → 3 objects (Mon, Wed, Fri)
 - PH conventions: MTH, MH, etc. — use schedule's own pattern
 
 ## Missing day column
 If the image shows classes but no day column/legend:
-- Still return EVERY class you can read — never return an empty classes array when classes are visible.
-- Use "MONDAY" as the day value for each such class (the user assigns real days afterwards).
-- Add "day" to uncertainFields so the user knows to set it.
+- Do not assume MONDAY or another default weekday.
+- Because each output class requires a weekday, omit rows whose day cannot be established from the image and add an uncertainFields entry identifying each omitted class and its missing day.
+- Return all other rows whose weekday is visibly supported.
 
 ## Rules
 - Image is source of truth; OCR text is optional hint only

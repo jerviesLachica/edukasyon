@@ -88,7 +88,6 @@ class ScheduleValidator {
       T: 'TUESDAY', TU: 'TUESDAY', TUE: 'TUESDAY', TUES: 'TUESDAY', TUESDAY: 'TUESDAY',
       W: 'WEDNESDAY', WED: 'WEDNESDAY', WEDNESDAY: 'WEDNESDAY',
       TH: 'THURSDAY', THU: 'THURSDAY', THUR: 'THURSDAY', THURS: 'THURSDAY', THURSDAY: 'THURSDAY',
-      R: 'THURSDAY', H: 'THURSDAY',
       F: 'FRIDAY', FRI: 'FRIDAY', FRIDAY: 'FRIDAY',
       S: 'SATURDAY', SAT: 'SATURDAY', SATURDAY: 'SATURDAY',
       U: 'SUNDAY', SU: 'SUNDAY', SUN: 'SUNDAY', SUNDAY: 'SUNDAY',
@@ -133,7 +132,10 @@ class ScheduleValidator {
       if (!c || !isNonEmptyString(c.subject)) return;
       const rawDay = String(c.day || c.dayOfWeek || '').trim().toUpperCase();
       const day = DAY_ALIASES[rawDay];
-      if (!day) return;
+      if (!day) {
+        uncertainFields.push(`Day for ${c.subject.trim().slice(0, 80)} is missing or ambiguous; class omitted.`);
+        return;
+      }
 
       const startTime = normalizeTime(c.startTime);
       if (!startTime) return; // Without any parseable start time the entry is unusable.

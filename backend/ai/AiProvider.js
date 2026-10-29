@@ -90,6 +90,9 @@ function envModel(name, fallback) {
 }
 
 function createAiProvider(config = {}) {
+  const visionTimeoutMs = Number.isFinite(config.visionTimeoutMs) && config.visionTimeoutMs > 0
+    ? Math.min(Math.floor(config.visionTimeoutMs), 28000)
+    : 28000;
   const AI_BASE_URL = (
     config.baseUrl ||
     process.env.AI_BASE_URL ||
@@ -499,7 +502,7 @@ function createAiProvider(config = {}) {
     const key = apiKey || AI_API_KEY;
 
     // Fast failover timeout: 15s for text, 28s for vision
-    const timeoutMs = isVision ? 28000 : 15000;
+    const timeoutMs = isVision ? visionTimeoutMs : 15000;
     const controller = new AbortController();
     let timeoutFired = false;
     const timer = setTimeout(() => {
@@ -581,6 +584,7 @@ function createAiProvider(config = {}) {
         if (ZEN_API_KEY && ZEN_ENABLED) {
           chain.push({ model: ZEN_VISION_MODEL, provider: 'zen' });
         }
+        const visionProviders = new Set(chain.map((candidate) => candidate.provider));
         for (const candidate of modelFallbackChain(primary, { isVision: true })) {
           let provider = 'hcnsec';
           let wire = candidate;
@@ -593,12 +597,14 @@ function createAiProvider(config = {}) {
           } else {
             wire = toWireModelSlug(candidate, { isVision: true });
           }
-          if (wire && !chain.find((c) => c.provider === provider && c.model === wire)) {
+          if (wire && !visionProviders.has(provider)) {
             chain.push({ model: wire, provider });
+            visionProviders.add(provider);
           }
         }
-        if (GROQ_API_KEY && !chain.find((c) => c.provider === 'groq')) {
+        if (GROQ_API_KEY && !visionProviders.has('groq')) {
           chain.push({ model: GROQ_VISION_MODEL, provider: 'groq' });
+          visionProviders.add('groq');
         }
         return chain.length ? chain : [{ model: 'step-3.7-flash', provider: 'hcnsec' }];
       }
@@ -746,7 +752,19 @@ function createAiProvider(config = {}) {
     // Unwrap all fences, keep inner content (global)
     raw = raw.replace(/```(?:json)?\s*([\s\S]*?)```/gi, (_, inner) => inner.trim()).trim();
 
-    // If upstream returned escaped quotes, unescape them first
+    // Fast path: try the raw text first. It is the authoritative parse, and
+    // trying it first stops the lossy unescape below from winning on a payload
+    // that was already valid JSON.
+    try {
+      const direct = JSON.parse(raw);
+      if (Array.isArray(direct)) {
+        return { cards: direct, questions: direct, items: direct, rawArray: direct };
+      }
+      return direct;
+    } catch (_) {}
+
+    // Fallback: upstream double-escaped the quotes. Only reached when the raw
+    // text genuinely failed to parse.
     if (raw.includes('\\"')) {
       try {
         const cleaned = raw.replace(/\\"/g, '"');
@@ -755,15 +773,6 @@ function createAiProvider(config = {}) {
         return p;
       } catch (_) {}
     }
-
-    // Fast path: try direct parse
-    try {
-      const direct = JSON.parse(raw);
-      if (Array.isArray(direct)) {
-        return { cards: direct, questions: direct, items: direct, rawArray: direct };
-      }
-      return direct;
-    } catch (_) {}
 
     // Check if output is a JSON array wrapped in prose
     const firstBracket = raw.indexOf('[');

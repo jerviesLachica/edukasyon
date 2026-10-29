@@ -20,7 +20,7 @@ try {
   SCHEDULE_SCANNER_SYSTEM_PROMPT = fs.readFileSync(PROMPT_PATH, 'utf8').trim();
 } catch (e) {
   // Fallback to compact prompt if the file is missing (e.g. during tests)
-  SCHEDULE_SCANNER_SYSTEM_PROMPT = `Extract ALL schedule rows into JSON. Output ONLY raw JSON.\n{"classes":[{"subject":"Math","room":"TBA","day":"MONDAY","startTime":"09:00","endTime":"10:30"}],"uncertainFields":[]}\nMWF=Mon+Wed+Fri, TTh=Tue+Thu, MW=Mon+Wed. End missing? +1hr. None: {"classes":[],"uncertainFields":["all"]}`;
+  SCHEDULE_SCANNER_SYSTEM_PROMPT = `Extract schedule rows as JSON only. Map weekday columns or vertically merged DAY cells. A merged day applies only to class rows inside its visible bounds; never carry beyond its border or infer from adjacent rows. Missing or ambiguous day: never guess MONDAY; omit the class and identify it in uncertainFields. Omit incomplete cells without a subject or start time. Expand MWF/TTh/MW only when explicitly shown.\n{"classes":[{"subject":"Math","day":"MONDAY","startTime":"09:00","endTime":"10:30"}],"uncertainFields":[]}`;
 }
 
 const SCHEDULE_SCANNER_USER_MESSAGE = 'Scan this schedule image and extract JSON only.';

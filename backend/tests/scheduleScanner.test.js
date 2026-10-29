@@ -12,12 +12,14 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
 const fs = require('fs');
+const { ScheduleValidator } = require('../validation/AiResponseValidator');
 
 // Load modules under test
 const {
   SCHEDULE_SCANNER_SYSTEM_PROMPT,
   SCHEDULE_SCANNER_USER_MESSAGE,
 } = require('../prompts/schedule-scanner-system-prompt');
+const app = require('../server');
 
 describe('Schedule Scanner Fast Path', () => {
   describe('System prompt', () => {
@@ -76,6 +78,26 @@ describe('Schedule Scanner Fast Path', () => {
       const hasCorePatterns = corePatterns.every((p) => SCHEDULE_SCANNER_SYSTEM_PROMPT.includes(p));
       assert.ok(hasCorePatterns, 'Prompt must cover MWF, TTh, MW patterns');
     });
+
+    it('must assign multirow timetable entries by their own day cell', () => {
+      assert.match(SCHEDULE_SCANNER_SYSTEM_PROMPT, /each class row whose center falls inside/i);
+      assert.match(SCHEDULE_SCANNER_SYSTEM_PROMPT, /truly blank, unmerged day cell means no class/i);
+      assert.match(SCHEDULE_SCANNER_SYSTEM_PROMPT, /never infer a day merely from the preceding row/i);
+    });
+
+    it('must map vertically merged DAY cells only across their visible row span', () => {
+      const prompt = fs.readFileSync(path.join(__dirname, '../prompts/schedule-scanner-prompt.txt'), 'utf8');
+      assert.match(prompt, /vertical(?:ly)? merged cell/i);
+      assert.match(prompt, /inside that merged cell.s vertical bounds/i);
+      assert.match(prompt, /stop exactly at the cell border/i);
+    });
+
+    it('must omit unsupported weekday guesses instead of defaulting to Monday', () => {
+      const prompt = fs.readFileSync(path.join(__dirname, '../prompts/schedule-scanner-prompt.txt'), 'utf8');
+      assert.match(prompt, /do not assume MONDAY/i);
+      assert.match(prompt, /omit rows whose day cannot be established/i);
+      assert.match(prompt, /identifying each omitted class and its missing day/i);
+    });
   });
 
   describe('handleScheduleAnalysis', () => {
@@ -89,5 +111,77 @@ describe('Schedule Scanner Fast Path', () => {
         'User message should reference schedule/image context'
       );
     });
+  });
+
+  describe('row/day normalization', () => {
+    it('preserves explicit weekday assignments and drops incomplete or blank cells', () => {
+      const validator = new ScheduleValidator();
+      const result = validator.validate({
+        classes: [
+          { subject: 'GE07', day: 'FRI', startTime: '09:00', endTime: '10:00' },
+          { subject: 'Biology', day: 'THU', startTime: '11:00', endTime: '12:00' },
+          { subject: 'Incomplete Sunday cell', day: 'SUN', startTime: null, endTime: null },
+          { subject: '', day: 'WED', startTime: '13:00', endTime: '14:00' },
+        ],
+      });
+
+      assert.deepEqual(result.data.classes.map(({ subject, day }) => [subject, day]), [
+        ['GE07', 'FRIDAY'],
+        ['Biology', 'THURSDAY'],
+      ]);
+    });
+
+    it('keeps a 14-row Thu/Fri schedule balanced at three classes per day', () => {
+      const rows = [
+        ['GE04', 'MON'], ['CHEM01', 'MON'], ['CAL01', 'MON'],
+        ['GE07', 'TUE'], ['GE-ELE02', 'TUE'], ['PE01', 'TUE'],
+        ['GE04', 'THU'], ['CHEM01', 'THU'], ['CAL01', 'THU'],
+        ['GE07', 'FRI'], ['CAD01', 'FRI'], ['GE-ELE02', 'FRI'],
+        ['GE01', 'SAT'], ['CHEM01L', 'SAT'],
+      ];
+      const classes = rows.map(([subject, day]) => ({ subject, day, startTime: '08:00', endTime: '09:00' }));
+      const result = new ScheduleValidator().validate({ classes });
+      const counts = result.data.classes.reduce((total, item) => {
+        total[item.day] = (total[item.day] || 0) + 1;
+        return total;
+      }, {});
+      assert.equal(result.data.classes.length, 14);
+      assert.equal(counts.THURSDAY, 3);
+      assert.equal(counts.FRIDAY, 3);
+      assert.deepEqual(
+        result.data.classes.filter(({ day }) => day === 'THURSDAY').map(({ subject }) => subject),
+        ['GE04', 'CHEM01', 'CAL01'],
+      );
+      assert.deepEqual(
+        result.data.classes.filter(({ day }) => day === 'FRIDAY').map(({ subject }) => subject),
+        ['GE07', 'CAD01', 'GE-ELE02'],
+      );
+    });
+
+    it('omits missing and bare R/H weekdays with uncertainty instead of assigning Thursday', () => {
+      const result = new ScheduleValidator().validate({
+        classes: [
+          { subject: 'R code', day: 'R', startTime: '09:00', endTime: '10:00' },
+          { subject: 'H code', day: 'H', startTime: '10:00', endTime: '11:00' },
+          { subject: 'No day', day: '', startTime: '11:00', endTime: '12:00' },
+          { subject: 'Legend resolves R', day: 'THURSDAY', startTime: '12:00', endTime: '13:00' },
+        ],
+      });
+
+      assert.deepEqual(result.data.classes.map(({ subject, day }) => [subject, day]), [
+        ['Legend resolves R', 'THURSDAY'],
+      ]);
+      assert.equal(result.data.uncertainFields.length, 3);
+      assert.match(result.data.uncertainFields[0], /R code.*ambiguous.*omitted/i);
+      assert.match(result.data.uncertainFields[1], /H code.*ambiguous.*omitted/i);
+      assert.match(result.data.uncertainFields[2], /No day.*missing.*omitted/i);
+    });
+  });
+
+  it('bounds the dedicated attempt so a complete fallback fits the inline budget', () => {
+    const budget = app.__scheduleScanTimeouts;
+    assert.ok(budget.dedicatedVisionMs + budget.fallbackVisionMs <= budget.inlineMs);
+    assert.equal(app.__isUsefulDedicatedScanProvider({ baseUrl: 'https://api.hcnsec.cn/v1' }), false);
+    assert.equal(app.__isUsefulDedicatedScanProvider({ baseUrl: 'https://integrate.api.nvidia.com/v1' }), true);
   });
 });
